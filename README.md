@@ -11,6 +11,7 @@ Bot de Discord multifunción escrito en **C#/.NET 10**. Incluye moderación, bie
 - 🎨 Roles de colores.
 - 🎧 Canales de voz temporales (*join-to-create*).
 - 📥 Descargas de vídeo/audio con `yt-dlp`.
+- 💬 Chatbot con Gemini, conversación compartida por servidor y respuestas automáticas a mensajes respondidos.
 
 ## 🧰 Stack
 
@@ -24,8 +25,10 @@ Bot de Discord multifunción escrito en **C#/.NET 10**. Incluye moderación, bie
 Requisitos: .NET 10, Java 17+, Lavalink, `ffmpeg` y `yt-dlp`.
 
 1. Copia `.env.example` a `.env` y añade `DISCORD_TOKEN`.
-2. Si quieres playlists/álbumes de Spotify, añade también `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET`.
-3. Arranca Lavalink y el bot:
+2. Añade `GEMINI_API_KEY` si quieres usar `/charlar` (clave gratuita desde [Google AI Studio](https://aistudio.google.com/app/apikey)).
+3. En Discord Developer Portal → Bot, activa **Message Content Intent** para que la IA pueda detectar respuestas a sus mensajes.
+4. Si quieres playlists/álbumes de Spotify, añade también `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET`.
+5. Arranca Lavalink y el bot:
 
 ```bash
 ./deploy/lavalink/run.sh

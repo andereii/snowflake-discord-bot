@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data;
+using Snowflake.Bot.Utilities;
 
 namespace Snowflake.Bot.Services;
 
@@ -25,6 +26,7 @@ public sealed class DiscordBotService : BackgroundService
     private readonly ColorService _color;
     private readonly VoiceHubService _voces;
     private readonly MusicWidgetService _musicWidget;
+    private readonly GeminiService _gemini;
     private readonly ILogger<DiscordBotService> _logger;
 
     public DiscordBotService(
@@ -36,6 +38,7 @@ public sealed class DiscordBotService : BackgroundService
         ColorService color,
         VoiceHubService voces,
         MusicWidgetService musicWidget,
+        GeminiService gemini,
         ILogger<DiscordBotService> logger)
     {
         _client = client;
@@ -45,6 +48,7 @@ public sealed class DiscordBotService : BackgroundService
         _color = color;
         _voces = voces;
         _musicWidget = musicWidget;
+        _gemini = gemini;
         _logger = logger;
 
         if (config.CurrentValue.TestGuildId == 0)
@@ -59,6 +63,7 @@ public sealed class DiscordBotService : BackgroundService
         _client.GuildMemberAdded += OnGuildMemberAdded;
         _client.VoiceStateUpdated += _voces.OnVoiceStateUpdatedAsync;
         _client.ComponentInteractionCreated += OnComponentInteractionCreated;
+        _client.MessageCreated += OnMessageCreated;
 
         // Los comandos se registran solo en el servidor de pruebas: aparecen al instante.
         // (El registro global puede tardar hasta 1 hora en propagarse.)
@@ -110,6 +115,96 @@ public sealed class DiscordBotService : BackgroundService
             await _color.HandleSelectAsync(e);
         else if (e.Id.StartsWith("snowflake_music_"))
             await _musicWidget.HandleButtonAsync(e);
+    }
+
+    /// <summary>
+    /// Responde automáticamente cuando un usuario responde a un mensaje que
+    /// Gemini generó con /charlar. Los mensajes del propio bot se ignoran para
+    /// evitar bucles de respuestas.
+    /// </summary>
+    private async Task OnMessageCreated(DiscordClient sender, MessageCreateEventArgs e)
+    {
+        if (e.Guild is null || e.Author.IsBot)
+            return;
+
+        var mensajeReferenciado = e.Message.ReferencedMessage;
+        if (mensajeReferenciado is null
+            || !_gemini.TryObtenerGuildDeMensajeGenerado(mensajeReferenciado.Id, out var guildId)
+            || guildId != e.Guild.Id)
+        {
+            return;
+        }
+
+        var texto = e.Message.Content?.Trim();
+        if (string.IsNullOrWhiteSpace(texto))
+            return;
+
+        DiscordMessage? mensajeBot = null;
+        try
+        {
+            // Enviamos algo inmediatamente para que el usuario vea que la
+            // solicitud fue recibida mientras Gemini genera la respuesta.
+            mensajeBot = await e.Message.RespondAsync(
+                new DiscordMessageBuilder().WithContent(_msg.Get("Chat:Pensando")));
+
+            var respuesta = await _gemini.PreguntarAsync(
+                guildId,
+                e.Author.Username,
+                texto);
+
+            var contenido = ChatResponseFormatter.Formatear(
+                respuesta);
+
+            await mensajeBot.ModifyAsync(new DiscordMessageBuilder().WithContent(contenido));
+            _gemini.RegistrarMensajeGenerado(mensajeBot.Id, guildId);
+        }
+        catch (GeminiBusyException ex)
+        {
+            _logger.LogInformation(
+                ex,
+                "Se rechazó una solicitud de chat por límite de concurrencia en {Guild}/{Channel}",
+                e.Guild.Id,
+                e.Channel.Id);
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get("Chat:Ocupado"));
+        }
+        catch (GeminiException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "No se pudo responder automáticamente en {Guild}/{Channel}",
+                e.Guild.Id,
+                e.Channel.Id);
+
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get("Chat:Error"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error procesando una respuesta automática en {Guild}/{Channel}",
+                e.Guild.Id,
+                e.Channel.Id);
+
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get("Chat:Error"));
+        }
+    }
+
+    private static async Task ModificarRespuestaChatAsync(
+        DiscordMessage? mensajeBot,
+        DiscordMessage mensajeUsuario,
+        string contenido)
+    {
+        try
+        {
+            if (mensajeBot is not null)
+                await mensajeBot.ModifyAsync(new DiscordMessageBuilder().WithContent(contenido));
+            else
+                await mensajeUsuario.RespondAsync(new DiscordMessageBuilder().WithContent(contenido));
+        }
+        catch
+        {
+            // El canal puede haber sido borrado o el bot no tener permiso.
+        }
     }
 
     /// <summary>

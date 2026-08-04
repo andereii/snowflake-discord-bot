@@ -22,6 +22,7 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 });
 
 builder.Services.Configure<BotConfiguration>(builder.Configuration.GetSection("Bot"));
+builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
 
 // Todos los textos del bot, editables sin tocar el código (recarga en caliente).
 builder.Configuration.AddJsonFile("messages.json", optional: false, reloadOnChange: true);
@@ -35,6 +36,13 @@ builder.Services.AddDbContextFactory<BotDbContext>(options =>
 builder.Services.AddHttpClient("Spotify", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
+});
+
+// Cliente HTTP usado por el chatbot de Gemini (la generación puede tardar varios segundos).
+builder.Services.AddHttpClient("Gemini", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(60);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
 });
 
@@ -56,6 +64,7 @@ builder.Services.AddSingleton<ColorService>();
 builder.Services.AddSingleton<VoiceHubService>();
 builder.Services.AddSingleton<MusicService>();
 builder.Services.AddSingleton<MusicWidgetService>();
+builder.Services.AddSingleton<GeminiService>();
 
 builder.Services.AddSingleton(sp =>
 {
@@ -74,7 +83,8 @@ builder.Services.AddSingleton(sp =>
                 | DiscordIntents.GuildMembers
                 | DiscordIntents.GuildBans
                 | DiscordIntents.GuildVoiceStates
-                | DiscordIntents.GuildMessages,
+                | DiscordIntents.GuildMessages
+                | DiscordIntents.MessageContents,
         LoggerFactory = sp.GetRequiredService<ILoggerFactory>()
     });
 });

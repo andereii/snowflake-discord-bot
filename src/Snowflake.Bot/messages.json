@@ -207,5 +207,20 @@
   "Config": {
     // {canal} = mención del canal
     "CanalLogsEstablecido": "✅ Canal de logs de moderación establecido en {canal}."
+  },
+
+  "Chat": {
+    "Pensando": "🧠 Estoy pensando...",
+    "Ocupado": "⏳ Ahora mismo hay otra conversación en curso en este servidor. Inténtalo de nuevo en unos segundos.",
+    // El chat no está configurado (falta GEMINI_API_KEY en el .env)
+    "SinApiKey": "❌ El chatbot no está configurado todavía. Falta la variable de entorno `GEMINI_API_KEY`.",
+    // Mensaje genérico de error (cuando Bot.Debug = false)
+    "Error": "❌ No pude contactar con Gemini en este momento. Inténtalo de nuevo.",
+    // {mensaje} = detalles del error (solo si Bot.Debug = true)
+    "ErrorDebug": "❌ Error de Gemini: {mensaje}",
+    // Historial compartido borrado con /charlar-limpiar
+    "Limpiado": "🧹 Conversación compartida del servidor reiniciada. Ya no recuerdo lo anterior.",
+    // /charlar-limpiar cuando no había conversación
+    "SinConversacion": "ℹ️ No hay una conversación activa en este servidor todavía. Usa `/charlar` para empezar."
   }
 }
