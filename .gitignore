@@ -1,0 +1,16 @@
+# Compilación
+bin/
+obj/
+
+# Secretos
+.env
+
+# Base de datos local (SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+# IDEs
+.vs/
+.idea/
+.vscode/

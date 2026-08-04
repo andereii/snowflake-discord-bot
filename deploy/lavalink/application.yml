@@ -1,0 +1,70 @@
+server:
+  port: 2333
+  address: 127.0.0.1
+
+lavalink:
+  plugins:
+    # Plugin que reemplaza el fuente YouTube nativo (roto) de Lavaplayer.
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
+      snapshot: false
+    # Spotify, Apple Music, Deezer, etc. Spotify reproduce por "mirroring"
+    # (resuelve ISRC/búsqueda en YouTube). No requiere clientId/secret salvo
+    # para usar spsearch:.
+    - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
+      snapshot: false
+  server:
+    password: "youshallnotpass"
+    sources:
+      youtube: false          # deshabilitado (roto). Lo sustituye el plugin de arriba.
+      soundcloud: true
+      bandcamp: true
+      twitch: true
+      vimeo: true
+      http: true
+      local: false
+
+# Configuración del plugin youtube-source
+plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - WEBEMBEDDED
+
+  # Configuración del plugin LavaSrc (spotify, etc.)
+  lavasrc:
+    # Proveedores usados para el "mirroring": resuelve por ISRC y luego por búsqueda en YouTube.
+    providers:
+      - "ytsearch:\"%ISRC%\""
+      - "ytsearch:%QUERY%"
+    sources:
+      spotify: true
+      applemusic: false
+      deezer: false
+      yandexmusic: false
+      flowerytts: false
+      youtube: false
+      vkmusic: false
+      tidal: false
+      qobuz: false
+      ytdlp: false
+      jiosaavn: false
+    spotify:
+      # Crea una aplicación en developer.spotify.com y define estas variables
+      # en .env para que LavaSrc pueda cargar playlists y álbumes.
+      clientId: "${SPOTIFY_CLIENT_ID:}"
+      clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
+      countryCode: "US"
+      playlistLoadLimit: 6
+      albumLoadLimit: 6
+      resolveArtistsInSearch: true
+
+logging:
+  level:
+    root: INFO
+    lavalink: INFO

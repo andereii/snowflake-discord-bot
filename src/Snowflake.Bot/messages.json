@@ -1,0 +1,211 @@
+{
+  // ==========================================================================
+  //  MENSAJES DEL BOT — edítalos a tu gusto, sin tocar el código.
+  //
+  //  · Los placeholders {llaves} se sustituyen en tiempo de ejecución.
+  //    Cada mensaje indica (en su uso en el código) qué placeholders admite.
+  //    Los más comunes: {usuario} {servidor} {motivo} {duracion} {caso}
+  //    {latencia} {canal} {bot} {accion} {moderador} {fecha} {tipo} {texto}
+  //  · Si borras una clave por accidente, el bot mostrará
+  //    "Mensaje no encontrado: <clave>" en su lugar.
+  //  · Los cambios en ESTE archivo (el de src/) se aplican al recompilar.
+  //    El messages.json copiado junto al ejecutable se recarga en caliente.
+  //  · OJO: los nombres y descripciones de los comandos (lo que ves al
+  //    escribir "/" en Discord) NO están aquí: Discord exige definirlos
+  //    en el código al registrarlos.
+  // ==========================================================================
+
+  "Ping": {
+    // {latencia}
+    "Respuesta": "🏓 Pong! Latencia con Discord: {latencia} ms"
+  },
+
+  "Errores": {
+    "SinPermisos": "🚫 No tienes permisos para usar este comando (o al bot le falta algún permiso).",
+    // Mensaje genérico (en producción, Bot.Debug = false)
+    "Interno": "❌ Ocurrió un error inesperado ejecutando el comando.",
+    // {mensaje} = mensaje de la excepción (solo si Bot.Debug = true)
+    "InternoDebug": "❌ Ocurrió un error: {mensaje}"
+  },
+
+  "Presentacion": {
+    // Mensaje que envía el bot al entrar por primera vez a un servidor.
+    // {bot} = nombre del bot · {servidor} = nombre del servidor
+    "Titulo": "¡Hola! Soy {bot} ❄️",
+    "Descripcion": "Gracias por añadirme a **{servidor}**. Soy un bot de moderación y utilidades, y estoy listo para ayudar.",
+    "RecomendacionesTitulo": "📌 Recomendaciones para empezar",
+    "RecomendacionesTexto": "1️⃣ **Sube mi rol** lo más arriba posible en *Ajustes del servidor → Roles*: solo puedo moderar a usuarios que estén por debajo de mi rol.\n2️⃣ Usa `/canal-logs` para elegir dónde anuncio los incidentes de moderación.\n3️⃣ Las acciones `/expulsar`, `/vetar`, `/aislar` y `/advertir` quedan documentadas automáticamente: consúltalas con `/historial`.",
+    "Pie": "Escribe / para ver todos mis comandos"
+  },
+
+  "Moderacion": {
+    "MotivoPorDefecto": "Sin motivo especificado",
+    // {caso} = número de caso
+    "Caso": "Caso #{caso}",
+
+    "Exito": {
+      // Plantilla general de confirmación: {texto} = frase de éxito, {motivo}
+      "Formato": "{texto}\n**Motivo:** {motivo}",
+      // {usuario}
+      "Expulsion": "👢 **{usuario}** ha sido expulsado.",
+      "Veto": "🔨 **{usuario}** ha sido vetado.",
+      "Aislamiento": "🔇 **{usuario}** aislado por **{duracion}**.",
+      "FinAislamiento": "🔊 Se quitó el aislamiento a **{usuario}**.",
+      "Advertencia": "⚠️ Advertencia registrada a **{usuario}**."
+    },
+
+    "Errores": {
+      "MismoUsuario": "No puedes aplicarte esa acción a ti mismo.",
+      "AlBot": "No puedo aplicarme esa acción a mí mismo.",
+      "NoEnServidor": "**{usuario}** no está en este servidor.",
+      "EsOwner": "No se puede aplicar esa acción al dueño del servidor.",
+      "Jerarquia": "No puedo actuar sobre **{usuario}**: su rol es igual o superior al mío. Sube mi rol por encima del suyo en *Ajustes del servidor → Roles*.",
+      "DuracionInvalida": "Formato de duración inválido. Ejemplos válidos: `30s`, `10m`, `2h`, `7d`.",
+      "DuracionMaxima": "La duración máxima de un aislamiento es de **28 días**."
+    },
+
+    "Dm": {
+      // Aviso por mensaje directo al sancionado: {accion} {servidor}
+      "Titulo": "Has sido {accion} en {servidor}",
+      "CampoMotivo": "Motivo",
+      "Acciones": {
+        "Expulsion": "expulsado",
+        "Veto": "vetado",
+        "Aislamiento": "aislado por {duracion}",
+        "Advertencia": "advertido"
+      }
+    },
+
+    // Nombres de los tipos de incidente (embeds de log e historial)
+    "Tipos": {
+      "Advertencia": "⚠️ Advertencia",
+      "Expulsion": "👢 Expulsión",
+      "Veto": "🔨 Veto",
+      "Aislamiento": "🔇 Aislamiento",
+      "FinAislamiento": "🔊 Fin de aislamiento"
+    },
+
+    // Nombres de los campos del embed de incidente
+    "Campos": {
+      "Usuario": "Usuario",
+      "Moderador": "Moderador",
+      "Duracion": "Duración",
+      "Motivo": "Motivo"
+    },
+
+    "Historial": {
+      "TituloServidor": "📋 Últimos incidentes del servidor",
+      // {usuario}
+      "TituloUsuario": "📋 Historial de {usuario}",
+      "Vacio": "No hay incidentes registrados. ✨",
+      // {caso} {tipo} {duracion} {fecha}
+      "CabeceraCaso": "#{caso} · {tipo}{duracion} · {fecha}",
+      // {usuario} {moderador} {motivo}
+      "Linea": "**Usuario:** {usuario} · **Mod:** {moderador}\n**Motivo:** {motivo}"
+    }
+  },
+
+  "Descargas": {
+    // {titulo}
+    "Exito": "✅ {titulo}",
+    "UrlInvalida": "❌ Esa no parece ser una URL válida.",
+    // {tamano} (MB en número) · {enlace} (URL de litterbox)
+    "DemasiadoGrandeEmbed": "📦 El archivo ({tamano} MB) es demasiado grande para Discord.\nDescárgalo aquí (válido 72 h):\n{enlace}",
+    "PieLitterbox": "Enlace temporal · litterbox.catbox.moe",
+    // {detalles} = últimos mensajes de yt-dlp  (solo se muestra si Bot.Debug = true)
+    "Error": "❌ No se pudo descargar. Detalles: {detalles}",
+    // {tipo} {mensaje}  (solo si Bot.Debug = true, para excepciones inesperadas)
+    "ErrorInterno": "❌ Error inesperado ({tipo}): {mensaje}",
+    // Mensaje genérico (cuando Bot.Debug = false). No filtra nada.
+    "ErrorGenerico": "❌ No se pudo descargar el contenido. Intenta de nuevo."
+  },
+
+  "Bienvenida": {
+    // Embed enviado cuando un miembro entra al servidor.
+    // {usuario} = mención · {servidor} = nombre del servidor
+    "Titulo": "👋 ¡Nuevo miembro!",
+    "MensajePorDefecto": "¡Bienvenido/a {usuario} a **{servidor}**! 🎉",
+    "Pie": "{servidor}",
+
+    // Respuestas de los comandos /bienvenida
+    // {canal} = mención del canal · {vista} = vista previa del mensaje
+    "ConfigCanalExito": "✅ Canal de bienvenida establecido en {canal}.",
+    "ConfigMensajeExito": "✅ Mensaje de bienvenida guardado. Así se verá:\n\n{vista}",
+    "ConfigDesactivada": "✅ Bienvenida desactivada.",
+    "YaDesactivada": "La bienvenida ya está desactivada.",
+    "MensajeLargo": "❌ El mensaje es demasiado largo (máximo 1900 caracteres).",
+
+    // /bienvenida ver
+    "VerTitulo": "⚙️ Configuración de bienvenida",
+    "VerCanal": "Canal",
+    "VerMensaje": "Mensaje",
+    "VerNoConfigurado": "Sin configurar",
+    "VerPorDefecto": "(usando el mensaje por defecto del bot)"
+  },
+
+"Musica": {
+    // {titulo} {autor} {duracion}
+    "Tocando": "▶️ Reproduciendo **{titulo}** — {autor} ({duracion})",
+    // {titulo} {autor} = pista que se añadió a la cola mientras ya sonaba otra
+    "PuestaEnCola": "📥 **{titulo}** — {autor} añadida a la cola.",
+    // {titulo} {n}
+    "PlaylistAnadida": "📋 Playlist **{titulo}** añadida con {n} pistas.",
+    "NoEncontrado": "❌ No encontré nada para esa búsqueda o URL.",
+    "NoEnCanal": "🎧 Debes estar en un canal de voz para usar este comando.",
+    "NoActivo": "ℹ️ No estoy reproduciendo nada en este momento.",
+    // {titulo} {autor} = canción que dejará de sonar la actual y empieza esta
+    "SaltadoProxima": "⏭️ Saltado. Reproduciendo ahora: **{titulo}** — {autor}",
+    "SaltadoVacio": "⏭️ Saltado. No hay más canciones en la cola.",
+    "ReproduccionDetenida": "⏹️ Reproducción detenida.",
+    "SonandoAhora": "▶️ Sonando ahora",
+    "ColaSiguiente": "⏭️ Siguientes en la cola",
+    "Pausado": "⏸️ Reproducción pausada. Usa `/m reanuda` para continuar.",
+    "Reanudado": "▶️ Reproducción reanudada.",
+    "Detenido": "⏹️ Música detenida y cola vaciada.",
+    // {nivel} = 0-100
+    "Volumen": "🔊 Volumen establecido en **{nivel}%**.",
+    "ColaTitulo": "🎵 Cola de reproducción",
+    "ColaVacia": "ℹ️ La cola está vacía.",
+    "ColaTotal": "Duración total",
+    "WidgetTitulo": "🎶 Reproduciendo ahora",
+    "WidgetEstado": "Estado",
+    "WidgetDuracion": "Duración",
+    "WidgetSinPista": "⏹️ No hay nada reproduciéndose.",
+    "EstadoPausado": "⏸️ Pausado",
+    "EstadoReproduciendo": "▶️ Reproduciendo",
+    "ErrorLavalink": "❌ No pude reproducir música ahora mismo. Verifica que el servidor Lavalink esté corriendo y sea alcanzable."
+  },
+
+  "Colores": {
+    // {paleta} = nombre de la paleta · {total} = nº de colores
+    "Instalar": "🎨 Paleta **{paleta}** instalada ({total} colores). Usa `/colores elegir` para cambiarte.",
+    "InstalarRepetido": "🎨 La paleta **{paleta}** ya estaba instalada.",
+    // {borrados} = nº de roles borrados
+    "Desinstalar": "🗑️ Paleta de colores eliminada ({borrados} roles).",
+    "Titulo": "🎨 Elige tu color",
+    "Descripcion": "Selecciona un color del menú para aplicarlo a tu nombre. Si ya tenías uno, se reemplazará.",
+    // {color} = nombre del rol aplicado
+    "Aplicado": "✅ Color aplicado: {color}",
+    "Quitado": "✅ Se te quitó el color.",
+    "NoTenia": "ℹ️ No tenías ningún color puesto.",
+    "Error": "❌ No pude aplicar el color. Verifica que mi rol esté por encima de los roles de color (Ajustes → Roles).",
+    "NoInstalado": "⚠️ Aún no hay paleta instalada. Un administrador debe usar `/colores instalar`.",
+    "ListarTitulo": "🎨 Colores disponibles",
+    "ListarVacios": "No hay colores instalados. Un administrador puede hacer `/colores instalar`."
+  },
+
+  "Voces": {
+    // {usuario} = nombre del usuario que entró al hub (nombre del canal temporal)
+    "NombreTemporal": "🎧 {usuario}",
+    // {canal} = mención del canal
+    "HubEstablecido": "✅ Canal hub de join-to-create establecido en {canal}. Entra ahí para obtener tu propio canal de voz temporal.",
+    "HubQuitado": "✅ Join-to-create desactivado.",
+    "HubDebeSerVoz": "❌ El canal debe ser de voz.",
+    "Creado": "✅ Canal creado: {canal}."
+  },
+
+  "Config": {
+    // {canal} = mención del canal
+    "CanalLogsEstablecido": "✅ Canal de logs de moderación establecido en {canal}."
+  }
+}

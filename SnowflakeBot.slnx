@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Snowflake.Bot/Snowflake.Bot.csproj" />
+  </Folder>
+</Solution>
