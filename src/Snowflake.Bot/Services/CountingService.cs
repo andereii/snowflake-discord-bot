@@ -177,9 +177,6 @@ public sealed partial class CountingService(
             : ParseEmoji(cfg.EmojiCorrect, "✅");
         await ReaccionarAsync(message, emoji);
 
-        if (debeAnunciarRecord)
-            await EnviarAsync(message.Channel, msg.Get("Conteo:RecordAlcanzado", ("cuenta", Formatear(valor, cfg.Base))));
-
         if (cfg.Goal is { } meta && valor == meta)
             await EnviarAsync(message.Channel, msg.Get("Conteo:ObjetivoAlcanzado", ("objetivo", Formatear(meta, cfg.Base))));
     }
@@ -230,6 +227,11 @@ public sealed partial class CountingService(
                     .Replace("{cuenta}", cuentaFormateada)
                     .Replace("{usuario}", message.Author.Mention)
                     .Replace("{siguiente}", siguiente));
+
+        if (cfg.RecordCelebratedThisChain)
+        {
+            texto += $" (Nuevo récord: {Formatear(cfg.CurrentRecord, cfg.Base)})";
+        }
 
         await EnviarAsync(message.Channel, texto);
 
