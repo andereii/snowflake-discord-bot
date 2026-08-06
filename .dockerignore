@@ -1,0 +1,23 @@
+# flyctl launch added from .gitignore
+# Compilación
+**/bin
+**/obj
+
+# Secretos y configuración local
+**/.env
+**/.env.*
+!**/.env.example
+
+# Base de datos local (SQLite)
+**/*.db
+**/*.db-shm
+**/*.db-wal
+
+# Logs locales
+**/*.log
+
+# IDEs
+**/.vs
+**/.idea
+**/.vscode
+fly.toml

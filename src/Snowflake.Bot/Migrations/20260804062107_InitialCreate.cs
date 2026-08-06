@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -37,7 +37,11 @@ namespace Snowflake.Bot.Migrations
                     WelcomeChannelId = table.Column<ulong>(type: "INTEGER", nullable: true),
                     WelcomeMessage = table.Column<string>(type: "TEXT", nullable: true),
                     HubChannelId = table.Column<ulong>(type: "INTEGER", nullable: true),
-                    Volume = table.Column<int>(type: "INTEGER", nullable: true)
+                    TempChannelNameTemplate = table.Column<string>(type: "TEXT", nullable: true),
+                    Volume = table.Column<int>(type: "INTEGER", nullable: true),
+                    DjRoleId = table.Column<ulong>(type: "INTEGER", nullable: true),
+                    GeminiChatEnabled = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
+                    DownloadsEnabled = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
                 {
