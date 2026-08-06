@@ -67,12 +67,9 @@ public sealed partial class CountingService(
     {
         s = s.Trim();
         try { DiscordEmoji.FromUnicode(c, s); return true; } catch { }
+        try { DiscordEmoji.FromName(c, s); return true; } catch { }
         var m = EmojiRegex().Match(s);
-        if (m.Success && ulong.TryParse(m.Groups[2].Value, out var id))
-        {
-            try { DiscordEmoji.FromGuildEmote(c, id); return true; } catch { }
-        }
-        return false;
+        return m.Success;
     }
 
     /// <summary>Construye un DiscordEmoji desde la config (con fallback al unicode por defecto).</summary>
@@ -80,6 +77,7 @@ public sealed partial class CountingService(
     {
         var str = string.IsNullOrWhiteSpace(s) ? fallback : s.Trim();
         try { return DiscordEmoji.FromUnicode(client, str); } catch { }
+        try { return DiscordEmoji.FromName(client, str); } catch { }
         var m = EmojiRegex().Match(str);
         if (m.Success && ulong.TryParse(m.Groups[2].Value, out var id))
         {
@@ -158,14 +156,14 @@ public sealed partial class CountingService(
 
     private async Task CorrectoAsync(DiscordMessage message, CountingConfig cfg, CountingStat stat, long valor)
     {
-        // ¿Récord? Solo se celebra una vez por cadena, y solo si había un récord previo > 0.
-        var fueRecord = valor > cfg.RecordAtChainStart
-            && cfg.RecordAtChainStart > 0
-            && !cfg.RecordCelebratedThisChain;
+        // ¿Es un número que supera el récord que había antes de empezar esta cadena?
+        var esNuevoRecordHistorico = valor > cfg.RecordAtChainStart && cfg.RecordAtChainStart > 0;
+        
+        var debeAnunciarRecord = esNuevoRecordHistorico && !cfg.RecordCelebratedThisChain;
 
         // El récord histórico crece si supera al anterior.
         if (valor > cfg.CurrentRecord) cfg.CurrentRecord = valor;
-        if (fueRecord) cfg.RecordCelebratedThisChain = true;
+        if (debeAnunciarRecord) cfg.RecordCelebratedThisChain = true;
 
         cfg.CurrentValue = valor;
         cfg.LastUserId = message.Author.Id;
@@ -173,13 +171,13 @@ public sealed partial class CountingService(
         stat.TotalCounts++;
         stat.BestContribution = Math.Max(stat.BestContribution, valor);
 
-        // Reacción: récord si aplica, si no la de "correcto".
-        var emoji = fueRecord
+        // Reacción: si supera el récord histórico base, usa el emoji de récord.
+        var emoji = esNuevoRecordHistorico
             ? ParseEmoji(cfg.EmojiRecord, "🎉")
             : ParseEmoji(cfg.EmojiCorrect, "✅");
         await ReaccionarAsync(message, emoji);
 
-        if (fueRecord)
+        if (debeAnunciarRecord)
             await EnviarAsync(message.Channel, msg.Get("Conteo:RecordAlcanzado", ("cuenta", Formatear(valor, cfg.Base))));
 
         if (cfg.Goal is { } meta && valor == meta)
