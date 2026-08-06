@@ -23,6 +23,7 @@ primary_region = 'dfw'
 
 [env]
   DATA_DIR = "/app/data"
+  ASPNETCORE_URLS = "http://0.0.0.0:8080"
 
 [mounts]
   source = "snowflake_data"
