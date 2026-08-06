@@ -1,4 +1,4 @@
-﻿using DotNetEnv;
+using DotNetEnv;
 using DSharpPlus;
 using Lavalink4NET.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -8,12 +8,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data;
+using Snowflake.Bot.Endpoints;
 using Snowflake.Bot.Services;
 
 // Carga las variables del archivo .env (si existe); nunca sobreescribe las del sistema.
 Env.TraversePath().Load();
 
-var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
     Args = args,
     // appsettings.json se copia junto al ejecutable al compilar: así la config
@@ -23,6 +24,7 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 
 builder.Services.Configure<BotConfiguration>(builder.Configuration.GetSection("Bot"));
 builder.Services.Configure<GeminiOptions>(builder.Configuration.GetSection("Gemini"));
+builder.Services.Configure<ColorOptions>(builder.Configuration.GetSection("Colors"));
 
 // Todos los textos del bot, editables sin tocar el código (recarga en caliente).
 builder.Configuration.AddJsonFile("messages.json", optional: false, reloadOnChange: true);
@@ -30,7 +32,10 @@ builder.Services.AddSingleton<MessagesService>();
 
 // Base de datos SQLite junto al ejecutable.
 builder.Services.AddDbContextFactory<BotDbContext>(options =>
-    options.UseSqlite($"Data Source={Path.Combine(AppContext.BaseDirectory, "snowflake.db")}"));
+{
+    options.UseSqlite($"Data Source={Path.Combine(AppContext.BaseDirectory, "snowflake.db")}");
+    options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 // Cliente HTTP usado por el fallback de canciones de Spotify.
 builder.Services.AddHttpClient("Spotify", client =>
@@ -43,6 +48,13 @@ builder.Services.AddHttpClient("Spotify", client =>
 builder.Services.AddHttpClient("Gemini", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(60);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
+});
+
+// Cliente HTTP usado por las notificaciones de YouTube (feed RSS público).
+builder.Services.AddHttpClient("YouTube", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
 });
 
@@ -64,7 +76,10 @@ builder.Services.AddSingleton<ColorService>();
 builder.Services.AddSingleton<VoiceHubService>();
 builder.Services.AddSingleton<MusicService>();
 builder.Services.AddSingleton<MusicWidgetService>();
+builder.Services.AddSingleton<CountingService>();
 builder.Services.AddSingleton<GeminiService>();
+builder.Services.AddSingleton<YouTubeNotifyService>();
+builder.Services.AddHostedService<YouTubeNotifyService>();
 
 builder.Services.AddSingleton(sp =>
 {
@@ -100,5 +115,9 @@ var app = builder.Build();
         .CreateDbContextAsync();
     await db.Database.MigrateAsync();
 }
+
+// Configuración de la API REST para el Portal Web
+app.MapGet("/api/status", () => Results.Ok(new { status = "online", timestamp = DateTime.UtcNow }));
+app.MapConfigEndpoints();
 
 await app.RunAsync();

@@ -1,8 +1,12 @@
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
+using DSharpPlus.SlashCommands.Attributes;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
+using Snowflake.Bot.Data;
+using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Services;
 using Snowflake.Bot.Utilities;
 
@@ -11,19 +15,23 @@ namespace Snowflake.Bot.Modules;
 /// <summary>
 /// Chatbot con Gemini. <c>/charlar</c> usa una conversación compartida por
 /// todos los usuarios del servidor; <c>/charlar-limpiar</c> la reinicia.
+/// <c>/gemini menciones</c> activa/desactiva las respuestas a menciones @.
 /// </summary>
 public sealed class ChatModule : ApplicationCommandModule
 {
     private readonly GeminiService _gemini;
+    private readonly IDbContextFactory<BotDbContext> _dbFactory;
     private readonly MessagesService _msg;
     private readonly IOptionsMonitor<BotConfiguration> _config;
 
     public ChatModule(
         GeminiService gemini,
+        IDbContextFactory<BotDbContext> dbFactory,
         MessagesService msg,
         IOptionsMonitor<BotConfiguration> config)
     {
         _gemini = gemini;
+        _dbFactory = dbFactory;
         _msg = msg;
         _config = config;
     }
@@ -79,6 +87,103 @@ public sealed class ChatModule : ApplicationCommandModule
         else
         {
             await ResponderAsync(ctx, _msg.Get("Chat:SinConversacion"), ephemeral: true);
+        }
+    }
+
+    [SlashCommand("gemini-menciones", "Activa o desactiva las respuestas cuando me mencionan con @")]
+    [SlashRequirePermissions(Permissions.ManageGuild)]
+    public async Task MencionesAsync(
+        InteractionContext ctx,
+        [Option("estado", "Activar o desactivar (vacío = mostrar estado actual)")]
+        [Choice("Activar", "on"), Choice("Desactivar", "off")]
+        string? estado = null)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var cfg = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
+        if (cfg is null)
+        {
+            cfg = new GuildConfig { GuildId = ctx.Guild.Id };
+            db.GuildConfigs.Add(cfg);
+        }
+
+        var activar = estado switch
+        {
+            "on" => (bool?)true,
+            "off" => (bool?)false,
+            _ => null
+        };
+
+        if (activar is { } valor)
+        {
+            var clave = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            if (valor && string.IsNullOrWhiteSpace(clave))
+            {
+                await ResponderAsync(ctx, _msg.Get("Chat:MencionesFaltaApiKey"), ephemeral: true);
+                return;
+            }
+
+            cfg.GeminiMentionsEnabled = valor;
+            await db.SaveChangesAsync();
+            await ResponderAsync(ctx,
+                valor
+                    ? _msg.Get("Chat:MencionesActivadas")
+                    : _msg.Get("Chat:MencionesDesactivadas"));
+        }
+        else
+        {
+            var texto = cfg.GeminiMentionsEnabled
+                ? _msg.Get("Chat:MencionesActivadas")
+                : _msg.Get("Chat:MencionesDesactivadas");
+            await ResponderAsync(ctx, texto, ephemeral: true);
+        }
+    }
+
+    [SlashCommand("gemini-espontaneo", "Activa o desactiva que el bot hable solo en el chat (sin menciones)")]
+    [SlashRequirePermissions(Permissions.ManageGuild)]
+    public async Task EspontaneoAsync(
+        InteractionContext ctx,
+        [Option("estado", "Activar o desactivar (vacío = mostrar estado actual)")]
+        [Choice("Activar", "on"), Choice("Desactivar", "off")]
+        string? estado = null)
+    {
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var cfg = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
+        if (cfg is null)
+        {
+            cfg = new GuildConfig { GuildId = ctx.Guild.Id };
+            db.GuildConfigs.Add(cfg);
+        }
+
+        var activar = estado switch
+        {
+            "on" => (bool?)true,
+            "off" => (bool?)false,
+            _ => null
+        };
+
+        if (activar is { } valor)
+        {
+            var clave = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            if (valor && string.IsNullOrWhiteSpace(clave))
+            {
+                await ResponderAsync(ctx, _msg.Get("Chat:EspontaneoFaltaApiKey"), ephemeral: true);
+                return;
+            }
+
+            cfg.GeminiSpontaneousEnabled = valor;
+            await db.SaveChangesAsync();
+            _gemini.EstablecerEspontaneo(ctx.Guild.Id, valor); // actualiza la caché en caliente
+            await ResponderAsync(ctx,
+                valor
+                    ? _msg.Get("Chat:EspontaneoActivado")
+                    : _msg.Get("Chat:EspontaneoDesactivado"));
+        }
+        else
+        {
+            var texto = cfg.GeminiSpontaneousEnabled
+                ? _msg.Get("Chat:EspontaneoActivado")
+                : _msg.Get("Chat:EspontaneoDesactivado");
+            await ResponderAsync(ctx, texto, ephemeral: true);
         }
     }
 

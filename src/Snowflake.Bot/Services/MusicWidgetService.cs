@@ -76,23 +76,37 @@ public sealed class MusicWidgetService(
         }
     }
 
-    /// <summary>Finaliza el widget: lo deja estático con botones deshabilitados.</summary>
-    public async Task DetenerAsync(ulong guildId)
+    /// <summary>
+    /// Finaliza el widget: lo deja 5 segundos con el mensaje "Reproducción
+    /// detenida" y botones deshabilitados, y después lo borra del canal.
+    /// El borrado se hace en background (fire-and-forget) para no bloquear al
+    /// llamador (p. ej. el handler del botón Stop).
+    /// </summary>
+    public Task DetenerAsync(ulong guildId)
     {
-        if (!_widgets.TryRemove(guildId, out var w)) return;
+        if (!_widgets.TryRemove(guildId, out var w)) return Task.CompletedTask;
+        _ = BorrarWidgetTrasRetrasoAsync(guildId, w);
+        return Task.CompletedTask;
+    }
+
+    private async Task BorrarWidgetTrasRetrasoAsync(ulong guildId, Widget w)
+    {
         try
         {
-            if (client.Guilds.TryGetValue(guildId, out var g) && g.GetChannel(w.ChannelId) is { } canal)
-            {
-                var mensaje = await canal.GetMessageAsync(w.MessageId);
-                await mensaje.ModifyAsync(new DiscordMessageBuilder()
-                    .WithEmbed(new DiscordEmbedBuilder()
-                        .WithDescription(msg.Get("Musica:ReproduccionDetenida"))
-                        .WithColor(DiscordColor.Grayple))
-                    .AddComponents(ConstruirBotones(deshabilitados: true)));
-            }
+            if (!client.Guilds.TryGetValue(guildId, out var g)) return;
+            if (g.GetChannel(w.ChannelId) is not { } canal) return;
+
+            var mensaje = await canal.GetMessageAsync(w.MessageId);
+            await mensaje.ModifyAsync(new DiscordMessageBuilder()
+                .WithEmbed(new DiscordEmbedBuilder()
+                    .WithDescription(msg.Get("Musica:ReproduccionDetenida"))
+                    .WithColor(DiscordColor.Grayple))
+                .AddComponents(ConstruirBotones(deshabilitados: true)));
+
+            await Task.Delay(5000);
+            await mensaje.DeleteAsync();
         }
-        catch { /* mensaje borrado */ }
+        catch { /* mensaje borrado, canal desaparecido, etc. */ }
     }
 
     /// <summary>Maneja los botones del widget (pausa/reanuda, saltar, detener, cola).</summary>
@@ -135,12 +149,9 @@ public sealed class MusicWidgetService(
                 try { await p.StopAsync(default); } catch { }
                 try { await p.DisconnectAsync(default); } catch { }
                 await DetenerAsync(e.Guild.Id);
-                await e.Interaction.CreateResponseAsync(InteractionResponseType.UpdateMessage,
-                    new DiscordInteractionResponseBuilder()
-                        .AddEmbed(new DiscordEmbedBuilder()
-                            .WithDescription(msg.Get("Musica:ReproduccionDetenida"))
-                            .WithColor(DiscordColor.Grayple))
-                        .AddComponents(ConstruirBotones(deshabilitados: true)));
+                // DetenerAsync ya hace el "reproducción detenida" + borrado; aquí solo
+                // confirmamos la interacción sin volver a tocar el mensaje (se borrará).
+                await e.Interaction.CreateResponseAsync(InteractionResponseType.DeferredMessageUpdate);
                 return;
             }
 

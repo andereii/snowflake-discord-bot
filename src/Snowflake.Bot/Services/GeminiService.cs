@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
@@ -16,7 +17,6 @@ public sealed class GeminiService
 {
     private const string EndpointBase =
         "https://generativelanguage.googleapis.com/v1beta/models/";
-    private const int MaxSolicitudesPorServidor = 2;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -30,6 +30,12 @@ public sealed class GeminiService
 
     // Message ID -> guild ID. Solo se guardan mensajes producidos por este chatbot.
     private readonly ConcurrentDictionary<ulong, ulong> _mensajesGenerados = new();
+
+    // Toggle de cháchara espontánea en memoria (para no tocar la BD en cada mensaje).
+    private readonly ConcurrentDictionary<ulong, bool> _espontaneoHabilitado = new();
+
+    // Estado del contador espontáneo por servidor.
+    private readonly ConcurrentDictionary<ulong, EstadoEspontaneo> _espontaneo = new();
 
     public GeminiService(IHttpClientFactory httpFactory, IOptionsMonitor<GeminiOptions> options)
     {
@@ -73,9 +79,9 @@ public sealed class GeminiService
             throw new GeminiException("Falta la variable de entorno GEMINI_API_KEY.");
 
         var conversacion = _conversaciones.GetOrAdd(guildId, _ => new Conversacion());
-        if (!conversacion.IntentarReservar())
+        if (!conversacion.IntentarReservar(opts.MaxConcurrentPerGuild))
             throw new GeminiBusyException(
-                "Ya hay dos solicitudes de chat pendientes en este servidor.");
+                "Ya hay demasiadas solicitudes de chat pendientes en este servidor.");
 
         var entrada = $"[{autor}] {texto}";
         try
@@ -86,32 +92,7 @@ public sealed class GeminiService
                 PrepararParaNuevoMensaje(conversacion.Mensajes, opts.MaxHistoryTurns);
                 conversacion.Mensajes.Add(("user", entrada));
 
-                var cuerpo = ConstruirCuerpo(conversacion.Mensajes, opts);
-                var url = $"{EndpointBase}{ModeloActivo}:generateContent?key={Uri.EscapeDataString(clave)}";
-
-                var http = _httpFactory.CreateClient("Gemini");
-                using var req = new HttpRequestMessage(HttpMethod.Post, url)
-                {
-                    Content = new StringContent(cuerpo, MediaTypeHeaderValue.Parse("application/json"))
-                };
-
-                using var resp = await EnviarAsync(http, req, ct).ConfigureAwait(false);
-                await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-                using var json = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
-
-                // Errores de la API: { "error": { "message": "...", "status": "..." } }
-                if (!resp.IsSuccessStatusCode)
-                {
-                    var mensaje = json.RootElement.TryGetProperty("error", out var err)
-                        && err.TryGetProperty("message", out var msg)
-                            ? msg.GetString() ?? $"HTTP {(int)resp.StatusCode}"
-                            : $"HTTP {(int)resp.StatusCode}";
-                    throw new GeminiException($"Gemini respondió con error: {mensaje}");
-                }
-
-                var respuesta = ExtraerTexto(json.RootElement);
-                if (string.IsNullOrWhiteSpace(respuesta))
-                    throw new GeminiException("Gemini no devolvió respuesta (posible filtro de seguridad).");
+                var respuesta = await LlamarAGeminiAsync(conversacion.Mensajes, opts, ct).ConfigureAwait(false);
 
                 conversacion.Mensajes.Add(("model", respuesta));
                 RecortarHistorial(conversacion.Mensajes, opts.MaxHistoryTurns);
@@ -170,6 +151,114 @@ public sealed class GeminiService
         => _mensajesGenerados.TryGetValue(messageId, out guildId);
 
     // ------ API HTTP y JSON ------
+
+/// <summary>
+    /// Llama a la API de Gemini con una lista de mensajes ya construida y
+    /// devuelve el texto generado. Lanza <see cref="GeminiException"/> si la
+    /// API responde con error o sin contenido. No gestiona historial ni
+    /// concurrencia: lo usan tanto <see cref="PreguntarAsync"/> (conversación
+    /// compartida) como el modo espontáneo (llamada puntual sin historial).
+    /// </summary>
+    private async Task<string> LlamarAGeminiAsync(
+        List<(string Role, string Text)> mensajes, GeminiOptions opts, CancellationToken ct)
+    {
+        var clave = Environment.GetEnvironmentVariable("GEMINI_API_KEY")?.Trim();
+        if (string.IsNullOrEmpty(clave))
+            throw new GeminiException("Falta la variable de entorno GEMINI_API_KEY.");
+
+        var cuerpo = ConstruirCuerpo(mensajes, opts);
+        var url = $"{EndpointBase}{ModeloActivo}:generateContent?key={Uri.EscapeDataString(clave)}";
+
+        var http = _httpFactory.CreateClient("Gemini");
+        using var req = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(cuerpo, MediaTypeHeaderValue.Parse("application/json"))
+        };
+
+        using var resp = await EnviarAsync(http, req, ct).ConfigureAwait(false);
+        await using var stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using var json = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var mensaje = json.RootElement.TryGetProperty("error", out var err)
+                && err.TryGetProperty("message", out var msg)
+                    ? msg.GetString() ?? $"HTTP {(int)resp.StatusCode}"
+                    : $"HTTP {(int)resp.StatusCode}";
+            throw new GeminiException($"Gemini respondió con error: {mensaje}");
+        }
+
+        var respuesta = ExtraerTexto(json.RootElement);
+        if (string.IsNullOrWhiteSpace(respuesta))
+            throw new GeminiException("Gemini no devolvió respuesta (posible filtro de seguridad).");
+        return respuesta;
+    }
+
+    // ------ Modo espontáneo ------
+
+    /// <summary>Activar/desactivar el modo espontáneo en memoria (caché por servidor).</summary>
+    public void EstablecerEspontaneo(ulong guildId, bool habilitado)
+        => _espontaneoHabilitado[guildId] = habilitado;
+
+    /// <summary>Consulta rápida (sin BD) del estado del modo espontáneo.</summary>
+    public bool EspontaneoHabilitado(ulong guildId)
+        => _espontaneoHabilitado.TryGetValue(guildId, out var v) && v;
+
+    /// <summary>
+    /// Registra un mensaje ambiental (no dirigido al bot). Incrementa el contador
+    /// del servidor y devuelve true si toca soltar un comentario espontáneo. Al
+    /// dispararse, recalcula un nuevo umbral (base + jitter aleatorio).
+    /// </summary>
+    public bool RegistrarMensajeParaEspontaneo(ulong guildId, string autor, string texto)
+    {
+        var opts = _options.CurrentValue;
+        var estado = _espontaneo.GetOrAdd(guildId, _ => new EstadoEspontaneo(opts));
+        lock (estado)
+        {
+            estado.Recientes.Enqueue((autor, texto));
+            while (estado.Recientes.Count > Math.Max(1, opts.SpontaneousRecentBuffer))
+                estado.Recientes.Dequeue();
+            estado.Contador++;
+            if (estado.Contador < estado.Umbral) return false;
+            estado.Reiniciar(opts);
+            return true;
+        }
+    }
+
+    /// <summary>Instantánea de los últimos mensajes ambientales (para dar contexto a Gemini).</summary>
+    public IReadOnlyList<(string Autor, string Texto)> ObtenerRecientes(ulong guildId)
+    {
+        if (!_espontaneo.TryGetValue(guildId, out var estado))
+            return Array.Empty<(string, string)>();
+        lock (estado) return estado.Recientes.ToArray();
+    }
+
+    /// <summary>
+    /// Genera un comentario espontáneo a partir de los últimos mensajes del
+    /// canal. No contamina la conversación compartida de /charlar: es una
+    /// llamada puntual con su propio contexto.
+    /// </summary>
+    public async Task<string> GenerarComentarioEspontaneoAsync(
+        ulong guildId, IReadOnlyList<(string Autor, string Texto)> mensajesRecientes)
+    {
+        var opts = _options.CurrentValue;
+        if (mensajesRecientes.Count == 0)
+            throw new GeminiException("No hay mensajes recientes para comentar.");
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Esta es la conversación reciente del servidor (los usuarios no están hablando contigo directamente, estás leyendo el chat):");
+        sb.AppendLine();
+        foreach (var (autor, texto) in mensajesRecientes)
+            sb.AppendLine($"{autor}: {texto}");
+        sb.AppendLine();
+        sb.Append("Haz un comentario breve, casual y natural, como si fueras un miembro más del servidor. ");
+        sb.Append("Puedes saludar o retomar algo de lo que se habló. ");
+        sb.Append("No menciones que eres una IA ni que nadie te lo pidió. ");
+        sb.Append("Responde solo con el mensaje, sin comillas ni etiquetas, en español.");
+
+        var mensajes = new List<(string Role, string Text)> { ("user", sb.ToString()) };
+        return await LlamarAGeminiAsync(mensajes, opts, default).ConfigureAwait(false);
+    }
 
     private static async Task<HttpResponseMessage> EnviarAsync(
         HttpClient http,
@@ -265,12 +354,12 @@ public sealed class GeminiService
 
         private int _solicitudesReservadas;
 
-        public bool IntentarReservar()
+        public bool IntentarReservar(int maximo)
         {
             while (true)
             {
                 var actuales = Volatile.Read(ref _solicitudesReservadas);
-                if (actuales >= MaxSolicitudesPorServidor)
+                if (actuales >= Math.Max(1, maximo))
                     return false;
 
                 if (Interlocked.CompareExchange(
@@ -312,6 +401,34 @@ public sealed class GeminiService
         [property: JsonPropertyName("systemInstruction")] GeminiSystemInstruction? SystemInstruction,
         [property: JsonPropertyName("generationConfig")] GeminiGenerationConfig GenerationConfig,
         [property: JsonPropertyName("tools")] List<GeminiTool> Tools);
+
+    /// <summary>
+    /// Contador espontáneo por servidor. Umbral = Base + jitter(min..max):
+    /// tras N mensajes ambientales, espera un extra aleatorio antes de comentar.
+    /// Los parámetros vienen de GeminiOptions (sección "Gemini").
+    /// </summary>
+    private sealed class EstadoEspontaneo
+    {
+        public int Contador;
+        public int Umbral;
+        public readonly Queue<(string Autor, string Texto)> Recientes = new();
+
+        public EstadoEspontaneo(GeminiOptions opts)
+            => Umbral = CalcularUmbral(opts);
+
+        public void Reiniciar(GeminiOptions opts)
+        {
+            Contador = 0;
+            Umbral = CalcularUmbral(opts);
+        }
+
+        private static int CalcularUmbral(GeminiOptions opts)
+        {
+            var min = Math.Max(0, opts.SpontaneousJitterMin);
+            var max = Math.Max(min, opts.SpontaneousJitterMax);
+            return Math.Max(1, opts.SpontaneousBaseMessages) + Random.Shared.Next(min, max + 1);
+        }
+    }
 }
 
 /// <summary>

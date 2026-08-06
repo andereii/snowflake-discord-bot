@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Snowflake.Bot.Data;
 
@@ -10,9 +11,11 @@ using Snowflake.Bot.Data;
 namespace Snowflake.Bot.Migrations
 {
     [DbContext(typeof(BotDbContext))]
-    partial class BotDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260805051046_AddGeminiMentions")]
+    partial class AddGeminiMentions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
@@ -144,9 +147,6 @@ namespace Snowflake.Bot.Migrations
                     b.Property<bool>("GeminiMentionsEnabled")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("GeminiSpontaneousEnabled")
-                        .HasColumnType("INTEGER");
-
                     b.Property<ulong?>("HubChannelId")
                         .HasColumnType("INTEGER");
 
@@ -231,42 +231,6 @@ namespace Snowflake.Bot.Migrations
                     b.HasIndex("GuildId");
 
                     b.ToTable("TempChannels");
-                });
-
-            modelBuilder.Entity("Snowflake.Bot.Data.Entities.YouTubeSubscription", b =>
-                {
-                    b.Property<ulong>("GuildId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CustomMessage")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastVideoId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<ulong>("NotifyChannelId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<ulong?>("NotifyRoleId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("YTChannelId")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("YTChannelName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("GuildId");
-
-                    b.HasIndex("YTChannelId");
-
-                    b.ToTable("YouTubeSubscriptions");
                 });
 #pragma warning restore 612, 618
         }

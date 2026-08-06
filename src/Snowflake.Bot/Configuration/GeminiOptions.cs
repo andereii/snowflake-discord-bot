@@ -1,7 +1,7 @@
 namespace Snowflake.Bot.Configuration;
 
 /// <summary>
-/// Configuración del chatbot con Gemini. Sección "Gemini" de appsettings.json.
+/// Opciones del chatbot con Gemini. Sección "Gemini" de appsettings.json.
 /// La clave de API (GEMINI_API_KEY) y el modelo (GEMINI_MODEL, opcional) se leen
 /// del entorno (archivo .env) — la clave NUNCA va en appsettings.json.
 /// </summary>
@@ -41,4 +41,30 @@ public sealed class GeminiOptions
 
     /// <summary>Longitud máxima (en caracteres) del texto que el usuario puede enviar.</summary>
     public int MaxInputLength { get; set; } = 2000;
+
+    /// <summary>
+    /// Solicitudes de chat simultáneas permitidas por servidor. Las que superen
+    /// este tope se rechazan con el mensaje "Chat:Ocupado".
+    /// </summary>
+    public int MaxConcurrentPerGuild { get; set; } = 2;
+
+    // ------ Modo espontáneo ------
+
+    /// <summary>
+    /// Mensajes ambientales mínimos antes de que el bot suelte un comentario
+    /// espontáneo. Al umbral se le suma un extra aleatorio (ver Jitter*).
+    /// </summary>
+    public int SpontaneousBaseMessages { get; set; } = 100;
+
+    /// <summary>Extra aleatorio mínimo (inclusive) sumado al umbral espontáneo.</summary>
+    public int SpontaneousJitterMin { get; set; } = 1;
+
+    /// <summary>Extra aleatorio máximo (inclusive) sumado al umbral espontáneo.</summary>
+    public int SpontaneousJitterMax { get; set; } = 50;
+
+    /// <summary>
+    /// Tamaño del buffer de mensajes recientes que se envían a Gemini como
+    /// contexto para el comentario espontáneo.
+    /// </summary>
+    public int SpontaneousRecentBuffer { get; set; } = 15;
 }

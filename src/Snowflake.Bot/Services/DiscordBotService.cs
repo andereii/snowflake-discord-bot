@@ -27,6 +27,7 @@ public sealed class DiscordBotService : BackgroundService
     private readonly VoiceHubService _voces;
     private readonly MusicWidgetService _musicWidget;
     private readonly GeminiService _gemini;
+    private readonly CountingService _counting;
     private readonly ILogger<DiscordBotService> _logger;
 
     public DiscordBotService(
@@ -39,6 +40,7 @@ public sealed class DiscordBotService : BackgroundService
         VoiceHubService voces,
         MusicWidgetService musicWidget,
         GeminiService gemini,
+        CountingService counting,
         ILogger<DiscordBotService> logger)
     {
         _client = client;
@@ -49,6 +51,7 @@ public sealed class DiscordBotService : BackgroundService
         _voces = voces;
         _musicWidget = musicWidget;
         _gemini = gemini;
+        _counting = counting;
         _logger = logger;
 
         if (config.CurrentValue.TestGuildId == 0)
@@ -64,6 +67,7 @@ public sealed class DiscordBotService : BackgroundService
         _client.VoiceStateUpdated += _voces.OnVoiceStateUpdatedAsync;
         _client.ComponentInteractionCreated += OnComponentInteractionCreated;
         _client.MessageCreated += OnMessageCreated;
+        _client.MessageCreated += OnMessageCreatedCounting;
 
         // Los comandos se registran solo en el servidor de pruebas: aparecen al instante.
         // (El registro global puede tardar hasta 1 hora en propagarse.)
@@ -98,10 +102,25 @@ public sealed class DiscordBotService : BackgroundService
         return Task.CompletedTask;
     }
 
-    private Task OnGuildDownloadCompleted(DiscordClient sender, GuildDownloadCompletedEventArgs e)
+    private async Task OnGuildDownloadCompleted(DiscordClient sender, GuildDownloadCompletedEventArgs e)
     {
         _logger.LogInformation("Bot listo. Servidores conectados: {Count}", sender.Guilds.Count);
-        return Task.CompletedTask;
+
+        // Precarga el estado del modo espontáneo en la caché en memoria, para no
+        // tocar la BD en cada mensaje del chat.
+        try
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            foreach (var guildId in sender.Guilds.Keys)
+            {
+                var cfg = await db.GuildConfigs.FindAsync(guildId);
+                _gemini.EstablecerEspontaneo(guildId, cfg?.GeminiSpontaneousEnabled == true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudo precargar el estado del modo espontáneo");
+        }
     }
 
     /// <summary>
@@ -119,7 +138,8 @@ public sealed class DiscordBotService : BackgroundService
 
     /// <summary>
     /// Responde automáticamente cuando un usuario responde a un mensaje que
-    /// Gemini generó con /charlar. Los mensajes del propio bot se ignoran para
+    /// Gemini generó con /charlar, o cuando lo menciona con @ (si el servidor
+    /// activó las menciones). Los mensajes del propio bot se ignoran para
     /// evitar bucles de respuestas.
     /// </summary>
     private async Task OnMessageCreated(DiscordClient sender, MessageCreateEventArgs e)
@@ -127,18 +147,82 @@ public sealed class DiscordBotService : BackgroundService
         if (e.Guild is null || e.Author.IsBot)
             return;
 
-        var mensajeReferenciado = e.Message.ReferencedMessage;
-        if (mensajeReferenciado is null
-            || !_gemini.TryObtenerGuildDeMensajeGenerado(mensajeReferenciado.Id, out var guildId)
-            || guildId != e.Guild.Id)
-        {
-            return;
-        }
-
         var texto = e.Message.Content?.Trim();
         if (string.IsNullOrWhiteSpace(texto))
             return;
 
+        // Camino 1: respuesta a un mensaje del chatbot (ya existente).
+        var mensajeReferenciado = e.Message.ReferencedMessage;
+        if (mensajeReferenciado is not null
+            && _gemini.TryObtenerGuildDeMensajeGenerado(mensajeReferenciado.Id, out var guildId)
+            && guildId == e.Guild.Id)
+        {
+            await ResponderChatAsync(e, texto, guildId);
+            return;
+        }
+
+        // Camino 2: mención al bot con @ (si el servidor lo activó).
+        if (MencionaAlBot(sender, e.Message))
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var cfg = await db.GuildConfigs.FindAsync(e.Guild.Id);
+            if (cfg is null || !cfg.GeminiMentionsEnabled) return;
+
+            // Quitamos la mención del texto antes de enviar a Gemini.
+            var limpio = LimpiarMencion(sender, texto);
+            if (string.IsNullOrWhiteSpace(limpio)) return;
+
+            await ResponderChatAsync(e, limpio, e.Guild.Id);
+            return;
+        }
+
+        // Camino 3: chismorreo espontáneo. Solo en mensajes ambientales (no
+        // son respuesta al bot ni mención). Se cuentan para el umbral del
+        // servidor; si toca, se dispara un comentario en background.
+        if (_gemini.EspontaneoHabilitado(e.Guild.Id))
+        {
+            // Ignoramos comandos (no aportan contexto de charla).
+            if (texto.StartsWith('/')) return;
+
+            var dispara = _gemini.RegistrarMensajeParaEspontaneo(e.Guild.Id, e.Author.Username, texto);
+            if (dispara)
+            {
+                _ = DispararComentarioEspontaneoAsync(e.Guild.Id, e.Channel);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pide a Gemini un comentario espontáneo a partir de la conversación
+    /// reciente del canal y lo envía a dicho canal. Se ejecuta en background
+    /// (fire-and-forget) para no frenar el procesamiento de mensajes.
+    /// </summary>
+    private async Task DispararComentarioEspontaneoAsync(ulong guildId, DiscordChannel canal)
+    {
+        try
+        {
+            var recientes = _gemini.ObtenerRecientes(guildId);
+            if (recientes.Count == 0) return;
+
+            var respuesta = await _gemini.GenerarComentarioEspontaneoAsync(guildId, recientes);
+            var contenido = ChatResponseFormatter.Formatear(respuesta);
+            await canal.SendMessageAsync(contenido);
+        }
+        catch (GeminiException ex)
+        {
+            _logger.LogInformation(
+                ex, "No se pudo generar comentario espontáneo en {Guild}", guildId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex, "Error inesperado en comentario espontáneo en {Guild}", guildId);
+        }
+    }
+
+    /// <summary>Genera la respuesta de Gemini como reply a <paramref name="e"/>.</summary>
+    private async Task ResponderChatAsync(MessageCreateEventArgs e, string texto, ulong guildId)
+    {
         DiscordMessage? mensajeBot = null;
         try
         {
@@ -152,8 +236,7 @@ public sealed class DiscordBotService : BackgroundService
                 e.Author.Username,
                 texto);
 
-            var contenido = ChatResponseFormatter.Formatear(
-                respuesta);
+            var contenido = ChatResponseFormatter.Formatear(respuesta);
 
             await mensajeBot.ModifyAsync(new DiscordMessageBuilder().WithContent(contenido));
             _gemini.RegistrarMensajeGenerado(mensajeBot.Id, guildId);
@@ -188,6 +271,33 @@ public sealed class DiscordBotService : BackgroundService
             await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get("Chat:Error"));
         }
     }
+
+    /// <summary>Comprueba si <paramref name="m"/> menciona al bot (por texto &lt;@id&gt; o &lt;!@id&gt;).</summary>
+    private static bool MencionaAlBot(DiscordClient c, DiscordMessage m)
+    {
+        var botId = c.CurrentUser.Id;
+        var content = m.Content;
+        return content is not null
+            && (content.Contains($"<@{botId}>") || content.Contains($"<@!{botId}>"));
+    }
+
+    /// <summary>Elimina del texto la mención al bot (formatos &lt;@id&gt; y &lt;!@id&gt;).</summary>
+    private static string LimpiarMencion(DiscordClient c, string texto)
+    {
+        var id = c.CurrentUser.Id;
+        return texto
+            .Replace($"<@!{id}>", " ")
+            .Replace($"<@{id}>", " ")
+            .Replace($"<@&{id}>", " ") // rol mention, por si acaso
+            .Trim();
+    }
+
+    /// <summary>
+    /// Procesa los mensajes del canal de conteo (si el servidor lo configuró).
+    /// Handler separado del de Gemini: ambos conviven en el evento MessageCreated.
+    /// </summary>
+    private Task OnMessageCreatedCounting(DiscordClient sender, MessageCreateEventArgs e)
+        => _counting.ProcesarMensajeAsync(e.Message);
 
     private static async Task ModificarRespuestaChatAsync(
         DiscordMessage? mensajeBot,

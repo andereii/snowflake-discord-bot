@@ -3,6 +3,8 @@ using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Data.Entities;
 
@@ -15,6 +17,7 @@ namespace Snowflake.Bot.Services;
 public sealed class ColorService(
     IDbContextFactory<BotDbContext> dbFactory,
     MessagesService msg,
+    IOptionsMonitor<ColorOptions> options,
     ILogger<ColorService> logger)
 {
     /// <summary>Custom id del menú de selección de color (component interaction).</summary>
@@ -22,55 +25,12 @@ public sealed class ColorService(
 
     public enum PaletaType { Normal, Pastel }
 
-    // Paleta normal (colores vivos).
-    private static readonly (string Nombre, int Hex)[] PaletaNormal =
+    private (string Nombre, int Hex)[] Paleta(PaletaType t)
     {
-        ("Rojo",      0xE74C3C),
-        ("Naranja",   0xE67E22),
-        ("Amarillo",  0xF1C40F),
-        ("Lima",      0x82E0AA),
-        ("Verde",     0x2ECC71),
-        ("Esmeralda", 0x1ABC9C),
-        ("Cian",      0x3498DB),
-        ("Azul",      0x2980B9),
-        ("Índigo",    0x5B6BE1),
-        ("Violeta",   0x9B59B6),
-        ("Magenta",   0xCC00FF),
-        ("Rosa",      0xE91E63),
-        ("Fucsia",    0xFF1493),
-        ("Morado",    0x71368A),
-        ("Blanco",    0xF2F2F2),
-        ("Gris",      0x95A5A6),
-        ("Negro",     0x4A4E69),
-    };
-
-    // Paleta pastel (tonos suaves).
-    private static readonly (string Nombre, int Hex)[] PaletaPastel =
-    {
-        ("Rosa pastel",   0xFFB6C1),
-        ("Chicle",        0xFFC1CC),
-        ("Melocotón",     0xFFDAB9),
-        ("Coral",         0xFFA07A),
-        ("Arena",         0xFFE4B5),
-        ("Vainilla",      0xF3E5AB),
-        ("Limón",         0xFFFACD),
-        ("Naranja pastel",0xFFE5CC),
-        ("Verde pastel",  0xA8E6CF),
-        ("Menta",         0xB5E7A0),
-        ("Aqua",          0x99E2E2),
-        ("Cielo",         0xADD8E6),
-        ("Azul pastel",   0xB4C5E4),
-        ("Lavanda",       0xE6E6FA),
-        ("Lila",          0xC8A2C8),
-        ("Malva",         0xD8BFD8),
-        ("Perla",         0xE8E8E8),
-    };
-
-    private static (string Nombre, int Hex)[] Paleta(PaletaType t) => t switch
-    {
-        PaletaType.Pastel => PaletaPastel,
-        _ => PaletaNormal
-    };
+        var opts = options.CurrentValue;
+        var dict = t == PaletaType.Pastel ? opts.Pastel : opts.Normal;
+        return dict.Select(kvp => (kvp.Key, Convert.ToInt32(kvp.Value, 16))).ToArray();
+    }
 
     /// <summary>
     /// Instala la paleta elegida. Si hubiera otra paleta instalada, la reemplaza.

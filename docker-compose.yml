@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: snowflake_bot
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - Lavalink__Host=lavalink
+      # Carga las variables de entorno para que el bot las pueda leer
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+    volumes:
+      # Monta la base de datos para persistencia
+      - ./snowflake.db:/app/snowflake.db
+      # Monta configuraciones modificables en caliente
+      - ./src/Snowflake.Bot/appsettings.json:/app/appsettings.json
+      - ./src/Snowflake.Bot/messages.json:/app/messages.json
+    depends_on:
+      - lavalink
+
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    container_name: snowflake_lavalink
+    restart: unless-stopped
+    environment:
+      # Se inyectan las credenciales para LavaSrc (Spotify)
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+    volumes:
+      - ./deploy/lavalink/application.yml:/opt/Lavalink/application.yml
+      - ./deploy/lavalink/plugins:/opt/Lavalink/plugins
+    # No es necesario exponer puertos a menos que se quiera acceder al Lavalink desde fuera de Docker
+    # ports:
+    #   - "2333:2333"

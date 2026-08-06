@@ -11,7 +11,8 @@ public sealed class BotConfiguration
     public ulong TestGuildId { get; set; }
 
     /// <summary>
-    /// Id del dueño del bot, para comandos administrativos.
+    /// Id del dueño del bot. Reservado para la autenticación del futuro panel
+    /// web de configuración (solo el dueño podrá editar ajustes globales).
     /// </summary>
     public ulong OwnerId { get; set; }
 
@@ -22,4 +23,12 @@ public sealed class BotConfiguration
     /// Se lee en caliente desde appsettings.json.
     /// </summary>
     public bool Debug { get; set; }
+
+    /// <summary>
+    /// Segundos que una entrada de la caché de ajustes por servidor se considera
+    /// válida antes de releerse de la base de datos. Importante cuando un panel
+    /// web externo escribe directamente en la BD: sus cambios tardan como máximo
+    /// este tiempo en verse reflejados en el bot.
+    /// </summary>
+    public int SettingsCacheSeconds { get; set; } = 60;
 }

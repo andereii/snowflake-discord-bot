@@ -12,6 +12,9 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
     public DbSet<GuildConfig> GuildConfigs => Set<GuildConfig>();
     public DbSet<ColorRole> ColorRoles => Set<ColorRole>();
     public DbSet<TempChannel> TempChannels => Set<TempChannel>();
+    public DbSet<CountingConfig> CountingConfigs => Set<CountingConfig>();
+    public DbSet<CountingStat> CountingStats => Set<CountingStat>();
+    public DbSet<YouTubeSubscription> YouTubeSubscriptions => Set<YouTubeSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +29,10 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
         modelBuilder.Entity<GuildConfig>(e =>
         {
             e.HasKey(g => g.GuildId);
+            // Las nuevas capacidades se activan por defecto también en los
+            // servidores que ya existían antes de la migración.
+            e.Property(g => g.GeminiChatEnabled).HasDefaultValue(true);
+            e.Property(g => g.DownloadsEnabled).HasDefaultValue(true);
         });
 
         modelBuilder.Entity<ColorRole>(e =>
@@ -39,6 +46,28 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
         {
             e.HasKey(t => t.ChannelId);
             e.HasIndex(t => t.GuildId);
+        });
+
+        modelBuilder.Entity<CountingConfig>(e =>
+        {
+            e.HasKey(c => c.GuildId);
+            // Base enum guardada como texto para legibilidad.
+            e.Property(c => c.Base).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<CountingStat>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => new { s.GuildId, s.UserId }).IsUnique();
+            e.HasIndex(s => s.GuildId);
+        });
+
+        modelBuilder.Entity<YouTubeSubscription>(e =>
+        {
+            e.HasKey(y => y.GuildId);
+            // Varios servidores pueden seguir el mismo canal de YT: índice para
+            // agruparlos y hacer un único fetch del feed por canal.
+            e.HasIndex(y => y.YTChannelId);
         });
     }
 }
