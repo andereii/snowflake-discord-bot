@@ -30,10 +30,11 @@ builder.Services.Configure<ColorOptions>(builder.Configuration.GetSection("Color
 builder.Configuration.AddJsonFile("messages.json", optional: false, reloadOnChange: true);
 builder.Services.AddSingleton<MessagesService>();
 
-// Base de datos SQLite junto al ejecutable.
+// Base de datos SQLite junto al ejecutable o en el volumen montado.
+var dataDir = Environment.GetEnvironmentVariable("DATA_DIR") ?? AppContext.BaseDirectory;
 builder.Services.AddDbContextFactory<BotDbContext>(options =>
 {
-    options.UseSqlite($"Data Source={Path.Combine(AppContext.BaseDirectory, "snowflake.db")}");
+    options.UseSqlite($"Data Source={Path.Combine(dataDir, "snowflake.db")}");
     options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 });
 

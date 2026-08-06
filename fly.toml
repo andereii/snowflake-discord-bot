@@ -20,3 +20,10 @@ primary_region = 'dfw'
   cpu_kind = 'shared'
   cpus = 1
   memory_mb = 1024
+
+[env]
+  DATA_DIR = "/app/data"
+
+[mounts]
+  source = "snowflake_data"
+  destination = "/app/data"
