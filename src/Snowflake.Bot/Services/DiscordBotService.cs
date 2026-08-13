@@ -3,12 +3,11 @@ using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using DSharpPlus.SlashCommands;
 using DSharpPlus.SlashCommands.EventArgs;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
-using Snowflake.Bot.Data;
+using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
 namespace Snowflake.Bot.Services;
@@ -21,7 +20,7 @@ public sealed class DiscordBotService : BackgroundService
 {
     private readonly DiscordClient _client;
     private readonly MessagesService _msg;
-    private readonly IDbContextFactory<BotDbContext> _dbFactory;
+    private readonly GuildSettingsService _settings;
     private readonly IOptionsMonitor<BotConfiguration> _config;
     private readonly ColorService _color;
     private readonly VoiceHubService _voces;
@@ -33,7 +32,7 @@ public sealed class DiscordBotService : BackgroundService
     public DiscordBotService(
         DiscordClient client,
         MessagesService msg,
-        IDbContextFactory<BotDbContext> dbFactory,
+        GuildSettingsService settings,
         IServiceProvider services,
         IOptionsMonitor<BotConfiguration> config,
         ColorService color,
@@ -45,7 +44,7 @@ public sealed class DiscordBotService : BackgroundService
     {
         _client = client;
         _msg = msg;
-        _dbFactory = dbFactory;
+        _settings = settings;
         _config = config;
         _color = color;
         _voces = voces;
@@ -110,11 +109,10 @@ public sealed class DiscordBotService : BackgroundService
         // tocar la BD en cada mensaje del chat.
         try
         {
-            await using var db = await _dbFactory.CreateDbContextAsync();
             foreach (var guildId in sender.Guilds.Keys)
             {
-                var cfg = await db.GuildConfigs.FindAsync(guildId);
-                _gemini.EstablecerEspontaneo(guildId, cfg?.GeminiSpontaneousEnabled == true);
+                var cfg = await _settings.GetAsync(guildId);
+                _gemini.EstablecerEspontaneo(guildId, cfg.GeminiSpontaneousEnabled);
             }
         }
         catch (Exception ex)
@@ -125,14 +123,14 @@ public sealed class DiscordBotService : BackgroundService
 
     /// <summary>
     /// Enruta las interacciones de componentes (menús de selección, botones…)
-    /// según su custom_id. Ahora mismo gestiona el menú de colores.
+    /// según su custom_id: el menú de colores y el widget de música.
     /// </summary>
     private async Task OnComponentInteractionCreated(
         DiscordClient sender, ComponentInteractionCreateEventArgs e)
     {
         if (e.Id == ColorService.CustomId)
             await _color.HandleSelectAsync(e);
-        else if (e.Id.StartsWith("snowflake_music_"))
+        else if (MusicWidgetService.EsInteraccionMusica(e.Id))
             await _musicWidget.HandleButtonAsync(e);
     }
 
@@ -164,9 +162,8 @@ public sealed class DiscordBotService : BackgroundService
         // Camino 2: mención al bot con @ (si el servidor lo activó).
         if (MencionaAlBot(sender, e.Message))
         {
-            await using var db = await _dbFactory.CreateDbContextAsync();
-            var cfg = await db.GuildConfigs.FindAsync(e.Guild.Id);
-            if (cfg is null || !cfg.GeminiMentionsEnabled) return;
+            var cfg = await _settings.GetAsync(e.Guild.Id);
+            if (!cfg.GeminiMentionsEnabled) return;
 
             // Quitamos la mención del texto antes de enviar a Gemini.
             var limpio = LimpiarMencion(sender, texto);
@@ -361,9 +358,8 @@ public sealed class DiscordBotService : BackgroundService
         {
             if (e.Member.IsBot) return;
 
-            await using var db = await _dbFactory.CreateDbContextAsync();
-            var config = await db.GuildConfigs.FindAsync(e.Guild.Id);
-            if (config?.WelcomeChannelId is not ulong canalId) return;
+            var config = await _settings.GetAsync(e.Guild.Id);
+            if (config.WelcomeChannelId is not ulong canalId) return;
 
             var canal = e.Guild.GetChannel(canalId);
             if (canal is null)

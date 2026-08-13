@@ -10,10 +10,13 @@ namespace Snowflake.Bot.Modules;
 /// Limpieza de mensajes en un canal. Borrado masivo de Discord (hasta 100
 /// mensajes) o individual si los mensajes superan los 14 días.
 /// </summary>
-public sealed class ClearModule : ApplicationCommandModule
+public sealed class ClearModule : SnowflakeModuleBase
 {
     // Discord no permite borrado masivo de mensajes con más de 14 días.
     private static readonly TimeSpan LimiteBulk = TimeSpan.FromDays(14);
+
+    // Pausa entre borrados individuales (mensajes viejos) para respetar rate limits.
+    private static readonly TimeSpan PausaBorradoIndividual = TimeSpan.FromMilliseconds(600);
 
     private readonly MessagesService _msg;
 
@@ -39,6 +42,25 @@ public sealed class ClearModule : ApplicationCommandModule
             return;
         }
 
+        // Auditoría: los atributos de permiso comprueban el permiso global, pero
+        // los overrides del canal destino pueden quitárselo a quien ejecuta o al
+        // bot. Verificamos ambos sobre el canal concreto antes de tocar nada.
+        var miembro = ctx.Member ?? await ctx.Guild.GetMemberAsync(ctx.User.Id);
+        if (miembro is not null
+            && !canal.PermissionsFor(miembro).HasPermission(Permissions.ManageMessages))
+        {
+            await ResponderErrorAsync(ctx, _msg.Get("Limpiar:SinPermisosCanal"));
+            return;
+        }
+
+        var bot = ctx.Guild.CurrentMember;
+        if (bot is not null
+            && !canal.PermissionsFor(bot).HasPermission(Permissions.ManageMessages))
+        {
+            await ResponderErrorAsync(ctx, _msg.Get("Limpiar:SinPermisosBotCanal"));
+            return;
+        }
+
         await ctx.DeferAsync();
 
         try
@@ -54,12 +76,6 @@ public sealed class ClearModule : ApplicationCommandModule
             {
                 foreach (var m in mensajes)
                 {
-                    if (m.Id == ctx.Channel.LastMessageId && m.Author?.Id == ctx.Client.CurrentUser.Id)
-                    {
-                        // No intentamos borrar el mensaje de la propia interacción
-                        // diferida (el webhook); seguirá editándose más abajo.
-                    }
-
                     if ((ahora - m.CreationTimestamp) < LimiteBulk)
                         borrables.Add(m);
                     else
@@ -94,7 +110,7 @@ public sealed class ClearModule : ApplicationCommandModule
             {
                 try { await canal.DeleteMessageAsync(m, "/clear"); borrados++; }
                 catch { /* mensaje ya borrado */ }
-                await Task.Delay(600);
+                await Task.Delay(PausaBorradoIndividual);
             }
 
             // Respuesta según haya habido mensajes viejos excluidos.
@@ -116,20 +132,11 @@ public sealed class ClearModule : ApplicationCommandModule
             }
 
             // La respuesta diferida es efímera para no ensuciar el canal recién limpiado.
-            try { await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(resultado)); }
-            catch { }
+            await SafeEditAsync(ctx, resultado);
         }
         catch (Exception)
         {
-            try { await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(_msg.Get("Errores:Interno"))); }
-            catch { }
+            await SafeEditAsync(ctx, _msg.Get("Errores:Interno"));
         }
-    }
-
-    private static async Task ResponderAsync(InteractionContext ctx, string contenido, bool ephemeral = false)
-    {
-        var b = new DiscordInteractionResponseBuilder().WithContent(contenido);
-        if (ephemeral) b.AsEphemeral();
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, b);
     }
 }

@@ -15,6 +15,7 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
     public DbSet<CountingConfig> CountingConfigs => Set<CountingConfig>();
     public DbSet<CountingStat> CountingStats => Set<CountingStat>();
     public DbSet<YouTubeSubscription> YouTubeSubscriptions => Set<YouTubeSubscription>();
+    public DbSet<ChannelLock> ChannelLocks => Set<ChannelLock>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +69,12 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
             // Varios servidores pueden seguir el mismo canal de YT: índice para
             // agruparlos y hacer un único fetch del feed por canal.
             e.HasIndex(y => y.YTChannelId);
+        });
+
+        modelBuilder.Entity<ChannelLock>(e =>
+        {
+            e.HasKey(l => l.ChannelId);
+            e.HasIndex(l => l.GuildId);
         });
     }
 }

@@ -1,10 +1,10 @@
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
-using DSharpPlus.SlashCommands.Attributes;
 using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Modules;
 
@@ -13,25 +13,28 @@ namespace Snowflake.Bot.Modules;
 /// Soporta cualquier URL que yt-dlp entienda (YouTube, TikTok, Instagram, X, Reddit…).
 /// Los archivos pequeños se adjuntan; los grandes se suben a litterbox (72h).
 /// </summary>
-public sealed class DownloadModule : ApplicationCommandModule
+public sealed class DownloadModule : SnowflakeModuleBase
 {
-    /// <summary>Holgado bajo el límite de subida de Discord (~10 MB sin boost).</summary>
-    private const long MaxDiscordBytes = 9_437_184; // 9 MiB
-
     private readonly DownloadService _dl;
     private readonly LitterboxService _litter;
+    private readonly GuildSettingsService _settings;
     private readonly MessagesService _msg;
+    private readonly IOptionsMonitor<DownloadOptions> _dlOptions;
     private readonly IOptionsMonitor<BotConfiguration> _config;
 
     public DownloadModule(
         DownloadService dl,
         LitterboxService litter,
+        GuildSettingsService settings,
         MessagesService msg,
+        IOptionsMonitor<DownloadOptions> dlOptions,
         IOptionsMonitor<BotConfiguration> config)
     {
         _dl = dl;
         _litter = litter;
+        _settings = settings;
         _msg = msg;
+        _dlOptions = dlOptions;
         _config = config;
     }
 
@@ -43,16 +46,19 @@ public sealed class DownloadModule : ApplicationCommandModule
         [Choice("Vídeo", "video"), Choice("Solo audio", "audio")]
         string formato = "video")
     {
+        // Interruptor por servidor (desactivable desde el panel de configuración).
+        if (!(await _settings.GetAsync(ctx.Guild.Id)).DownloadsEnabled)
+        {
+            await ResponderAsync(ctx, _msg.Get("Descargas:Desactivado"), ephemeral: true);
+            return;
+        }
+
         var soloAudio = formato == "audio";
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
             || (uri.Scheme is not "http" and not "https"))
         {
-            await ctx.CreateResponseAsync(
-                InteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .WithContent(_msg.Get("Descargas:UrlInvalida"))
-                    .AsEphemeral());
+            await ResponderAsync(ctx, _msg.Get("Descargas:UrlInvalida"), ephemeral: true);
             return;
         }
 
@@ -62,13 +68,15 @@ public sealed class DownloadModule : ApplicationCommandModule
         string? tempDir = null;
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(4));
+            var timeout = TimeSpan.FromMinutes(Math.Max(1, _dlOptions.CurrentValue.TimeoutMinutes));
+            using var cts = new CancellationTokenSource(timeout);
             var res = await _dl.DescargarAsync(url, soloAudio, cts.Token);
             tempDir = res.TempDir;
 
             var size = new FileInfo(res.FilePath).Length;
+            var maxBytes = _dlOptions.CurrentValue.MaxDiscordBytes;
 
-            if (size <= MaxDiscordBytes)
+            if (size <= maxBytes)
             {
                 // Adjuntar directamente al canal.
                 await using var fs = File.OpenRead(res.FilePath);
@@ -118,19 +126,6 @@ public sealed class DownloadModule : ApplicationCommandModule
             {
                 try { Directory.Delete(tempDir, recursive: true); } catch { }
             }
-        }
-    }
-
-    /// <summary>Edita la respuesta diferida; si falla (webhook expirado u otra), no revive.</summary>
-    private static async Task SafeEditAsync(InteractionContext ctx, string content)
-    {
-        try
-        {
-            await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(content));
-        }
-        catch
-        {
-            // Ya no se puede notificar al usuario por aquí.
         }
     }
 }

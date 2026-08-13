@@ -1,100 +1,167 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
-using Snowflake.Bot.Data;
-using Snowflake.Bot.Data.Entities;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Endpoints;
 
+/// <summary>
+/// API REST del panel web de configuración. Todas las lecturas y escrituras
+/// pasan por GuildSettingsService, el mismo punto único que usa el bot: así
+/// la caché del bot se invalida al guardar desde el panel y nunca hay dos
+/// caminos de escritura a la base de datos.
+///
+/// SEGURIDAD: estos endpoints NO tienen autenticación de usuario (OAuth de
+/// Discord) todavía. Si defines la variable de entorno WEB_PANEL_API_KEY, toda
+/// mutación exigirá la cabecera "X-Api-Key". Antes de exponer la API a
+/// Internet, añade además HTTPS y autenticación por sesión de Discord.
+/// </summary>
 public static class ConfigEndpoints
 {
     public static void MapConfigEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/guilds/{guildId}/config");
+        var group = app.MapGroup("/api/guilds/{guildId:long}/config");
 
-        // Obtener configuración general del servidor
-        group.MapGet("/", async (ulong guildId, IDbContextFactory<BotDbContext> dbFactory) =>
+        // ---------- Vista de panel: TODO el ajuste del servidor en una llamada ----------
+
+        group.MapGet("/", async (ulong guildId, GuildSettingsService settings, CancellationToken ct) =>
         {
-            await using var db = await dbFactory.CreateDbContextAsync();
-            var config = await db.GuildConfigs.FirstOrDefaultAsync(c => c.GuildId == guildId);
-            return config is not null ? Results.Ok(config) : Results.NotFound();
+            var snapshot = await settings.GetSnapshotAsync(guildId, ct);
+            return Results.Ok(snapshot);
         });
 
-        // Actualizar configuración general
-        group.MapPost("/", async (ulong guildId, GuildConfig newConfig, IDbContextFactory<BotDbContext> dbFactory) =>
+        // ---------- Configuración general (patch: solo los campos enviados) ----------
+
+        group.MapPost("/", async (
+            ulong guildId,
+            GuildConfigPatch patch,
+            HttpContext http,
+            GuildSettingsService settings,
+            CancellationToken ct) =>
         {
-            await using var db = await dbFactory.CreateDbContextAsync();
-            var config = await db.GuildConfigs.FirstOrDefaultAsync(c => c.GuildId == guildId);
-            if (config is null)
+            if (!ApiKeyGuard.Autorizado(http)) return Results.Unauthorized();
+
+            var cfg = await settings.UpdateAsync(guildId, c =>
             {
-                newConfig.GuildId = guildId;
-                db.GuildConfigs.Add(newConfig);
-            }
-            else
+                if (patch.ModLogChannelId is not null) c.ModLogChannelId = ParseId(patch.ModLogChannelId);
+                if (patch.WelcomeChannelId is not null) c.WelcomeChannelId = ParseId(patch.WelcomeChannelId);
+                if (patch.WelcomeMessage is not null) c.WelcomeMessage = patch.WelcomeMessage;
+                if (patch.HubChannelId is not null) c.HubChannelId = ParseId(patch.HubChannelId);
+                if (patch.TempChannelNameTemplate is not null) c.TempChannelNameTemplate = patch.TempChannelNameTemplate;
+                if (patch.Volume is { } v) c.Volume = Math.Clamp(v, 0, 100);
+                if (patch.DjRoleId is not null) c.DjRoleId = ParseId(patch.DjRoleId);
+                if (patch.GeminiChatEnabled is { } chat) c.GeminiChatEnabled = chat;
+                if (patch.GeminiMentionsEnabled is { } menc) c.GeminiMentionsEnabled = menc;
+                if (patch.GeminiSpontaneousEnabled is { } esp) c.GeminiSpontaneousEnabled = esp;
+                if (patch.DownloadsEnabled is { } dl) c.DownloadsEnabled = dl;
+            }, ct);
+
+            return Results.Ok(await settings.GetSnapshotAsync(guildId, ct));
+        });
+
+        // ---------- Juego de conteo ----------
+
+        group.MapPost("/counting", async (
+            ulong guildId,
+            CountingPatch patch,
+            HttpContext http,
+            GuildSettingsService settings,
+            CancellationToken ct) =>
+        {
+            if (!ApiKeyGuard.Autorizado(http)) return Results.Unauthorized();
+
+            await settings.UpdateCountingAsync(guildId, c =>
             {
-                config.ModLogChannelId = newConfig.ModLogChannelId;
-                config.WelcomeChannelId = newConfig.WelcomeChannelId;
-                config.WelcomeMessage = newConfig.WelcomeMessage;
-                config.HubChannelId = newConfig.HubChannelId;
-                config.Volume = newConfig.Volume;
-                config.GeminiMentionsEnabled = newConfig.GeminiMentionsEnabled;
-                config.GeminiSpontaneousEnabled = newConfig.GeminiSpontaneousEnabled;
-            }
-            await db.SaveChangesAsync();
-            return Results.Ok(config ?? newConfig);
+                if (patch.ChannelId is not null) c.ChannelId = ParseId(patch.ChannelId);
+                if (patch.Base is { } nuevaBase) c.Base = nuevaBase;
+                if (patch.Goal is not null) c.Goal = patch.Goal;
+                if (patch.ExtraChancesPerDay is { } chances) c.ExtraChancesPerDay = Math.Clamp(chances, 0, 10);
+                if (patch.EmojiCorrect is not null) c.EmojiCorrect = patch.EmojiCorrect;
+                if (patch.EmojiIncorrect is not null) c.EmojiIncorrect = patch.EmojiIncorrect;
+                if (patch.EmojiRecord is not null) c.EmojiRecord = patch.EmojiRecord;
+                if (patch.LoseMessage is not null) c.LoseMessage = patch.LoseMessage;
+            }, ct);
+
+            return Results.Ok(await settings.GetSnapshotAsync(guildId, ct));
         });
 
-        // Obtener configuración de Conteo
-        group.MapGet("/counting", async (ulong guildId, IDbContextFactory<BotDbContext> dbFactory) =>
-        {
-            await using var db = await dbFactory.CreateDbContextAsync();
-            var config = await db.CountingConfigs.FirstOrDefaultAsync(c => c.GuildId == guildId);
-            return config is not null ? Results.Ok(config) : Results.NotFound();
-        });
+        // ---------- YouTube ----------
 
-        // Actualizar configuración de Conteo (solo los campos editables desde web)
-        group.MapPost("/counting", async (ulong guildId, CountingConfig newConfig, IDbContextFactory<BotDbContext> dbFactory) =>
+        group.MapPost("/youtube", async (
+            ulong guildId,
+            YouTubePatch patch,
+            HttpContext http,
+            GuildSettingsService settings,
+            CancellationToken ct) =>
         {
-            await using var db = await dbFactory.CreateDbContextAsync();
-            var config = await db.CountingConfigs.FirstOrDefaultAsync(c => c.GuildId == guildId);
-            if (config is null)
+            if (!ApiKeyGuard.Autorizado(http)) return Results.Unauthorized();
+
+            var sub = await settings.UpdateYouTubeAsync(guildId, s =>
             {
-                newConfig.GuildId = guildId;
-                db.CountingConfigs.Add(newConfig);
-            }
-            else
-            {
-                config.ChannelId = newConfig.ChannelId;
-                config.Base = newConfig.Base;
-                config.Goal = newConfig.Goal;
-                config.ExtraChancesPerDay = newConfig.ExtraChancesPerDay;
-                config.EmojiCorrect = newConfig.EmojiCorrect;
-                config.EmojiIncorrect = newConfig.EmojiIncorrect;
-                config.EmojiRecord = newConfig.EmojiRecord;
-                config.LoseMessage = newConfig.LoseMessage;
-            }
-            await db.SaveChangesAsync();
-            return Results.Ok(config ?? newConfig);
+                if (patch.YTChannelId is not null) s.YTChannelId = patch.YTChannelId;
+                if (patch.YTChannelName is not null) s.YTChannelName = patch.YTChannelName;
+                if (patch.NotifyChannelId is not null) s.NotifyChannelId = ParseId(patch.NotifyChannelId)!.Value;
+                if (patch.NotifyRoleId is not null) s.NotifyRoleId = ParseId(patch.NotifyRoleId);
+                if (patch.CustomMessage is not null) s.CustomMessage = patch.CustomMessage;
+            }, ct);
+
+            return Results.Ok(await settings.GetSnapshotAsync(guildId, ct));
         });
 
-        // Obtener suscripciones de YouTube del servidor
-        group.MapGet("/youtube", async (ulong guildId, IDbContextFactory<BotDbContext> dbFactory) =>
+        group.MapDelete("/youtube", async (
+            ulong guildId,
+            HttpContext http,
+            GuildSettingsService settings,
+            CancellationToken ct) =>
         {
-            await using var db = await dbFactory.CreateDbContextAsync();
-            var subs = await db.YouTubeSubscriptions.Where(s => s.GuildId == guildId).ToListAsync();
-            return Results.Ok(subs);
+            if (!ApiKeyGuard.Autorizado(http)) return Results.Unauthorized();
+            return await settings.DeleteYouTubeAsync(guildId, ct)
+                ? Results.NoContent()
+                : Results.NotFound();
         });
+    }
 
-        // Eliminar una suscripción de YouTube
-        group.MapDelete("/youtube/{ytChannelId}", async (ulong guildId, string ytChannelId, IDbContextFactory<BotDbContext> dbFactory) =>
-        {
-            await using var db = await dbFactory.CreateDbContextAsync();
-            var sub = await db.YouTubeSubscriptions.FirstOrDefaultAsync(s => s.GuildId == guildId && s.YTChannelId == ytChannelId);
-            if (sub is null) return Results.NotFound();
+    /// <summary>Convierte un id recibido como string (los IDs de Discord no caben en JSON de JS).</summary>
+    private static ulong? ParseId(string? s) =>
+        ulong.TryParse(s, out var v) ? v : null;
 
-            db.YouTubeSubscriptions.Remove(sub);
-            await db.SaveChangesAsync();
-            return Results.Ok();
-        });
+    // ------------------------- Contratos (JSON) -------------------------
+
+    /// <summary>Campos editables de GuildConfig desde el panel. Null = no tocar.</summary>
+    public sealed record GuildConfigPatch
+    {
+        public string? ModLogChannelId { get; init; }
+        public string? WelcomeChannelId { get; init; }
+        public string? WelcomeMessage { get; init; }
+        public string? HubChannelId { get; init; }
+        public string? TempChannelNameTemplate { get; init; }
+        public int? Volume { get; init; }
+        public string? DjRoleId { get; init; }
+        public bool? GeminiChatEnabled { get; init; }
+        public bool? GeminiMentionsEnabled { get; init; }
+        public bool? GeminiSpontaneousEnabled { get; init; }
+        public bool? DownloadsEnabled { get; init; }
+    }
+
+    /// <summary>Campos editables del juego de conteo. Null = no tocar.</summary>
+    public sealed record CountingPatch
+    {
+        public string? ChannelId { get; init; }
+        public Data.Entities.CountingBase? Base { get; init; }
+        public long? Goal { get; init; }
+        public int? ExtraChancesPerDay { get; init; }
+        public string? EmojiCorrect { get; init; }
+        public string? EmojiIncorrect { get; init; }
+        public string? EmojiRecord { get; init; }
+        public string? LoseMessage { get; init; }
+    }
+
+    /// <summary>Campos editables de la suscripción de YouTube. Null = no tocar.</summary>
+    public sealed record YouTubePatch
+    {
+        public string? YTChannelId { get; init; }
+        public string? YTChannelName { get; init; }
+        public string? NotifyChannelId { get; init; }
+        public string? NotifyRoleId { get; init; }
+        public string? CustomMessage { get; init; }
     }
 }

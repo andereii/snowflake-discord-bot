@@ -6,6 +6,8 @@ using Lavalink4NET.Players;
 using Lavalink4NET.Players.Queued;
 using Lavalink4NET.Tracks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Snowflake.Bot.Configuration;
 
 namespace Snowflake.Bot.Services;
 
@@ -19,6 +21,7 @@ public sealed class MusicWidgetService(
     IPlayerManager players,
     MusicService music,
     MessagesService msg,
+    IOptionsMonitor<MusicOptions> options,
     ILogger<MusicWidgetService> logger)
 {
     public const string CustomIdPause = "snowflake_music_pause";
@@ -27,6 +30,9 @@ public sealed class MusicWidgetService(
     public const string CustomIdCola = "snowflake_music_cola";
 
     private static readonly string[] MusicIds = [CustomIdPause, CustomIdSkip, CustomIdStop, CustomIdCola];
+
+    /// <summary>¿El custom_id pertenece a un botón del widget de música?</summary>
+    public static bool EsInteraccionMusica(string customId) => MusicIds.Contains(customId);
 
     private sealed record Widget(ulong MessageId, ulong ChannelId);
     private readonly ConcurrentDictionary<ulong, Widget> _widgets = new();
@@ -77,7 +83,7 @@ public sealed class MusicWidgetService(
     }
 
     /// <summary>
-    /// Finaliza el widget: lo deja 5 segundos con el mensaje "Reproducción
+    /// Finaliza el widget: lo deja unos segundos con el mensaje "Reproducción
     /// detenida" y botones deshabilitados, y después lo borra del canal.
     /// El borrado se hace en background (fire-and-forget) para no bloquear al
     /// llamador (p. ej. el handler del botón Stop).
@@ -85,11 +91,12 @@ public sealed class MusicWidgetService(
     public Task DetenerAsync(ulong guildId)
     {
         if (!_widgets.TryRemove(guildId, out var w)) return Task.CompletedTask;
-        _ = BorrarWidgetTrasRetrasoAsync(guildId, w);
+        var retraso = TimeSpan.FromSeconds(Math.Max(1, options.CurrentValue.WidgetDeleteDelaySeconds));
+        _ = BorrarWidgetTrasRetrasoAsync(guildId, w, retraso);
         return Task.CompletedTask;
     }
 
-    private async Task BorrarWidgetTrasRetrasoAsync(ulong guildId, Widget w)
+    private async Task BorrarWidgetTrasRetrasoAsync(ulong guildId, Widget w, TimeSpan retraso)
     {
         try
         {
@@ -103,7 +110,7 @@ public sealed class MusicWidgetService(
                     .WithColor(DiscordColor.Grayple))
                 .AddComponents(ConstruirBotones(deshabilitados: true)));
 
-            await Task.Delay(5000);
+            await Task.Delay(retraso);
             await mensaje.DeleteAsync();
         }
         catch { /* mensaje borrado, canal desaparecido, etc. */ }

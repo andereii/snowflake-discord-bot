@@ -2,26 +2,24 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using DSharpPlus.SlashCommands.Attributes;
-using Microsoft.EntityFrameworkCore;
-using Snowflake.Bot.Data;
-using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Modules;
 
 /// <summary>
 /// Creación de canales bajo demanda y configuración del sistema join-to-create.
-/// Comandos: /canal crear · /canal hub · /canal hub-quitar
+/// Comandos: /canal crear · /canal hub · /canal hub-quitar · /canal plantilla
 /// </summary>
 [SlashCommandGroup("canal", "Crea canales y configura el join-to-create")]
-public sealed class ChannelModule : ApplicationCommandModule
+public sealed class ChannelModule : SnowflakeModuleBase
 {
-    private readonly IDbContextFactory<BotDbContext> _dbFactory;
+    private readonly GuildSettingsService _settings;
     private readonly MessagesService _msg;
 
-    public ChannelModule(IDbContextFactory<BotDbContext> dbFactory, MessagesService msg)
+    public ChannelModule(GuildSettingsService settings, MessagesService msg)
     {
-        _dbFactory = dbFactory;
+        _settings = settings;
         _msg = msg;
     }
 
@@ -53,10 +51,7 @@ public sealed class ChannelModule : ApplicationCommandModule
                 : await ctx.Guild.CreateTextChannelAsync(nombre, parent, reason: "Creado con /canal crear");
         }
 
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder()
-                .WithContent(_msg.Get("Voces:Creado", ("canal", canal.Mention))));
+        await ResponderAsync(ctx, _msg.Get("Voces:Creado", ("canal", canal.Mention)));
     }
 
     [SlashCommand("hub", "Establece el canal de voz 'hub' del join-to-create")]
@@ -67,53 +62,50 @@ public sealed class ChannelModule : ApplicationCommandModule
     {
         if (canal.Type != ChannelType.Voice)
         {
-            await ctx.CreateResponseAsync(
-                InteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .WithContent(_msg.Get("Voces:HubDebeSerVoz"))
-                    .AsEphemeral());
+            await ResponderAsync(ctx, _msg.Get("Voces:HubDebeSerVoz"), ephemeral: true);
             return;
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var config = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
-        if (config is null)
-        {
-            config = new GuildConfig { GuildId = ctx.Guild.Id };
-            db.GuildConfigs.Add(config);
-        }
-        config.HubChannelId = canal.Id;
-        await db.SaveChangesAsync();
-
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder()
-                .WithContent(_msg.Get("Voces:HubEstablecido", ("canal", canal.Mention))));
+        await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.HubChannelId = canal.Id);
+        await ResponderAsync(ctx, _msg.Get("Voces:HubEstablecido", ("canal", canal.Mention)));
     }
 
     [SlashCommand("hub-quitar", "Desactiva el join-to-create")]
     [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task HubQuitarAsync(InteractionContext ctx)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var config = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
-
-        if (config is null || config.HubChannelId is null)
+        var config = await _settings.GetAsync(ctx.Guild.Id);
+        if (config.HubChannelId is null)
         {
-            await ctx.CreateResponseAsync(
-                InteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .WithContent(_msg.Get("Voces:HubQuitado"))
-                    .AsEphemeral());
+            await ResponderAsync(ctx, _msg.Get("Voces:HubQuitado"), ephemeral: true);
             return;
         }
 
-        config.HubChannelId = null;
-        await db.SaveChangesAsync();
+        await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.HubChannelId = null);
+        await ResponderAsync(ctx, _msg.Get("Voces:HubQuitado"));
+    }
 
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder()
-                .WithContent(_msg.Get("Voces:HubQuitado")));
+    [SlashCommand("plantilla", "Personaliza el nombre de los canales temporales (placeholder {usuario}; vacío = por defecto)")]
+    [SlashRequirePermissions(Permissions.ManageGuild)]
+    public async Task PlantillaAsync(
+        InteractionContext ctx,
+        [Option("plantilla", "Plantilla de nombre, p. ej. '🔊 {usuario}'. Vacío = restablecer.")]
+        string? plantilla = null)
+    {
+        if (string.IsNullOrWhiteSpace(plantilla))
+        {
+            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.TempChannelNameTemplate = null);
+            await ResponderAsync(ctx, _msg.Get("Voces:PlantillaBorrada"));
+            return;
+        }
+        if (plantilla.Length > 100)
+        {
+            await ResponderAsync(ctx, _msg.Get("Voces:PlantillaLarga"), ephemeral: true);
+            return;
+        }
+
+        await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.TempChannelNameTemplate = plantilla);
+        await ResponderAsync(ctx, _msg.Get("Voces:PlantillaEstablecida",
+            ("vista", plantilla.Replace("{usuario}", ctx.User.Username))));
     }
 }

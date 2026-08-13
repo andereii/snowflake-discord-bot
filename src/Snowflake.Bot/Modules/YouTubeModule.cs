@@ -2,11 +2,9 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using DSharpPlus.SlashCommands.Attributes;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Snowflake.Bot.Data;
-using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Modules;
 
@@ -15,23 +13,20 @@ namespace Snowflake.Bot.Modules;
 /// avisa en un canal de Discord cuando se sube un vídeo nuevo.
 /// </summary>
 [SlashCommandGroup("youtube", "Suscripciones de notificaciones de YouTube")]
-public sealed class YouTubeModule : ApplicationCommandModule
+public sealed class YouTubeModule : SnowflakeModuleBase
 {
-    private readonly IDbContextFactory<BotDbContext> _dbFactory;
+    private readonly GuildSettingsService _settings;
     private readonly YouTubeNotifyService _yt;
     private readonly MessagesService _msg;
-    private readonly ILogger<YouTubeModule> _logger;
 
     public YouTubeModule(
-        IDbContextFactory<BotDbContext> dbFactory,
+        GuildSettingsService settings,
         YouTubeNotifyService yt,
-        MessagesService msg,
-        ILogger<YouTubeModule> logger)
+        MessagesService msg)
     {
-        _dbFactory = dbFactory;
+        _settings = settings;
         _yt = yt;
         _msg = msg;
-        _logger = logger;
     }
 
     // ------------------------- Seguir -------------------------
@@ -53,7 +48,7 @@ public sealed class YouTubeModule : ApplicationCommandModule
 
         await ctx.DeferAsync();
 
-        var resuelto = await YouTubeNotifyService.ResolverCanalAsync(canal, _logger);
+        var resuelto = await _yt.ResolverCanalAsync(canal);
         if (resuelto is null)
         {
             await SafeEditAsync(ctx, _msg.Get("YouTube:ErrorResolver"));
@@ -61,34 +56,17 @@ public sealed class YouTubeModule : ApplicationCommandModule
         }
         var (channelId, channelName) = resuelto.Value;
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var existente = await db.YouTubeSubscriptions.FindAsync(ctx.Guild.Id);
+        var existente = await _settings.GetYouTubeAsync(ctx.Guild.Id);
         var reemplazado = existente is not null;
 
-        if (existente is null)
+        await _settings.UpdateYouTubeAsync(ctx.Guild.Id, sub =>
         {
-            existente = new YouTubeSubscription
-            {
-                GuildId = ctx.Guild.Id,
-                YTChannelId = channelId,
-                YTChannelName = channelName,
-                NotifyChannelId = notificar.Id,
-                NotifyRoleId = rol?.Id,
-                LastVideoId = null, // backfill en el primer ciclo
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-            db.YouTubeSubscriptions.Add(existente);
-        }
-        else
-        {
-            existente.YTChannelId = channelId;
-            existente.YTChannelName = channelName;
-            existente.NotifyChannelId = notificar.Id;
-            existente.NotifyRoleId = rol?.Id;
-            existente.LastVideoId = null; // backfill de nuevo
-        }
-
-        await db.SaveChangesAsync();
+            sub.YTChannelId = channelId;
+            sub.YTChannelName = channelName;
+            sub.NotifyChannelId = notificar.Id;
+            sub.NotifyRoleId = rol?.Id;
+            sub.LastVideoId = null; // backfill en el primer ciclo
+        });
 
         var texto = reemplazado
             ? _msg.Get("YouTube:SeguirReemplazado", ("canal", channelName), ("destino", notificar.Mention))
@@ -102,17 +80,12 @@ public sealed class YouTubeModule : ApplicationCommandModule
     [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task DejarAsync(InteractionContext ctx)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var sub = await db.YouTubeSubscriptions.FindAsync(ctx.Guild.Id);
-        if (sub is null)
+        var eliminado = await _settings.DeleteYouTubeAsync(ctx.Guild.Id);
+        if (!eliminado)
         {
             await ResponderAsync(ctx, _msg.Get("YouTube:NoSuscrito"), ephemeral: true);
             return;
         }
-
-        db.YouTubeSubscriptions.Remove(sub);
-        await db.SaveChangesAsync();
-
         await ResponderAsync(ctx, _msg.Get("YouTube:Dejado"));
     }
 
@@ -121,8 +94,7 @@ public sealed class YouTubeModule : ApplicationCommandModule
     [SlashCommand("ver", "Muestra la suscripción de YouTube del servidor")]
     public async Task VerAsync(InteractionContext ctx)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var sub = await db.YouTubeSubscriptions.FindAsync(ctx.Guild.Id);
+        var sub = await _settings.GetYouTubeAsync(ctx.Guild.Id);
         if (sub is null)
         {
             await ResponderAsync(ctx, _msg.Get("YouTube:VerSinSuscrito"), ephemeral: true);
@@ -156,25 +128,19 @@ public sealed class YouTubeModule : ApplicationCommandModule
         InteractionContext ctx,
         [Option("rol", "Rol a mencionar (vacío = quitar la mención)")] DiscordRole? rol = null)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var sub = await db.YouTubeSubscriptions.FindAsync(ctx.Guild.Id);
+        var sub = await _settings.GetYouTubeAsync(ctx.Guild.Id);
         if (sub is null)
         {
             await ResponderAsync(ctx, _msg.Get("YouTube:NoSuscrito"), ephemeral: true);
             return;
         }
 
-        if (rol is null)
-        {
-            sub.NotifyRoleId = null;
-            await db.SaveChangesAsync();
-            await ResponderAsync(ctx, _msg.Get("YouTube:RolQuitado"));
-            return;
-        }
+        await _settings.UpdateYouTubeAsync(ctx.Guild.Id, s => s.NotifyRoleId = rol?.Id);
 
-        sub.NotifyRoleId = rol.Id;
-        await db.SaveChangesAsync();
-        await ResponderAsync(ctx, _msg.Get("YouTube:RolActualizado", ("rol", rol.Mention)));
+        var texto = rol is null
+            ? _msg.Get("YouTube:RolQuitado")
+            : _msg.Get("YouTube:RolActualizado", ("rol", rol.Mention));
+        await ResponderAsync(ctx, texto);
     }
 
     // ------------------------- Canal -------------------------
@@ -191,17 +157,14 @@ public sealed class YouTubeModule : ApplicationCommandModule
             return;
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var sub = await db.YouTubeSubscriptions.FindAsync(ctx.Guild.Id);
+        var sub = await _settings.GetYouTubeAsync(ctx.Guild.Id);
         if (sub is null)
         {
             await ResponderAsync(ctx, _msg.Get("YouTube:NoSuscrito"), ephemeral: true);
             return;
         }
 
-        sub.NotifyChannelId = canal.Id;
-        await db.SaveChangesAsync();
-
+        await _settings.UpdateYouTubeAsync(ctx.Guild.Id, s => s.NotifyChannelId = canal.Id);
         await ResponderAsync(ctx, _msg.Get("YouTube:CanalActualizado", ("canal", canal.Mention)));
     }
 
@@ -214,8 +177,7 @@ public sealed class YouTubeModule : ApplicationCommandModule
         [Option("mensaje", "Plantilla personalizada. Vacío = restablecer al por defecto.")]
         string? mensaje = null)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var sub = await db.YouTubeSubscriptions.FindAsync(ctx.Guild.Id);
+        var sub = await _settings.GetYouTubeAsync(ctx.Guild.Id);
         if (sub is null)
         {
             await ResponderAsync(ctx, _msg.Get("YouTube:NoSuscrito"), ephemeral: true);
@@ -224,39 +186,16 @@ public sealed class YouTubeModule : ApplicationCommandModule
 
         if (string.IsNullOrWhiteSpace(mensaje))
         {
-            sub.CustomMessage = null;
-            await db.SaveChangesAsync();
+            await _settings.UpdateYouTubeAsync(ctx.Guild.Id, s => s.CustomMessage = null);
             await ResponderAsync(ctx, _msg.Get("YouTube:MensajeBorrado"));
             return;
         }
 
-        sub.CustomMessage = mensaje;
-        await db.SaveChangesAsync();
+        await _settings.UpdateYouTubeAsync(ctx.Guild.Id, s => s.CustomMessage = mensaje);
 
         var vista = _msg.Get("YouTube:VistaPrevia");
         var opciones = _msg.Get("YouTube:OpcionesPlantilla");
         await ResponderAsync(ctx, _msg.Get("YouTube:MensajeGuardado",
             ("vista", vista), ("opciones", opciones)));
-    }
-
-    // ------------------------- Ayudantes -------------------------
-
-    private static async Task ResponderAsync(InteractionContext ctx, string contenido, bool ephemeral = false)
-    {
-        var b = new DiscordInteractionResponseBuilder().WithContent(contenido);
-        if (ephemeral) b.AsEphemeral();
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, b);
-    }
-
-    private static async Task ResponderAsync(InteractionContext ctx, DiscordEmbedBuilder embed)
-    {
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().AddEmbed(embed));
-    }
-
-    private static async Task SafeEditAsync(InteractionContext ctx, string contenido)
-    {
-        try { await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(contenido)); }
-        catch { }
     }
 }

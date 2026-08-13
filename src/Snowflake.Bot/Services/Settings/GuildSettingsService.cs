@@ -115,6 +115,33 @@ public sealed class GuildSettingsService(
             .FirstOrDefaultAsync(y => y.GuildId == guildId, ct).ConfigureAwait(false);
     }
 
+    /// <summary>Mutación de la suscripción de YouTube (crea la fila si no existía).</summary>
+    public async Task<YouTubeSubscription> UpdateYouTubeAsync(
+        ulong guildId, Action<YouTubeSubscription> mutate, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+        var sub = await db.YouTubeSubscriptions.FindAsync([guildId], ct).ConfigureAwait(false);
+        if (sub is null)
+        {
+            sub = new YouTubeSubscription { GuildId = guildId };
+            db.YouTubeSubscriptions.Add(sub);
+        }
+        mutate(sub);
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return sub;
+    }
+
+    /// <summary>Elimina la suscripción de YouTube del servidor (si existe).</summary>
+    public async Task<bool> DeleteYouTubeAsync(ulong guildId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct).ConfigureAwait(false);
+        var sub = await db.YouTubeSubscriptions.FindAsync([guildId], ct).ConfigureAwait(false);
+        if (sub is null) return false;
+        db.YouTubeSubscriptions.Remove(sub);
+        await db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return true;
+    }
+
     // ------------------------- Snapshot para el panel web -------------------------
 
     /// <summary>
@@ -126,6 +153,15 @@ public sealed class GuildSettingsService(
         var cfg = await GetAsync(guildId, ct).ConfigureAwait(false);
         var counting = await GetCountingAsync(guildId, ct).ConfigureAwait(false);
         var youtube = await GetYouTubeAsync(guildId, ct).ConfigureAwait(false);
+
+        List<string> bloqueados;
+        await using (var db = await dbFactory.CreateDbContextAsync(ct).ConfigureAwait(false))
+        {
+            bloqueados = await db.ChannelLocks
+                .Where(l => l.GuildId == guildId)
+                .Select(l => l.ChannelId.ToString())
+                .ToListAsync(ct).ConfigureAwait(false);
+        }
 
         return new GuildSettingsSnapshot
         {
@@ -160,6 +196,7 @@ public sealed class GuildSettingsService(
             {
                 Enabled = cfg.DownloadsEnabled
             },
+            BlockedChannels = bloqueados,
             Counting = counting is null ? null : new GuildSettingsSnapshot.CountingSection
             {
                 Enabled = counting.ChannelId is not null,

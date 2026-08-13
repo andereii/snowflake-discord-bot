@@ -2,12 +2,10 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using DSharpPlus.SlashCommands.Attributes;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
-using Snowflake.Bot.Data;
-using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
 namespace Snowflake.Bot.Modules;
@@ -15,23 +13,23 @@ namespace Snowflake.Bot.Modules;
 /// <summary>
 /// Chatbot con Gemini. <c>/charlar</c> usa una conversación compartida por
 /// todos los usuarios del servidor; <c>/charlar-limpiar</c> la reinicia.
-/// <c>/gemini menciones</c> activa/desactiva las respuestas a menciones @.
+/// <c>/gemini-menciones</c> y <c>/gemini-espontaneo</c> activan los modos extra.
 /// </summary>
-public sealed class ChatModule : ApplicationCommandModule
+public sealed class ChatModule : SnowflakeModuleBase
 {
     private readonly GeminiService _gemini;
-    private readonly IDbContextFactory<BotDbContext> _dbFactory;
+    private readonly GuildSettingsService _settings;
     private readonly MessagesService _msg;
     private readonly IOptionsMonitor<BotConfiguration> _config;
 
     public ChatModule(
         GeminiService gemini,
-        IDbContextFactory<BotDbContext> dbFactory,
+        GuildSettingsService settings,
         MessagesService msg,
         IOptionsMonitor<BotConfiguration> config)
     {
         _gemini = gemini;
-        _dbFactory = dbFactory;
+        _settings = settings;
         _msg = msg;
         _config = config;
     }
@@ -41,6 +39,13 @@ public sealed class ChatModule : ApplicationCommandModule
         InteractionContext ctx,
         [Option("texto", "Lo que quieres decirle o preguntarle")] string texto)
     {
+        // Interruptor por servidor (desactivable desde el panel de configuración).
+        if (!(await _settings.GetAsync(ctx.Guild.Id)).GeminiChatEnabled)
+        {
+            await ResponderAsync(ctx, _msg.Get("Chat:Desactivado"), ephemeral: true);
+            return;
+        }
+
         // Respondemos inmediatamente con un mensaje visible y luego lo editamos.
         // Así la interacción queda confirmada antes de llamar a Gemini.
         await ctx.CreateResponseAsync(
@@ -78,6 +83,7 @@ public sealed class ChatModule : ApplicationCommandModule
     }
 
     [SlashCommand("charlar-limpiar", "Reinicia la conversación compartida del servidor")]
+    [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task LimpiarAsync(InteractionContext ctx)
     {
         if (_gemini.Limpiar(ctx.Guild.Id))
@@ -98,14 +104,6 @@ public sealed class ChatModule : ApplicationCommandModule
         [Choice("Activar", "on"), Choice("Desactivar", "off")]
         string? estado = null)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
-        if (cfg is null)
-        {
-            cfg = new GuildConfig { GuildId = ctx.Guild.Id };
-            db.GuildConfigs.Add(cfg);
-        }
-
         var activar = estado switch
         {
             "on" => (bool?)true,
@@ -122,8 +120,7 @@ public sealed class ChatModule : ApplicationCommandModule
                 return;
             }
 
-            cfg.GeminiMentionsEnabled = valor;
-            await db.SaveChangesAsync();
+            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.GeminiMentionsEnabled = valor);
             await ResponderAsync(ctx,
                 valor
                     ? _msg.Get("Chat:MencionesActivadas")
@@ -131,6 +128,7 @@ public sealed class ChatModule : ApplicationCommandModule
         }
         else
         {
+            var cfg = await _settings.GetAsync(ctx.Guild.Id);
             var texto = cfg.GeminiMentionsEnabled
                 ? _msg.Get("Chat:MencionesActivadas")
                 : _msg.Get("Chat:MencionesDesactivadas");
@@ -146,14 +144,6 @@ public sealed class ChatModule : ApplicationCommandModule
         [Choice("Activar", "on"), Choice("Desactivar", "off")]
         string? estado = null)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
-        if (cfg is null)
-        {
-            cfg = new GuildConfig { GuildId = ctx.Guild.Id };
-            db.GuildConfigs.Add(cfg);
-        }
-
         var activar = estado switch
         {
             "on" => (bool?)true,
@@ -170,8 +160,7 @@ public sealed class ChatModule : ApplicationCommandModule
                 return;
             }
 
-            cfg.GeminiSpontaneousEnabled = valor;
-            await db.SaveChangesAsync();
+            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.GeminiSpontaneousEnabled = valor);
             _gemini.EstablecerEspontaneo(ctx.Guild.Id, valor); // actualiza la caché en caliente
             await ResponderAsync(ctx,
                 valor
@@ -180,6 +169,7 @@ public sealed class ChatModule : ApplicationCommandModule
         }
         else
         {
+            var cfg = await _settings.GetAsync(ctx.Guild.Id);
             var texto = cfg.GeminiSpontaneousEnabled
                 ? _msg.Get("Chat:EspontaneoActivado")
                 : _msg.Get("Chat:EspontaneoDesactivado");
@@ -201,29 +191,6 @@ public sealed class ChatModule : ApplicationCommandModule
         catch
         {
             // La respuesta ya no se puede actualizar; no se intenta revivirla.
-        }
-    }
-
-    private static async Task ResponderAsync(
-        InteractionContext ctx,
-        string contenido,
-        bool ephemeral = false)
-    {
-        var builder = new DiscordInteractionResponseBuilder().WithContent(contenido);
-        if (ephemeral) builder.AsEphemeral();
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, builder);
-    }
-
-    /// <summary>Edita la respuesta diferida sin propagar un error de webhook expirado.</summary>
-    private static async Task SafeEditAsync(InteractionContext ctx, string contenido)
-    {
-        try
-        {
-            await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(contenido));
-        }
-        catch
-        {
-            // El error ya quedó registrado por el router de comandos.
         }
     }
 }

@@ -2,10 +2,8 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using DSharpPlus.SlashCommands.Attributes;
-using Microsoft.EntityFrameworkCore;
-using Snowflake.Bot.Data;
-using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Modules;
 
@@ -15,14 +13,14 @@ namespace Snowflake.Bot.Modules;
 /// </summary>
 [SlashCommandGroup("bienvenida", "Configura los mensajes de bienvenida")]
 [SlashRequirePermissions(Permissions.ManageGuild)]
-public sealed class WelcomeModule : ApplicationCommandModule
+public sealed class WelcomeModule : SnowflakeModuleBase
 {
-    private readonly IDbContextFactory<BotDbContext> _dbFactory;
+    private readonly GuildSettingsService _settings;
     private readonly MessagesService _msg;
 
-    public WelcomeModule(IDbContextFactory<BotDbContext> dbFactory, MessagesService msg)
+    public WelcomeModule(GuildSettingsService settings, MessagesService msg)
     {
-        _dbFactory = dbFactory;
+        _settings = settings;
         _msg = msg;
     }
 
@@ -31,23 +29,9 @@ public sealed class WelcomeModule : ApplicationCommandModule
         InteractionContext ctx,
         [Option("canal", "Canal de texto para la bienvenida")] DiscordChannel canal)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-
-        var config = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
-        if (config is null)
-        {
-            config = new GuildConfig { GuildId = ctx.Guild.Id };
-            db.GuildConfigs.Add(config);
-        }
-
-        config.WelcomeChannelId = canal.Id;
-        await db.SaveChangesAsync();
-
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder()
-                .WithContent(_msg.Get("Bienvenida:ConfigCanalExito", ("canal", canal.Mention)))
-                .AsEphemeral());
+        await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.WelcomeChannelId = canal.Id);
+        await ResponderAsync(ctx,
+            _msg.Get("Bienvenida:ConfigCanalExito", ("canal", canal.Mention)), ephemeral: true);
     }
 
     [SlashCommand("mensaje", "Establece el mensaje de bienvenida (usa {usuario} y {servidor})")]
@@ -58,51 +42,33 @@ public sealed class WelcomeModule : ApplicationCommandModule
     {
         if (mensaje.Length > 1900)
         {
-            await ctx.CreateResponseAsync(
-                InteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .WithContent(_msg.Get("Bienvenida:MensajeLargo"))
-                    .AsEphemeral());
+            await ResponderAsync(ctx, _msg.Get("Bienvenida:MensajeLargo"), ephemeral: true);
             return;
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-
-        var config = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
-        if (config is null)
-        {
-            config = new GuildConfig { GuildId = ctx.Guild.Id };
-            db.GuildConfigs.Add(config);
-        }
-
-        config.WelcomeMessage = mensaje;
-        await db.SaveChangesAsync();
+        await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.WelcomeMessage = mensaje);
 
         // Vista previa sustituyendo con quien ejecuta el comando.
         var vista = mensaje
             .Replace("{usuario}", ctx.User.Mention)
             .Replace("{servidor}", ctx.Guild.Name);
 
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder()
-                .WithContent(_msg.Get("Bienvenida:ConfigMensajeExito", ("vista", vista)))
-                .AsEphemeral());
+        await ResponderAsync(ctx,
+            _msg.Get("Bienvenida:ConfigMensajeExito", ("vista", vista)), ephemeral: true);
     }
 
     [SlashCommand("ver", "Muestra la configuración actual de bienvenida")]
     public async Task VerAsync(InteractionContext ctx)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var config = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
+        var config = await _settings.GetAsync(ctx.Guild.Id);
 
-        var canal = config?.WelcomeChannelId is ulong id
+        var canal = config.WelcomeChannelId is ulong id
             ? $"<#{id}>"
             : _msg.Get("Bienvenida:VerNoConfigurado");
 
-        var mensaje = string.IsNullOrWhiteSpace(config?.WelcomeMessage)
+        var mensaje = string.IsNullOrWhiteSpace(config.WelcomeMessage)
             ? $"{_msg.Get("Bienvenida:MensajePorDefecto", ("usuario", ctx.User.Mention), ("servidor", ctx.Guild.Name))}\n{_msg.Get("Bienvenida:VerPorDefecto")}"
-            : config!.WelcomeMessage!;
+            : config.WelcomeMessage!;
 
         var embed = new DiscordEmbedBuilder()
             .WithTitle(_msg.Get("Bienvenida:VerTitulo"))
@@ -110,34 +76,20 @@ public sealed class WelcomeModule : ApplicationCommandModule
             .AddField(_msg.Get("Bienvenida:VerCanal"), canal, true)
             .AddField(_msg.Get("Bienvenida:VerMensaje"), mensaje);
 
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().AddEmbed(embed).AsEphemeral());
+        await ResponderAsync(ctx, embed, ephemeral: true);
     }
 
     [SlashCommand("desactivar", "Desactiva la bienvenida")]
     public async Task DesactivarAsync(InteractionContext ctx)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var config = await db.GuildConfigs.FindAsync(ctx.Guild.Id);
-
-        if (config is null || config.WelcomeChannelId is null)
+        var config = await _settings.GetAsync(ctx.Guild.Id);
+        if (config.WelcomeChannelId is null)
         {
-            await ctx.CreateResponseAsync(
-                InteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .WithContent(_msg.Get("Bienvenida:YaDesactivada"))
-                    .AsEphemeral());
+            await ResponderAsync(ctx, _msg.Get("Bienvenida:YaDesactivada"), ephemeral: true);
             return;
         }
 
-        config.WelcomeChannelId = null;
-        await db.SaveChangesAsync();
-
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder()
-                .WithContent(_msg.Get("Bienvenida:ConfigDesactivada"))
-                .AsEphemeral());
+        await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.WelcomeChannelId = null);
+        await ResponderAsync(ctx, _msg.Get("Bienvenida:ConfigDesactivada"), ephemeral: true);
     }
 }

@@ -6,8 +6,9 @@ using Lavalink4NET.Players;
 using Lavalink4NET.Players.Queued;
 using Lavalink4NET.Rest.Entities.Tracks;
 using Lavalink4NET.Tracks;
-using Microsoft.EntityFrameworkCore;
-using Snowflake.Bot.Data;
+using Microsoft.Extensions.Options;
+using Snowflake.Bot.Configuration;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Services;
 
@@ -18,7 +19,8 @@ public sealed class MusicService(
     IAudioService audio,
     IPlayerManager players,
     ITrackManager tracks,
-    IDbContextFactory<BotDbContext> dbFactory,
+    GuildSettingsService settings,
+    IOptionsMonitor<MusicOptions> options,
     IHttpClientFactory httpClientFactory)
 {
     /// <summary>Recupera el reproductor activo del guild, o null si no hay.</summary>
@@ -95,37 +97,27 @@ public sealed class MusicService(
     }
 
     /// <summary>
-    /// Volumen 0-100. Se guarda por servidor aunque no haya un reproductor activo,
-    /// para que el ajuste también pueda hacerse antes de usar /m play.
+    /// Volumen en porcentaje (se acota con MusicOptions). Se guarda por servidor
+    /// aunque no haya un reproductor activo, para que el ajuste también pueda
+    /// hacerse antes de usar /m play.
     /// </summary>
     public async Task<int> VolumenAsync(ulong guildId, int porcentaje)
     {
-        porcentaje = Math.Clamp(porcentaje, 0, 100);
+        var min = options.CurrentValue.MinVolume;
+        var max = Math.Max(min, options.CurrentValue.MaxVolume);
+        porcentaje = Math.Clamp(porcentaje, min, max);
 
         if (Obtener(guildId) is LavalinkPlayer reproductor)
             await reproductor.SetVolumeAsync(porcentaje / 100f, default).ConfigureAwait(false);
 
-        await using var db = await dbFactory.CreateDbContextAsync().ConfigureAwait(false);
-        var cfg = await db.GuildConfigs.FindAsync(guildId).ConfigureAwait(false);
-        if (cfg is null)
-        {
-            cfg = new Data.Entities.GuildConfig { GuildId = guildId };
-            db.GuildConfigs.Add(cfg);
-        }
-        cfg.Volume = porcentaje;
-        await db.SaveChangesAsync().ConfigureAwait(false);
-
+        await settings.UpdateAsync(guildId, cfg => cfg.Volume = porcentaje).ConfigureAwait(false);
         return porcentaje;
     }
 
     private async Task<int?> LeerVolumenAsync(ulong guildId)
     {
-        await using var db = await dbFactory.CreateDbContextAsync().ConfigureAwait(false);
-        return await db.GuildConfigs
-            .Where(g => g.GuildId == guildId)
-            .Select(g => g.Volume)
-            .SingleOrDefaultAsync()
-            .ConfigureAwait(false);
+        var cfg = await settings.GetAsync(guildId).ConfigureAwait(false);
+        return cfg.Volume;
     }
 
     private async Task<TrackLoadResult> CargarTracksAsync(string consulta)

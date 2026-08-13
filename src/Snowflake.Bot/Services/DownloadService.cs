@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Snowflake.Bot.Configuration;
 
 namespace Snowflake.Bot.Services;
 
@@ -20,7 +22,9 @@ public sealed class YtDlpException(string detalles) : Exception(detalles);
 /// Descarga vídeos/audio usando yt-dlp como proceso externo.
 /// Soporta cualquier URL que yt-dlp entienda (YouTube, TikTok, Instagram, X, Reddit…).
 /// </summary>
-public sealed class DownloadService(ILogger<DownloadService> logger)
+public sealed class DownloadService(
+    ILogger<DownloadService> logger,
+    IOptionsMonitor<DownloadOptions> options)
 {
     private static readonly string CookiesFile =
         Environment.GetEnvironmentVariable("YT_COOKIES_FILE") ?? string.Empty;
@@ -81,8 +85,10 @@ public sealed class DownloadService(ILogger<DownloadService> logger)
             if (!proc.Start())
                 throw new InvalidOperationException("No se pudo iniciar yt-dlp.");
 
-            // Tope duro: 5 minutos. Enlazado con el token externo (p. ej. cancelación).
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            // Tope duro del servicio: lo que marque la config + 1 minuto de
+            // margen. Enlazado con el token externo (p. ej. cancelación).
+            var margenDuro = TimeSpan.FromMinutes(Math.Max(1, options.CurrentValue.TimeoutMinutes) + 1);
+            using var timeoutCts = new CancellationTokenSource(margenDuro);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(externalCt, timeoutCts.Token);
 
             var stdoutTask = proc.StandardOutput.ReadToEndAsync(linked.Token);

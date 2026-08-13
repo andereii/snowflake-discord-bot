@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Data.Entities;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Services;
 
@@ -14,6 +15,7 @@ namespace Snowflake.Bot.Services;
 /// </summary>
 public sealed class VoiceHubService(
     IDbContextFactory<BotDbContext> dbFactory,
+    GuildSettingsService settings,
     MessagesService msg,
     ILogger<VoiceHubService> logger)
 {
@@ -33,11 +35,10 @@ public sealed class VoiceHubService(
             // 1) Si acaba de entrar al hub, se le crea un canal temporal.
             if (ahora is not null && e.After?.Channel is { } canalHub)
             {
-                await using var db = await dbFactory.CreateDbContextAsync();
-                var config = await db.GuildConfigs.FindAsync(guild.Id);
-                if (config?.HubChannelId is ulong hubId && ahora == hubId)
+                var config = await settings.GetAsync(guild.Id);
+                if (config.HubChannelId is ulong hubId && ahora == hubId)
                 {
-                    await CrearCanalTemporalAsync(guild, e.User ?? e.After.User, canalHub);
+                    await CrearCanalTemporalAsync(guild, e.User ?? e.After.User, canalHub, config.TempChannelNameTemplate);
                     return;
                 }
             }
@@ -65,10 +66,16 @@ public sealed class VoiceHubService(
         }
     }
 
-    private async Task CrearCanalTemporalAsync(DiscordGuild guild, DiscordUser usuario, DiscordChannel hub)
+    private async Task CrearCanalTemporalAsync(
+        DiscordGuild guild, DiscordUser usuario, DiscordChannel hub, string? plantilla)
     {
         var member = await guild.GetMemberAsync(usuario.Id);
-        var nombre = msg.Get("Voces:NombreTemporal", ("usuario", usuario.Username));
+
+        // Plantilla personalizada del servidor o el nombre por defecto del bot.
+        var nombre = string.IsNullOrWhiteSpace(plantilla)
+            ? msg.Get("Voces:NombreTemporal", ("usuario", usuario.Username))
+            : plantilla.Replace("{usuario}", usuario.Username);
+
         var categoria = hub.Parent;
 
         var overwrites = new[]

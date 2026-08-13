@@ -13,8 +13,16 @@ public sealed class DatabaseOptions
     public string Path { get; set; } = "snowflake.db";
 
     /// <summary>Ruta absoluta efectiva del archivo de base de datos.</summary>
-    public string ResolveFullPath() =>
-        System.IO.Path.IsPathRooted(Path)
+    public string ResolveFullPath()
+    {
+        // En despliegues con volumen persistente (Fly.io), DATA_DIR apunta al
+        // volumen montado. Tiene prioridad sobre cualquier otra ruta.
+        var dataDir = Environment.GetEnvironmentVariable("DATA_DIR");
+        if (!string.IsNullOrWhiteSpace(dataDir))
+            return System.IO.Path.Combine(dataDir, System.IO.Path.GetFileName(Path));
+
+        return System.IO.Path.IsPathRooted(Path)
             ? Path
             : System.IO.Path.Combine(AppContext.BaseDirectory, Path);
+    }
 }

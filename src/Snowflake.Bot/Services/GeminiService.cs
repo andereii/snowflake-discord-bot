@@ -251,7 +251,7 @@ public sealed class GeminiService
         foreach (var (autor, texto) in mensajesRecientes)
             sb.AppendLine($"{autor}: {texto}");
         sb.AppendLine();
-        sb.Append("Haz un comentario breve, casual y natural, como si fueras un miembro más del servidor. ");
+        sb.Append("Haz comentarios breves, casuales y naturales, como si fueras un miembro más del servidor hablando desde la app de mensajes. ");
         sb.Append("Puedes saludar o retomar algo de lo que se habló. ");
         sb.Append("No menciones que eres una IA ni que nadie te lo pidió. ");
         sb.Append("Responde solo con el mensaje, sin comillas ni etiquetas, en español.");

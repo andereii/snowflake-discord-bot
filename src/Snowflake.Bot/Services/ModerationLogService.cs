@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Data.Entities;
+using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
 namespace Snowflake.Bot.Services;
@@ -13,6 +14,7 @@ namespace Snowflake.Bot.Services;
 /// </summary>
 public sealed class ModerationLogService(
     IDbContextFactory<BotDbContext> dbFactory,
+    GuildSettingsService settings,
     MessagesService msg,
     ILogger<ModerationLogService> logger)
 {
@@ -53,9 +55,8 @@ public sealed class ModerationLogService(
     /// <summary>Publica el embed del incidente en el canal de logs, si hay uno configurado.</summary>
     public async Task AnunciarAsync(DiscordGuild guild, Incident incidente)
     {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        var config = await db.GuildConfigs.FindAsync(guild.Id);
-        if (config?.ModLogChannelId is not ulong canalId) return;
+        var config = await settings.GetAsync(guild.Id);
+        if (config.ModLogChannelId is not ulong canalId) return;
 
         var canal = guild.GetChannel(canalId);
         if (canal is null)

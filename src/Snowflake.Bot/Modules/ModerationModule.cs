@@ -15,8 +15,9 @@ namespace Snowflake.Bot.Modules;
 /// de datos (historial de incidentes) y se anuncian en el canal de logs.
 /// Los textos de las respuestas están en messages.json (sección "Moderacion").
 /// </summary>
-public sealed class ModerationModule : ApplicationCommandModule
+public sealed class ModerationModule : SnowflakeModuleBase
 {
+    // Discord no permite aislamientos (timeouts) de más de 28 días.
     private static readonly TimeSpan MaxAislamiento = TimeSpan.FromDays(28);
 
     private readonly IDbContextFactory<BotDbContext> _dbFactory;
@@ -307,12 +308,5 @@ public sealed class ModerationModule : ApplicationCommandModule
         await ctx.CreateResponseAsync(
             InteractionResponseType.ChannelMessageWithSource,
             new DiscordInteractionResponseBuilder().AddEmbed(embed));
-    }
-
-    private async Task ResponderErrorAsync(InteractionContext ctx, string mensaje)
-    {
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().WithContent($"❌ {mensaje}").AsEphemeral());
     }
 }

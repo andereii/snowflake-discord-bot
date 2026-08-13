@@ -25,6 +25,14 @@ public sealed partial class CountingService(
     // Un candado por servidor para serializar el conteo y evitar carreras.
     private readonly ConcurrentDictionary<ulong, SemaphoreSlim> _locks = new();
 
+    // Emojis por defecto para las reacciones (unicode: funcionan en cualquier
+    // servidor, a diferencia de los emojis personalizados). Cada servidor puede
+    // sobrescribirlos con /counting iconos.
+    public const string EmojiCorrectoPorDefecto = "✅";
+    public const string EmojiIncorrectoPorDefecto = "❌";
+    public const string EmojiRecordPorDefecto = "🎉";
+    public const string EmojiPerdonPorDefecto = "🛡️";
+
     // ---------------------- Conversión de bases ----------------------
 
     public static int BaseRadix(CountingBase b) => b switch
@@ -84,7 +92,7 @@ public sealed partial class CountingService(
             try { return DiscordEmoji.FromGuildEmote(client, id); } catch { }
         }
         try { return DiscordEmoji.FromUnicode(client, fallback); } catch { }
-        return DiscordEmoji.FromUnicode(client, "✅");
+        return DiscordEmoji.FromUnicode(client, EmojiCorrectoPorDefecto);
     }
 
     // ---------------------- Procesamiento de mensajes ----------------------
@@ -173,8 +181,8 @@ public sealed partial class CountingService(
 
         // Reacción: si supera el récord histórico base, usa el emoji de récord.
         var emoji = esNuevoRecordHistorico
-            ? ParseEmoji(cfg.EmojiRecord, "🎉")
-            : ParseEmoji(cfg.EmojiCorrect, "✅");
+            ? ParseEmoji(cfg.EmojiRecord, EmojiRecordPorDefecto)
+            : ParseEmoji(cfg.EmojiCorrect, EmojiCorrectoPorDefecto);
         await ReaccionarAsync(message, emoji);
 
         if (cfg.Goal is { } meta && valor == meta)
@@ -192,7 +200,7 @@ public sealed partial class CountingService(
 
         if (esPrimeraVez)
         {
-            await ReaccionarAsync(message, DiscordEmoji.FromUnicode(client, "🛡️"));
+            await ReaccionarAsync(message, DiscordEmoji.FromUnicode(client, EmojiPerdonPorDefecto));
             var siguienteHint = Formatear(cfg.CurrentValue + 1, cfg.Base);
             await EnviarHintPrivadoAsync(message, siguienteHint);
             return; // se perdona: la cadena sigue, el siguiente esperado no cambia
@@ -205,12 +213,12 @@ public sealed partial class CountingService(
         if (perdonado)
         {
             cfg.ExtraChancesUsedToday++;
-            await ReaccionarAsync(message, DiscordEmoji.FromUnicode(client, "🛡️"));
+            await ReaccionarAsync(message, DiscordEmoji.FromUnicode(client, EmojiPerdonPorDefecto));
             return; // se perdona: la cadena sigue, el siguiente esperado no cambia
         }
 
         // No perdonado: se pierde la cuenta.
-        await ReaccionarAsync(message, ParseEmoji(cfg.EmojiIncorrect, "❌"));
+        await ReaccionarAsync(message, ParseEmoji(cfg.EmojiIncorrect, EmojiIncorrectoPorDefecto));
 
         var cuentaFormateada = Formatear(cfg.CurrentValue, cfg.Base);
         var siguiente = Formatear(1, cfg.Base);

@@ -2,10 +2,9 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using DSharpPlus.SlashCommands.Attributes;
-using Microsoft.EntityFrameworkCore;
-using Snowflake.Bot.Data;
 using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Modules;
 
@@ -15,15 +14,15 @@ namespace Snowflake.Bot.Modules;
 ///           · iconos · mensaje-perdida · leaderboard · estadisticas
 /// </summary>
 [SlashCommandGroup("counting", "Configura y juega al conteo en el servidor")]
-public sealed class CountingModule : ApplicationCommandModule
+public sealed class CountingModule : SnowflakeModuleBase
 {
-    private readonly IDbContextFactory<BotDbContext> _dbFactory;
+    private readonly GuildSettingsService _settings;
     private readonly CountingService _counting;
     private readonly MessagesService _msg;
 
-    public CountingModule(IDbContextFactory<BotDbContext> dbFactory, CountingService counting, MessagesService msg)
+    public CountingModule(GuildSettingsService settings, CountingService counting, MessagesService msg)
     {
-        _dbFactory = dbFactory;
+        _settings = settings;
         _counting = counting;
         _msg = msg;
     }
@@ -42,11 +41,7 @@ public sealed class CountingModule : ApplicationCommandModule
             return;
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await GetOrCreateAsync(db, ctx.Guild.Id);
-        cfg.ChannelId = canal.Id;
-        await db.SaveChangesAsync();
-
+        await _settings.UpdateCountingAsync(ctx.Guild.Id, cfg => cfg.ChannelId = canal.Id);
         await ResponderAsync(ctx, _msg.Get("Conteo:CanalEstablecido", ("canal", canal.Mention)));
     }
 
@@ -54,18 +49,14 @@ public sealed class CountingModule : ApplicationCommandModule
     [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task DesactivarAsync(InteractionContext ctx)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await db.CountingConfigs.FindAsync(ctx.Guild.Id);
-
+        var cfg = await _settings.GetCountingAsync(ctx.Guild.Id);
         if (cfg is null || cfg.ChannelId is null)
         {
             await ResponderAsync(ctx, _msg.Get("Conteo:YaDesactivado"), ephemeral: true);
             return;
         }
 
-        cfg.ChannelId = null;
-        await db.SaveChangesAsync();
-
+        await _settings.UpdateCountingAsync(ctx.Guild.Id, c => c.ChannelId = null);
         await ResponderAsync(ctx, _msg.Get("Conteo:Desactivado"));
     }
 
@@ -85,11 +76,7 @@ public sealed class CountingModule : ApplicationCommandModule
             _ => CountingBase.Decimal
         };
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await GetOrCreateAsync(db, ctx.Guild.Id);
-        cfg.Base = tipo;
-        await db.SaveChangesAsync();
-
+        await _settings.UpdateCountingAsync(ctx.Guild.Id, cfg => cfg.Base = tipo);
         await ResponderAsync(ctx, _msg.Get("Conteo:BaseEstablecida", ("base", Capitalizar(base_))));
     }
 
@@ -105,11 +92,7 @@ public sealed class CountingModule : ApplicationCommandModule
             return;
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await GetOrCreateAsync(db, ctx.Guild.Id);
-        cfg.ExtraChancesPerDay = (int)cantidad;
-        await db.SaveChangesAsync();
-
+        await _settings.UpdateCountingAsync(ctx.Guild.Id, cfg => cfg.ExtraChancesPerDay = (int)cantidad);
         await ResponderAsync(ctx, _msg.Get("Conteo:OportunidadesActualizadas", ("n", cantidad)));
     }
 
@@ -125,26 +108,16 @@ public sealed class CountingModule : ApplicationCommandModule
             return;
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await GetOrCreateAsync(db, ctx.Guild.Id);
-        cfg.Goal = numero;
-        await db.SaveChangesAsync();
-
-        await using var db2 = await _dbFactory.CreateDbContextAsync();
-        var cfg2 = await db2.CountingConfigs.FindAsync(ctx.Guild.Id);
+        var cfg = await _settings.UpdateCountingAsync(ctx.Guild.Id, c => c.Goal = numero);
         await ResponderAsync(ctx, _msg.Get("Conteo:ObjetivoEstablecido",
-            ("objetivo", CountingService.Formatear(numero, cfg2?.Base ?? CountingBase.Decimal))));
+            ("objetivo", CountingService.Formatear(numero, cfg.Base))));
     }
 
     [SlashCommand("objetivo-quitar", "Elimina el objetivo del servidor")]
     [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task ObjetivoQuitarAsync(InteractionContext ctx)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await GetOrCreateAsync(db, ctx.Guild.Id);
-        cfg.Goal = null;
-        await db.SaveChangesAsync();
-
+        await _settings.UpdateCountingAsync(ctx.Guild.Id, cfg => cfg.Goal = null);
         await ResponderAsync(ctx, _msg.Get("Conteo:ObjetivoQuitado"));
     }
 
@@ -165,17 +138,17 @@ public sealed class CountingModule : ApplicationCommandModule
             return;
         }
 
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await GetOrCreateAsync(db, ctx.Guild.Id);
-        if (correcto is not null) cfg.EmojiCorrect = correcto.Trim();
-        if (incorrecto is not null) cfg.EmojiIncorrect = incorrecto.Trim();
-        if (record is not null) cfg.EmojiRecord = record.Trim();
-        await db.SaveChangesAsync();
+        await _settings.UpdateCountingAsync(ctx.Guild.Id, cfg =>
+        {
+            if (correcto is not null) cfg.EmojiCorrect = correcto.Trim();
+            if (incorrecto is not null) cfg.EmojiIncorrect = incorrecto.Trim();
+            if (record is not null) cfg.EmojiRecord = record.Trim();
+        });
 
         await ResponderAsync(ctx, _msg.Get("Conteo:IconosActualizados",
-            ("correcto", correcto ?? "✅"),
-            ("incorrecto", incorrecto ?? "❌"),
-            ("record", record ?? "🎉")));
+            ("correcto", correcto ?? CountingService.EmojiCorrectoPorDefecto),
+            ("incorrecto", incorrecto ?? CountingService.EmojiIncorrectoPorDefecto),
+            ("record", record ?? CountingService.EmojiRecordPorDefecto)));
     }
 
     [SlashCommand("mensaje-perdida", "Personaliza el mensaje al perder la cuenta (placeholders: {cuenta} {usuario} {siguiente})")]
@@ -185,26 +158,20 @@ public sealed class CountingModule : ApplicationCommandModule
         [Option("mensaje", "Nuevo mensaje. Vacío = restablecer al por defecto.")]
         string? mensaje = null)
     {
-        await using var db = await _dbFactory.CreateDbContextAsync();
-        var cfg = await GetOrCreateAsync(db, ctx.Guild.Id);
-
         if (string.IsNullOrWhiteSpace(mensaje))
         {
-            cfg.LoseMessage = null;
-            await db.SaveChangesAsync();
+            await _settings.UpdateCountingAsync(ctx.Guild.Id, cfg => cfg.LoseMessage = null);
             await ResponderAsync(ctx, _msg.Get("Conteo:MensajePerdidaBorrado"));
             return;
         }
 
-        cfg.LoseMessage = mensaje;
-        await db.SaveChangesAsync();
+        var cfg = await _settings.UpdateCountingAsync(ctx.Guild.Id, c => c.LoseMessage = mensaje);
 
         // Vista previa sustituyendo con quien ejecuta el comando.
-        var cfg2 = cfg;
         var vista = mensaje
-            .Replace("{cuenta}", CountingService.Formatear(42, cfg2.Base))
+            .Replace("{cuenta}", CountingService.Formatear(42, cfg.Base))
             .Replace("{usuario}", ctx.User.Mention)
-            .Replace("{siguiente}", CountingService.Formatear(1, cfg2.Base));
+            .Replace("{siguiente}", CountingService.Formatear(1, cfg.Base));
 
         await ResponderAsync(ctx, _msg.Get("Conteo:MensajePerdidaGuardado", ("vista", vista)));
     }
@@ -240,31 +207,6 @@ public sealed class CountingModule : ApplicationCommandModule
 
     // ------------------------- Ayudantes -------------------------
 
-    private static async Task<CountingConfig> GetOrCreateAsync(BotDbContext db, ulong guildId)
-    {
-        var cfg = await db.CountingConfigs.FindAsync(guildId);
-        if (cfg is null)
-        {
-            cfg = new CountingConfig { GuildId = guildId };
-            db.CountingConfigs.Add(cfg);
-        }
-        return cfg;
-    }
-
     private static string Capitalizar(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
-
-    private static async Task ResponderAsync(InteractionContext ctx, string contenido, bool ephemeral = false)
-    {
-        var b = new DiscordInteractionResponseBuilder().WithContent(contenido);
-        if (ephemeral) b.AsEphemeral();
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, b);
-    }
-
-    private static async Task ResponderAsync(InteractionContext ctx, DiscordEmbedBuilder embed)
-    {
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().AddEmbed(embed));
-    }
 }

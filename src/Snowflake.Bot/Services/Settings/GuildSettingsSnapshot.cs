@@ -18,6 +18,9 @@ public sealed record GuildSettingsSnapshot
     public AiSection Ai { get; init; } = new();
     public DownloadsSection Downloads { get; init; } = new();
 
+    /// <summary>IDs (string) de los canales en lockdown (/bloquear).</summary>
+    public List<string> BlockedChannels { get; init; } = [];
+
     /// <summary>Ajustes (y estado actual) del juego de conteo; null si nunca se configuró.</summary>
     public CountingSection? Counting { get; init; }
 

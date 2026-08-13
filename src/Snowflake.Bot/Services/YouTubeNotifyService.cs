@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data;
 
 namespace Snowflake.Bot.Services;
@@ -30,6 +32,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
     private readonly DiscordClient _client;
     private readonly IHttpClientFactory _httpFactory;
     private readonly MessagesService _msg;
+    private readonly IOptionsMonitor<YouTubeOptions> _options;
     private readonly ILogger<YouTubeNotifyService> _logger;
 
     public YouTubeNotifyService(
@@ -37,28 +40,33 @@ public sealed partial class YouTubeNotifyService : BackgroundService
         DiscordClient client,
         IHttpClientFactory httpFactory,
         MessagesService msg,
+        IOptionsMonitor<YouTubeOptions> options,
         ILogger<YouTubeNotifyService> logger)
     {
         _services = services;
         _client = client;
         _httpFactory = httpFactory;
         _msg = msg;
+        _options = options;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("YouTubeNotifyService iniciado (polling cada 5 minutos).");
+        var intervalo = TimeSpan.FromMinutes(Math.Max(1, _options.CurrentValue.PollIntervalMinutes));
+        var arranque = TimeSpan.FromSeconds(Math.Max(0, _options.CurrentValue.StartupDelaySeconds));
+        _logger.LogInformation("YouTubeNotifyService iniciado (polling cada {Minutos} min).",
+            intervalo.TotalMinutes);
 
         // Espera inicial corta para que el bot se conecte.
-        await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken).ConfigureAwait(false);
+        await Task.Delay(arranque, stoppingToken).ConfigureAwait(false);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try { await RevisarAsync(stoppingToken).ConfigureAwait(false); }
             catch (Exception ex) { _logger.LogError(ex, "Error en el bucle de YouTube Notify"); }
 
-            try { await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken).ConfigureAwait(false); }
+            try { await Task.Delay(intervalo, stoppingToken).ConfigureAwait(false); }
             catch (OperationCanceledException) { }
         }
     }
@@ -273,8 +281,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
     /// Resuelve una URL o @handle de YouTube a su channel_id (UC...). Usa yt-dlp
     /// con --print channel_id (ya instalado en el sistema).
     /// </summary>
-    public static async Task<(string ChannelId, string ChannelName)?> ResolverCanalAsync(
-        string entrada, ILogger logger)
+    public async Task<(string ChannelId, string ChannelName)?> ResolverCanalAsync(string entrada)
     {
         if (string.IsNullOrWhiteSpace(entrada)) return null;
 
@@ -282,6 +289,9 @@ public sealed partial class YouTubeNotifyService : BackgroundService
         var arg = entrada.Trim();
         if (arg.StartsWith('@'))
             arg = "https://www.youtube.com/" + arg;
+
+        var timeout = TimeSpan.FromSeconds(Math.Max(5, _options.CurrentValue.ResolveTimeoutSeconds));
+        var nombreTimeout = TimeSpan.FromSeconds(Math.Max(5, _options.CurrentValue.NameResolveTimeoutSeconds));
 
         try
         {
@@ -303,7 +313,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
             using var proc = new Process { StartInfo = psi };
             if (!proc.Start()) return null;
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var cts = new CancellationTokenSource(timeout);
             var stdoutTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
             var stderrTask = proc.StandardError.ReadToEndAsync(cts.Token);
             try { await proc.WaitForExitAsync(cts.Token); }
@@ -317,7 +327,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
             var stderr = await stderrTask;
             if (proc.ExitCode != 0)
             {
-                logger.LogWarning("yt-dlp falló al resolver canal: {Detalles}", stderr);
+                _logger.LogWarning("yt-dlp falló al resolver canal: {Detalles}", stderr);
                 return null;
             }
 
@@ -326,17 +336,17 @@ public sealed partial class YouTubeNotifyService : BackgroundService
             if (string.IsNullOrEmpty(channelId)) return null;
 
             // Nombre del canal: pedimos también el channel con --print.
-            var nombre = await ObtenerNombreCanalAsync(channelId, logger);
+            var nombre = await ObtenerNombreCanalAsync(channelId, nombreTimeout);
             return (channelId, nombre ?? channelId);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Excepción resolviendo canal de YouTube");
+            _logger.LogWarning(ex, "Excepción resolviendo canal de YouTube");
             return null;
         }
     }
 
-    private static async Task<string?> ObtenerNombreCanalAsync(string channelId, ILogger logger)
+    private async Task<string?> ObtenerNombreCanalAsync(string channelId, TimeSpan timeout)
     {
         try
         {
@@ -357,7 +367,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
             using var proc = new Process { StartInfo = psi };
             if (!proc.Start()) return null;
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var cts = new CancellationTokenSource(timeout);
             var stdoutTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
             try { await proc.WaitForExitAsync(cts.Token); }
             catch (OperationCanceledException)
@@ -373,7 +383,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "No se pudo obtener el nombre del canal {Id}", channelId);
+            _logger.LogDebug(ex, "No se pudo obtener el nombre del canal {Id}", channelId);
             return null;
         }
     }

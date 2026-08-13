@@ -3,24 +3,36 @@ using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using Lavalink4NET.Tracks;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Modules;
 
 /// <summary>
 /// Reproducción de música en canales de voz mediante Lavalink.
 /// Comandos: /m play /skip /cola /pausa /reanuda /stop /volumen
+///
+/// Auditoría de seguridad: /m play está abierto a todos, pero los comandos de
+/// CONTROL (pausa, saltar, reanudar, detener) exigen estar en el mismo canal de
+/// voz que el bot, tener el rol DJ del servidor (si está configurado) o
+/// permisos ManageGuild. Así nadie desde otro canal puede reventar la música.
 /// </summary>
 [SlashCommandGroup("m", "Música en canales de voz")]
-public sealed class MusicModule : ApplicationCommandModule
+public sealed class MusicModule : SnowflakeModuleBase
 {
     private readonly MusicService _music;
     private readonly MusicWidgetService _widget;
+    private readonly GuildSettingsService _settings;
     private readonly MessagesService _msg;
 
-    public MusicModule(MusicService music, MusicWidgetService widget, MessagesService msg)
+    public MusicModule(
+        MusicService music,
+        MusicWidgetService widget,
+        GuildSettingsService settings,
+        MessagesService msg)
     {
         _music = music;
         _widget = widget;
+        _settings = settings;
         _msg = msg;
     }
 
@@ -96,6 +108,7 @@ public sealed class MusicModule : ApplicationCommandModule
             await ResponderAsync(ctx, _msg.Get("Musica:NoActivo"), ephemeral: true);
             return;
         }
+        if (!await PuedeControlarAsync(ctx)) return;
 
         var siguiente = await _music.SaltarAsync(ctx.Guild.Id);
         var texto = siguiente is null
@@ -117,7 +130,7 @@ public sealed class MusicModule : ApplicationCommandModule
             await ResponderAsync(ctx, _msg.Get("Musica:ColaVacia"), ephemeral: true);
             return;
         }
-        await ResponderAsync(ctx, "", embed);
+        await ResponderAsync(ctx, embed);
     }
 
     [SlashCommand("pausa", "Pausa la canción actual")]
@@ -128,6 +141,8 @@ public sealed class MusicModule : ApplicationCommandModule
             await ResponderAsync(ctx, _msg.Get("Musica:NoActivo"), ephemeral: true);
             return;
         }
+        if (!await PuedeControlarAsync(ctx)) return;
+
         await _music.PausarAsync(ctx.Guild.Id);
         await ResponderAsync(ctx, _msg.Get("Musica:Pausado"));
         await _widget.RefrescarSiExisteAsync(ctx.Guild.Id, ctx.Channel);
@@ -141,6 +156,8 @@ public sealed class MusicModule : ApplicationCommandModule
             await ResponderAsync(ctx, _msg.Get("Musica:NoActivo"), ephemeral: true);
             return;
         }
+        if (!await PuedeControlarAsync(ctx)) return;
+
         await _music.ReanudarAsync(ctx.Guild.Id);
         await ResponderAsync(ctx, _msg.Get("Musica:Reanudado"));
         await _widget.RefrescarSiExisteAsync(ctx.Guild.Id, ctx.Channel);
@@ -149,6 +166,8 @@ public sealed class MusicModule : ApplicationCommandModule
     [SlashCommand("stop", "Detiene la música y desconecta al bot")]
     public async Task StopAsync(InteractionContext ctx)
     {
+        if (!await PuedeControlarAsync(ctx)) return;
+
         await _music.DetenerAsync(ctx.Guild.Id);
         await _widget.DetenerAsync(ctx.Guild.Id);
         await ResponderAsync(ctx, _msg.Get("Musica:Detenido"));
@@ -159,29 +178,47 @@ public sealed class MusicModule : ApplicationCommandModule
         InteractionContext ctx,
         [Option("nivel", "Nivel de volumen de 0 a 100")] long nivel)
     {
-        var porcentaje = (int)Math.Clamp(nivel, 0L, 100L);
-        var aplicado = await _music.VolumenAsync(ctx.Guild.Id, porcentaje);
+        var aplicado = await _music.VolumenAsync(ctx.Guild.Id, (int)nivel);
         await ResponderAsync(ctx, _msg.Get("Musica:Volumen", ("nivel", aplicado)));
     }
 
-    // ------ ayudantes ------
+    // ------ auditoría de control de la reproducción ------
 
-    private static async Task ResponderAsync(InteractionContext ctx, string contenido, bool ephemeral = false)
+    /// <summary>
+    /// ¿Puede este usuario controlar la música (pausar, saltar, detener)?
+    /// Requisitos (cualquiera de ellos): permiso ManageGuild, rol DJ configurado
+    /// o estar en el MISMO canal de voz que el bot. Si no, responde error.
+    /// </summary>
+    private async Task<bool> PuedeControlarAsync(InteractionContext ctx)
     {
-        var b = new DiscordInteractionResponseBuilder().WithContent(contenido);
-        if (ephemeral) b.AsEphemeral();
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, b);
-    }
+        // ManageGuild (administradores) siempre pueden.
+        if (ctx.Member is not null
+            && ctx.Member.Permissions.HasPermission(Permissions.ManageGuild))
+        {
+            return true;
+        }
 
-    private static async Task ResponderAsync(InteractionContext ctx, string _, DiscordEmbedBuilder embed)
-    {
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().AddEmbed(embed));
-    }
+        var djRoleId = (await _settings.GetAsync(ctx.Guild.Id)).DjRoleId;
 
-    private static async Task SafeEditAsync(InteractionContext ctx, string contenido)
-    {
-        try { await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(contenido)); }
-        catch { }
+        // Rol DJ del servidor, si está configurado.
+        if (djRoleId is { } dj && ctx.Member is not null
+            && ctx.Member.Roles.Any(r => r.Id == dj))
+        {
+            return true;
+        }
+
+        // Mismo canal de voz que el bot.
+        var canalBot = ctx.Guild.CurrentMember?.VoiceState?.Channel;
+        var canalUsuario = ctx.Member?.VoiceState?.Channel;
+        if (canalBot is not null && canalUsuario is not null && canalBot.Id == canalUsuario.Id)
+        {
+            return true;
+        }
+
+        var mensaje = djRoleId is not null
+            ? _msg.Get("Musica:RequiereDj", ("rol", $"<@&{djRoleId}>"))
+            : _msg.Get("Musica:MismoCanal");
+        await ResponderErrorAsync(ctx, mensaje);
+        return false;
     }
 }

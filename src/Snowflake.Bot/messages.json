@@ -117,7 +117,8 @@
     // {tipo} {mensaje}  (solo si Bot.Debug = true, para excepciones inesperadas)
     "ErrorInterno": "<:error:1534417252185800720> Error inesperado ({tipo}): {mensaje}",
     // Mensaje genérico (cuando Bot.Debug = false). No filtra nada.
-    "ErrorGenerico": "<:error:1534417252185800720> No se pudo descargar el contenido. Intenta de nuevo."
+    "ErrorGenerico": "<:error:1534417252185800720> No se pudo descargar el contenido. Intenta de nuevo.",
+    "Desactivado": "Las descargas están desactivadas en este servidor. Un administrador puede activarlas desde el panel de configuración."
   },
 
   "Bienvenida": {
@@ -173,7 +174,9 @@
     "WidgetSinPista": "⏹️ No hay nada reproduciéndose.",
     "EstadoPausado": "⏸️ Pausado",
     "EstadoReproduciendo": "▶️ Reproduciendo",
-    "ErrorLavalink": "<:error:1534417252185800720> No pude reproducir música ahora mismo. Verifica que el servidor Lavalink esté corriendo y sea alcanzable."
+    "ErrorLavalink": "<:error:1534417252185800720> No pude reproducir música ahora mismo. Verifica que el servidor Lavalink esté corriendo y sea alcanzable.",
+    "MismoCanal": "Debes estar en el mismo canal de voz que el bot para controlar la música.",
+    "RequiereDj": "Necesitas el rol {rol} o estar en el mismo canal de voz que el bot para controlar la música."
   },
 
   "Colores": {
@@ -201,12 +204,35 @@
     "HubEstablecido": "<:check:1534413756057260152> Canal hub de join-to-create establecido en {canal}. Entra ahí para obtener tu propio canal de voz temporal.",
     "HubQuitado": "<:check:1534413756057260152> Join-to-create desactivado.",
     "HubDebeSerVoz": "<:error:1534417252185800720> El canal debe ser de voz.",
-    "Creado": "<:check:1534413756057260152> Canal creado: {canal}."
+    "Creado": "<:check:1534413756057260152> Canal creado: {canal}.",
+    "PlantillaEstablecida": "Plantilla de canales temporales guardada. Vista previa: \"{vista}\"",
+    "PlantillaBorrada": "Plantilla restablecida al nombre por defecto.",
+    "PlantillaLarga": "La plantilla no puede superar los 100 caracteres."
   },
 
   "Config": {
     // {canal} = mención del canal
-    "CanalLogsEstablecido": "<:check:1534413756057260152> Canal de logs de moderación establecido en {canal}."
+    "CanalLogsEstablecido": "<:check:1534413756057260152> Canal de logs de moderación establecido en {canal}.",
+    "VerTitulo": "Ajustes de {servidor}",
+    "VerModeracion": "Logs de moderación",
+    "VerBienvenida": "Bienvenida",
+    "VerVoces": "Join-to-create",
+    "VerMusica": "Rol DJ",
+    "VerDj": "{rol}",
+    "VerSinDj": "Sin rol (cualquiera en el mismo canal de voz)",
+    "VerAi": "IA (Gemini)",
+    "VerAiDetalle": "Chat: {chat} · Menciones: {menciones} · Espontáneo: {espontaneo}",
+    "VerDescargas": "Descargas",
+    "VerConteo": "Juego de conteo",
+    "VerCanalActivo": "{canal}",
+    "VerBase": "base {base}",
+    "VerYoutube": "Notificaciones de YouTube",
+    "VerPie": "Este es el resumen del panel de configuración del bot.",
+    "VerNoConfigurado": "Sin canal",
+    "VerDesactivado": "Desactivado",
+    "VerNuncaConfigurado": "Nunca configurado",
+    "VerBloqueados": "Canales bloqueados",
+    "VerBloqueadosVacio": "Ninguno"
   },
 
   "Chat": {
@@ -229,7 +255,8 @@
     // Toggle de cháchara espontánea en el chat ambiental
     "EspontaneoActivado": "<:check:1534413756057260152> Ahora puedo intervenir espontáneamente en el chat cuando la conversación esté activa.",
     "EspontaneoDesactivado": "⛔ Ya no intervendré espontáneamente en el chat.",
-    "EspontaneoFaltaApiKey": "<:error:1534417252185800720> No puedo activar el espontaneo: falta la variable de entorno `GEMINI_API_KEY`."
+    "EspontaneoFaltaApiKey": "<:error:1534417252185800720> No puedo activar el espontaneo: falta la variable de entorno `GEMINI_API_KEY`.",
+    "Desactivado": "El chat con IA está desactivado en este servidor. Un administrador puede activarlo desde el panel de configuración."
   },
 
   "Conteo": {
@@ -314,6 +341,17 @@
     "ExitoExcluido": "🧹 Borrados **{n}** mensajes en {canal}. ({excluidos} no se borraron: eran de más de 14 días y Discord no permite borrado masivo.)",
     "SinCantidad": "<:error:1534417252185800720> La cantidad debe estar entre 1 y 100.",
     "SinMensajes": "ℹ️ No había mensajes que borrar en {canal}.",
-    "CanalDebeSerTexto": "<:error:1534417252185800720> El canal debe ser de texto."
+    "CanalDebeSerTexto": "<:error:1534417252185800720> El canal debe ser de texto.",
+    "SinPermisosCanal": "No tienes el permiso \"Gestionar mensajes\" en {canal}.",
+    "SinPermisosBotCanal": "Al bot le falta el permiso \"Gestionar mensajes\" en {canal}."
+  },
+  "Bloqueo": {
+    "Bloqueado": "🔒 {canal} bloqueado: nadie puede interactuar en él. Desbloquéalo con /desbloquear.",
+    "Desbloqueado": "🔓 {canal} desbloqueado. Los permisos anteriores quedaron restaurados.",
+    "YaBloqueado": "{canal} ya estaba bloqueado.",
+    "NoBloqueado": "{canal} no estaba bloqueado por el bot.",
+    "CanalInvalido": "Solo se pueden bloquear canales de texto o de voz.",
+    "SinPermisosCanal": "No tienes el permiso \"Gestionar canales\" en {canal}.",
+    "SinPermisosBotCanal": "Al bot le falta el permiso \"Gestionar roles\" en {canal} (necesario para cambiar los permisos del canal)."
   }
 }

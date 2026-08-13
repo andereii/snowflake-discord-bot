@@ -6,9 +6,8 @@ namespace Snowflake.Bot.Services;
 /// Subida temporal de archivos a litterbox.catbox.moe (enlaces válidos 72 h).
 /// Se usa cuando el archivo supera el límite de subida de Discord.
 /// </summary>
-public sealed class LitterboxService
+public sealed class LitterboxService(IHttpClientFactory httpFactory)
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
     private const string Endpoint = "https://litterbox.catbox.moe/resources/internals/api.php";
 
     /// <summary>Sube el archivo y devuelve la URL pública temporal.</summary>
@@ -25,7 +24,8 @@ public sealed class LitterboxService
         };
         form.Add(fileContent, "fileToUpload", nombreAmigable);
 
-        using var resp = await Http.PostAsync(Endpoint, form, ct);
+        var http = httpFactory.CreateClient("Litterbox");
+        using var resp = await http.PostAsync(Endpoint, form, ct);
         if (!resp.IsSuccessStatusCode)
         {
             var body = await resp.Content.ReadAsStringAsync(ct);

@@ -11,7 +11,7 @@ namespace Snowflake.Bot.Modules;
 /// los usuarios eligen el suyo desde un menú de selección.
 /// </summary>
 [SlashCommandGroup("colores", "Paleta de colores para los nombres de los usuarios")]
-public sealed class ColorModule : ApplicationCommandModule
+public sealed class ColorModule : SnowflakeModuleBase
 {
     private readonly ColorService _color;
     private readonly MessagesService _msg;
@@ -41,7 +41,7 @@ public sealed class ColorModule : ApplicationCommandModule
             ? _msg.Get("Colores:InstalarRepetido", ("paleta", paleta))
             : _msg.Get("Colores:Instalar", ("paleta", paleta), ("total", total));
 
-        await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(texto));
+        await SafeEditAsync(ctx, texto);
     }
 
     [SlashCommand("desinstalar", "Elimina los roles de la paleta (admins)")]
@@ -52,10 +52,7 @@ public sealed class ColorModule : ApplicationCommandModule
         await ctx.DeferAsync();
 
         var borrados = await _color.DesinstalarAsync(ctx.Guild);
-
-        await ctx.EditResponseAsync(
-            new DiscordWebhookBuilder()
-                .WithContent(_msg.Get("Colores:Desinstalar", ("borrados", borrados))));
+        await SafeEditAsync(ctx, _msg.Get("Colores:Desinstalar", ("borrados", borrados)));
     }
 
     [SlashCommand("quitar", "Quítate el color que tienes puesto (para todos)")]
@@ -65,9 +62,7 @@ public sealed class ColorModule : ApplicationCommandModule
         var tenia = await _color.QuitarAsync(miembro, ctx.Guild.Id);
 
         var texto = tenia ? _msg.Get("Colores:Quitado") : _msg.Get("Colores:NoTenia");
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().WithContent(texto).AsEphemeral());
+        await ResponderAsync(ctx, texto, ephemeral: true);
     }
 
     [SlashCommand("elegir", "Elige tu color entre los disponibles (para todos)")]
@@ -76,20 +71,16 @@ public sealed class ColorModule : ApplicationCommandModule
         var selector = await _color.ConstruirSelectorAsync(ctx.Guild);
         if (selector is null)
         {
-            await ctx.CreateResponseAsync(
-                InteractionResponseType.ChannelMessageWithSource,
-                new DiscordInteractionResponseBuilder()
-                    .WithContent(_msg.Get("Colores:NoInstalado"))
-                    .AsEphemeral());
+            await ResponderAsync(ctx, _msg.Get("Colores:NoInstalado"), ephemeral: true);
             return;
         }
 
-        var builder = new DiscordInteractionResponseBuilder()
-            .AddEmbed(selector.Value.Embed)
-            .AddComponents(new[] { selector.Value.Select })
-            .AsEphemeral();
-
-        await ctx.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, builder);
+        await ctx.CreateResponseAsync(
+            InteractionResponseType.ChannelMessageWithSource,
+            new DiscordInteractionResponseBuilder()
+                .AddEmbed(selector.Value.Embed)
+                .AddComponents(new[] { selector.Value.Select })
+                .AsEphemeral());
     }
 
     [SlashCommand("listar", "Muestra los colores instalados")]
@@ -111,8 +102,6 @@ public sealed class ColorModule : ApplicationCommandModule
             embed.WithDescription(lista);
         }
 
-        await ctx.CreateResponseAsync(
-            InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().AddEmbed(embed).AsEphemeral());
+        await ResponderAsync(ctx, embed, ephemeral: true);
     }
 }

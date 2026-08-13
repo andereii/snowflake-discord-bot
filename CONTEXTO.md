@@ -4,7 +4,7 @@
 > Fecha: agosto 2026.
 
 ## 1. Resumen
-Bot de Discord en **C# / .NET 10** con **DSharpPlus 5.0.0** que ofrece: moderación documentada, bienvenidas, descarga de vídeos/audio, paletas de colores autoasignables, creación de canales, música vía Lavalink, sistema join-to-create de canales de voz, **juego de conteo** (con bases alternativas, récords, oportunidades extra y leaderboard), **chatbot con Gemini** (vía `/charlar`, mención `@` y modo espontáneo) y **notificaciones de YouTube** vía feed RSS público. El objetivo final es desplegarlo en un VPS propio. Todo el código está en español.
+Bot de Discord en **C# / .NET 10** con **DSharpPlus 5.0.0** que ofrece: moderación documentada, bienvenidas, descarga de vídeos/audio, paletas de colores autoasignables, creación de canales, música vía Lavalink, sistema join-to-create de canales de voz, **juego de conteo** (con bases alternativas, récords, oportunidades extra y leaderboard), **chatbot con Gemini** (vía `/charlar`, mención `@` y modo espontáneo) y **notificaciones de YouTube** vía feed RSS público. Incluye además una **API REST (panel web de configuración)** alojada en el mismo proceso (secciones 16-17). El bot está **desplegado y corriendo en Fly.io**; el frontend del panel lo está desarrollando un colaborador aparte.
 
 - **Nombre:** Snowflake (`Snowflake#3104`)
 - **Client ID:** `1052318909035970641`
@@ -12,11 +12,12 @@ Bot de Discord en **C# / .NET 10** con **DSharpPlus 5.0.0** que ofrece: moderaci
 - **Owner ID:** `553023040489914369`
 - **Intents:** Guilds, GuildMembers, GuildBans, GuildVoiceStates, GuildMessages, **MessageContents** (necesario para conteo, menciones y cháchara espontánea)
 - **Endpoint de interacciones:** vacío (funciona por gateway, no por HTTP)
+- **Producción:** app Fly.io `snowflake-discord-bot-floral-river-8992` + app auxiliar `lavalink-silent-snowflake-2883`; API pública en `https://snowflake-discord-bot-floral-river-8992.fly.dev`
 
 ## 2. Stack y versiones
 | Componente | Versión |
 |---|---|
-| .NET SDK | 10.0.110 (net10.0) |
+| .NET SDK (Sdk.Web) | 10.0.110 (net10.0) |
 | DSharpPlus + DSharpPlus.SlashCommands | 5.0.0 estable |
 | Lavalink4NET.DSharpPlus | 4.2.2 |
 | EF Core Sqlite + Design | 10.0.10 |
@@ -27,57 +28,60 @@ Bot de Discord en **C# / .NET 10** con **DSharpPlus 5.0.0** que ofrece: moderaci
 | yt-dlp | 2026.07.04 (instalado en el sistema) |
 | ffmpeg | 8.1.2 (requerido por yt-dlp para audio) |
 
-**Herramientas:** `dotnet-ef` global 10.0.10, `Microsoft.EntityFrameworkCore.Design` (paquete).
-**Máquina:** CachyOS (Arch). Docker NO instalado.
+**Herramientas:** `dotnet-ef` global 10.0.11, `Microsoft.EntityFrameworkCore.Design` (paquete), Fly CLI (`~/.fly/bin/fly`).
+**Máquina:** CachyOS (Arch). Docker NO instalado (la build de Fly.io ocurre en sus builders).
+**Runtime ASP.NET:** al ser `Sdk.Web`, el binario necesita `Microsoft.AspNetCore.App` — instalado localmente (`aspnet-runtime-10.0`) e incluido en la imagen de Fly (`mcr.microsoft.com/dotnet/aspnet:10.0`).
 
 ## 3. Estructura del proyecto
 ```
 snowflake_discord_bot/
-├── .env / .env.example      # DISCORD_TOKEN (obligatorio), YT_COOKIES_FILE, GEMINI_API_KEY, SPOTIFY_CLIENT_ID/SECRET (opcional)
+├── .env / .env.example      # DISCORD_TOKEN (obligatorio), YT_COOKIES_FILE, GEMINI_API_KEY, WEB_PANEL_API_KEY (opcional), SPOTIFY_CLIENT_ID/SECRET (opcional)
+├── Dockerfile, fly.toml     # despliegue Fly.io (bot + API web + Lavalink + volumen DATA_DIR)
 ├── deploy/lavalink/
 │   ├── Lavalink.jar         # servidor 4.2.2
 │   ├── application.yml      # config + plugins (youtube-source + lavasrc)
 │   └── run.sh               # java -jar Lavalink.jar (carga .env antes)
 └── src/Snowflake.Bot/
-    ├── Snowflake.Bot.csproj
-    ├── Program.cs           # host, DI, arranque
-    ├── appsettings.json     # Bot:{TestGuildId,OwnerId,Debug}, Lavalink, Gemini
+    ├── Snowflake.Bot.csproj # Sdk.Web (aloja bot + API REST del panel)
+    ├── Program.cs           # host, DI, arranque (extensiones AddSnowflake*)
+    ├── appsettings.json     # Bot:{TestGuildId,OwnerId,Debug,SettingsCacheSeconds}, Lavalink, Gemini, Database, YouTube, Music, Downloads, Colors
     ├── messages.json        # TODOS los textos del bot (recarga en caliente)
-    ├── Configuration/       # BotConfiguration, LavalinkOptions, GeminiOptions
+    ├── Configuration/       # BotConfiguration, GeminiOptions, LavalinkOptions, DatabaseOptions, YouTubeOptions, MusicOptions, DownloadOptions, ColorOptions
+    ├── Endpoints/           # ConfigEndpoints (ajustes por sección), BotInfoEndpoints (servidores compartidos), ApiKeyGuard (X-Api-Key opcional)
     ├── Data/
     │   ├── BotDbContext.cs
     │   ├── BotDbContextFactory.cs  # IDesignTimeDbContextFactory para EF Migrations
-    │   ├── Entities/        # Incident, GuildConfig, ColorRole, TempChannel, CountingConfig, CountingStat, YouTubeSubscription
-    │   └── Migrations/      # InitialCreate, AddCounting, AddGeminiMentions, AddGeminiSpontaneous, AddYouTubeSubscriptions
-    ├── Modules/             # comandos slash (8 módulos)
-    ├── Services/            # lógica de negocio (11 servicios)
-    └── Utilities/           # DurationParser, ChatResponseFormatter
+    │   ├── Entities/        # Incident, GuildConfig, ColorRole, TempChannel, CountingConfig, CountingStat, YouTubeSubscription, ChannelLock
+    │   └── Migrations/      # InitialCreate, AddCounting, AddGeminiMentions, AddGeminiSpontaneous, AddYouTubeSubscriptions, AddGuildFeatureToggles
+    ├── Modules/             # comandos slash (SnowflakeModuleBase + 11 módulos)
+    ├── Services/            # lógica de negocio (13 servicios + Settings/GuildSettingsService)
+    └── Utilities/           # DurationParser, ChatResponseFormatter, BotEmojis
 ```
 
-**Ojo:** el repositorio git real es `/home/alex` (todo el home está sin commitear, rama `master` sin commits). El proyecto NO tiene git propio.
+**Git:** el proyecto SÍ tiene repositorio propio en `/home/alex/Documentos/snowflake_discord_bot` (rama `main`, ~13 commits; incluye commits de sesiones posteriores como el despliegue Fly.io — antes de editar un archivo conviene `git show HEAD:ruta` para no pisar trabajo previo).
 
 ## 4. Arquitectura de arranque (`Program.cs`)
 1. `Env.TraversePath().Load()` — carga `.env` (no sobreescribe vars del sistema).
-2. Host genérico con `ContentRootPath = AppContext.BaseDirectory` (la config se copia al ejecutable, funciona desde cualquier cwd).
-3. `Bot` → `IOptionsMonitor<BotConfiguration>` (permite hot-reload de `Debug`); `Gemini` → `IOptionsMonitor<GeminiOptions>`.
+2. **`WebApplication.CreateBuilder`** (Sdk.Web) con `ContentRootPath = AppContext.BaseDirectory`: el mismo proceso aloja el bot de Discord y la API REST del panel.
+3. Registros modularizados con extensiones (clase `SnowflakeServiceExtensions` al final de `Program.cs`):
+   - `AddSnowflakeOptions` → `IOptionsMonitor` de `BotConfiguration`, `GeminiOptions`, `ColorOptions`, `DatabaseOptions`, `YouTubeOptions`, `MusicOptions`, `DownloadOptions` (hot-reload de `Debug` incluido).
+   - `AddSnowflakeDatabase` → `IDbContextFactory<BotDbContext>` SQLite; la ruta la decide `DatabaseOptions.ResolveFullPath()` (env `DATA_DIR` del volumen de Fly.io, si no junto al ejecutable). Suprime `PendingModelChangesWarning`.
+   - `AddSnowflakeHttpClients` → `"Spotify"` (15s), `"Gemini"` (60s), `"YouTube"` (15s), `"Litterbox"` (10 min).
+   - `AddSnowflakeServices` → `GuildSettingsService` (ajustes por servidor, caché TTL) + 12 servicios singleton + `AddHostedService<YouTubeNotifyService>`.
+   - `AddDiscordClient` → `AddLavalink()` + `ConfigureLavalink` (`http://{Host}:{Port}`, passphrase, label `snowflake`), `DiscordClient` singleton con los intents (incluido `MessageContents`; lanza excepción clara si falta `DISCORD_TOKEN`) y `AddHostedService<DiscordBotService>`.
+   - `AddSnowflakeCors` → política `SnowflakeWeb` (orígenes en `Web:AllowedOrigins`, `"*"` por defecto).
 4. `messages.json` → `IConfiguration` con `reloadOnChange: true` + `MessagesService`.
-5. `IDbContextFactory<BotDbContext>` → SQLite `snowflake.db` junto al ejecutable.
-6. `AddHttpClient` nombrados: `"Spotify"` (15s, fallback de canciones), `"Gemini"` (60s, generacion), `"YouTube"` (15s, feed RSS).
-7. `AddLavalink()` + `ConfigureLavalink` (`BaseAddress = http://host:port`, `Passphrase`, `Label = "snowflake"`).
-8. Servicios singleton: ModerationLog, Download, Litterbox, Color, VoiceHub, Music, MusicWidget, Counting, Gemini, YouTubeNotify.
-9. `AddHostedService<DiscordBotService>` (host) y `AddHostedService<YouTubeNotifyService>` (background de polling RSS).
-10. `DiscordClient` con los intents incluido `MessageContents` (token de `DISCORD_TOKEN`, lanza excepción clara si falta).
-11. `DiscordBotService` registra los módulos slash con `UseSlashCommands` y `RegisterCommands(assembly, TestGuildId)`.
-12. Al arrancar: `db.Database.MigrateAsync()` (EF Migrations; se migró desde `EnsureCreatedAsync`).
+5. Tras `Build()`: `app.UseCors(...)`, `db.Database.MigrateAsync()` (EF Migrations) y los endpoints: `GET /api/status`, `MapConfigEndpoints()`, `MapBotInfoEndpoints()`.
+6. `DiscordBotService` registra los módulos slash con `UseSlashCommands` y `RegisterCommands(assembly, TestGuildId)`.
 
 ## 5. Base de datos SQLite (EF Core)
-Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGeminiMentions`, `AddGeminiSpontaneous`, `AddYouTubeSubscriptions`):
+Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGeminiMentions`, `AddGeminiSpontaneous`, `AddYouTubeSubscriptions`, `AddGuildFeatureToggles`, `AddChannelLocks`):
 
 **`Incidents`** — historial de moderación (número de caso autoincremental):
 `Id`, `GuildId`, `TargetUserId`, `TargetTag`, `ModeratorId`, `ModeratorTag`, `Type` (enum guardado como string: Advertencia/Expulsion/Veto/Aislamiento/FinAislamiento), `Reason`, `Duration TimeSpan?` (solo aislamientos), `CreatedAt`. Índice `(GuildId, TargetUserId)`.
 
 **`GuildConfigs`** — config por servidor (PK `GuildId`):
-`ModLogChannelId ulong?`, `WelcomeChannelId ulong?`, `WelcomeMessage string?`, `HubChannelId ulong?`, `Volume int?` (0-100, persistente, null = 100 por defecto), `GeminiMentionsEnabled bool` (toggle de respuestas a `@`), `GeminiSpontaneousEnabled bool` (toggle de cháchara espontánea).
+`ModLogChannelId ulong?`, `WelcomeChannelId ulong?`, `WelcomeMessage string?`, `HubChannelId ulong?`, `TempChannelNameTemplate string?` (plantilla de canales temporales, `{usuario}`), `Volume int?` (0-100, persistente, null = 100 por defecto), `DjRoleId ulong?` (rol DJ para controlar la música), `GeminiChatEnabled bool` (default true, interruptor de /charlar), `GeminiMentionsEnabled bool` (toggle de respuestas a `@`), `GeminiSpontaneousEnabled bool` (toggle de cháchara espontánea), `DownloadsEnabled bool` (default true, interruptor de /descargar).
 
 **`ColorRoles`** — roles de color instalados:
 `Id`, `GuildId`, `RoleId`, `Name`, `ColorHex`. Único `(GuildId, RoleId)`.
@@ -94,10 +98,13 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 **`YouTubeSubscriptions`** — suscripción de YouTube por servidor (PK `GuildId`, una por server):
 `YTChannelId string` (UC…), `YTChannelName string`, `NotifyChannelId ulong`, `NotifyRoleId ulong?`, `LastVideoId string?` (marca de backfill), `CustomMessage string?` (plantilla, null = por defecto), `CreatedAt`. Índice `YTChannelId` (agrupa servidores que siguen el mismo canal).
 
+**`ChannelLocks`** — canales en lockdown (`/bloquear`):
+`ChannelId` (PK), `GuildId`, `AllowBits long` / `DenyBits long` (overwrite original de @everyone), `HadOverwrite bool`, `LockedAt`. Índice `GuildId`.
+
 **Gotcha conocido:** con `EnsureCreated` la BD no se actualiza al añadir columnas (hubo que borrarla a mano dos veces); por eso se pasó a EF Migrations. Tras crear una migración con `dotnet ef migrations add` hay que **reconstruir** (`dotnet build`) antes de ejecutar la DLL: si no, EF Core 10 lanza `PendingModelChangesWarning` porque el ensamblado no incluye el snapshot actualizado.
 
 ## 6. Sistema de textos (`messages.json` + `MessagesService`)
-- Todos los mensajes viven en `messages.json` con estructura de secciones: `Ping`, `Errores`, `Presentacion`, `Moderacion`, `Descargas`, `Bienvenida`, `Musica`, `Colores`, `Voces`, `Config`, `Chat`, `Conteo`, `YouTube`.
+- Todos los mensajes viven en `messages.json` con estructura de secciones: `Ping`, `Errores`, `Presentacion`, `Moderacion`, `Descargas`, `Bienvenida`, `Musica`, `Colores`, `Voces`, `Config`, `Chat`, `Conteo`, `YouTube`, `Limpiar`, `Bloqueo`.
 - Se accede por clave con `:` separando niveles: `msg.Get("Musica:NoEncontrado")`, con placeholders: `msg.Get("Bienvenida:MensajePorDefecto", ("usuario", mention), ("servidor", nombre))`.
 - Placeholders en el archivo van entre llaves: `{usuario}`, `{servidor}`, `{motivo}`, `{titulo}`, `{duracion}`, `{nivel}`, etc.
 - `reloadOnChange: true` → editar el JSON en caliente cambia los textos al instante, sin reiniciar (los nombres/descripciones de comandos SÍ están en código).
@@ -116,21 +123,27 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 | `/advertir` `{usuario,motivo}` | ModerateMembers | Advertencia documentada |
 | `/historial` `{usuario?}` | ModerateMembers | Últimos 10 incidentes del server o del usuario (efímero) |
 | `/bienvenida canal/mensaje/ver/desactivar` | ManageGuild | Bienvenidas (placeholders `{usuario}` `{servidor}`, máx 1900) |
-| `/descargar` `{url, formato: Vídeo\|Solo audio}` | todos | yt-dlp: <9MiB se adjunta, >9MiB → litterbox 72h |
+| `/descargar` `{url, formato: Vídeo\|Solo audio}` | todos (si `DownloadsEnabled`) | yt-dlp: <MaxDiscordBytes se adjunta, más grande → litterbox 72h |
 | `/canal crear` `{nombre,tipo voz\|texto,categoria?}` | ManageChannels | Crea canal |
 | `/canal hub` `{canal}` | ManageGuild | Activa join-to-create en ese canal de voz |
 | `/canal hub-quitar` | ManageGuild | Lo desactiva |
+| `/canal plantilla` `{plantilla?}` | ManageGuild | Nombre de canales temporales (`{usuario}`; vacío = por defecto) |
+| `/config ver` | todos (efímero) | Resumen de TODOS los ajustes del servidor (mini-panel) |
+| `/clear` `{cantidad 1-100, canal?}` | ManageMessages (usuario y bot, verificado en el canal destino) | Borrado masivo <14 días + individual con pausa para viejos |
+| `/bloquear` `{canal?, motivo?}` | ManageChannels (verificado en el canal destino) + bot ManageRoles | Lockdown: niega a @everyone enviar mensajes (texto) o conectarse (voz); guarda el overwrite original en `ChannelLocks` |
+| `/desbloquear` `{canal?, motivo?}` | igual que /bloquear | Restaura EXACTAMENTE el overwrite que había antes del bloqueo |
 | `/colores instalar` `{paleta: normal\|pastel}` | ManageRoles | Crea los 17 roles de color |
 | `/colores desinstalar` | ManageRoles | Borra todos los roles de color |
 | `/colores elegir` | todos | Menú de selección efímero (custom_id `snowflake_colores`, opción "Quitar color" valor `0`) |
 | `/colores quitar` | todos | Te quita el color |
 | `/colores listar` | todos | Lista colores instalados (efímero) |
 | `/m play` `{consulta}` | todos | URL o búsqueda (YouTube/Spotify) → reproduce o encola + widget |
-| `/m skip` | todos | Salta, avisa de la siguiente o de cola vacía |
+| `/m skip` | control | Salta, avisa de la siguiente o de cola vacía (mismo canal de voz / rol DJ / ManageGuild) |
 | `/m cola` | todos | Embed: sonando ahora + siguientes + duración total |
-| `/m pausa` `/m reanuda` `/m stop` `/m volumen {nivel}` | todos | Control + volumen persistente por server |
-| `/charlar` `{texto}` | todos | Habla con Gemini (conversación compartida por server) |
-| `/charlar-limpiar` | todos | Reinicia la conversación compartida |
+| `/m pausa` `/m reanuda` `/m stop` | control | Control (mismo canal de voz / rol DJ / ManageGuild) |
+| `/m volumen {nivel}` | todos | Volumen persistente por server (acotado por MusicOptions) |
+| `/charlar` `{texto}` | todos (si `GeminiChatEnabled`) | Habla con Gemini (conversación compartida por server) |
+| `/charlar-limpiar` | ManageGuild | Reinicia la conversación compartida |
 | `/gemini-menciones` `{estado on/off?}` | ManageGuild | Toggle: ¿responder al ser mencionado con @? |
 | `/gemini-espontaneo` `{estado on/off?}` | ManageGuild | Toggle: ¿intervenir solo en el chat cada ~100+rand(1..50) mensajes? |
 | `/counting canal` `{canal}` | ManageGuild | Enlaza el canal de conteo (1 canal por server) |
@@ -159,27 +172,29 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 - `Ready`, `GuildDownloadCompleted` (logs + **precarga de flags espontáneo en caché**), `GuildCreated` → presenta al bot en el system channel o primer canal de texto donde pueda escribir.
 - `GuildMemberAdded` → bienvenida (usa config de BD o mensaje por defecto; ignoran bots).
 - `VoiceStateUpdated` → delega en `VoiceHubService`.
-- `ComponentInteractionCreated` → **router de componentes**: `snowflake_colores` → ColorService, `snowflake_music_*` → MusicWidgetService.
+- `ComponentInteractionCreated` → **router de componentes**: `snowflake_colores` → ColorService, botones del widget de música (`MusicWidgetService.EsInteraccionMusica`) → MusicWidgetService.
 - `MessageCreated` → tres caminos: (1) respuesta a un mensaje de Gemini generado por `/charlar` → continúa la conversación; (2) **mención `@` al bot** si `GeminiMentionsEnabled` → responde con Gemini; (3) **cháchara espontánea** si `GeminiSpontaneousEnabled` → cuenta el mensaje y dispara un comentario por el canal al alcanzar el umbral.
 - `SlashCommandErrored` → si es `SlashExecutionChecksFailedException` → "SinPermisos"; si no, mensaje de error con detalles solo en modo `Debug`.
 
-**`VoiceHubService`** (join-to-create): al entrar al canal hub → crea canal `🎧 {usuario}` en la misma categoría, con overwrites al dueño (ManageChannels, MoveMembers, MuteMembers, DeafenMembers, AccessChannels, UseVoice), lo mueve dentro y lo registra en `TempChannels`. Al salir de un canal temporal → si queda vacío lo borra y elimina el registro. Ignora cambios de mute/deafen.
+**`GuildSettingsService`** (Services/Settings, punto único de configuración): toda lectura/escritura de ajustes por servidor pasa por aquí (bot y panel web). `GuildConfig` cacheada en memoria con TTL (`Bot:SettingsCacheSeconds`); `CountingConfig`/`YouTubeSubscription` sin caché. Mutaciones: `UpdateAsync`/`UpdateCountingAsync`/`UpdateYouTubeAsync`/`DeleteYouTubeAsync` (invalidan la caché). `GetSnapshotAsync` devuelve `GuildSettingsSnapshot`, el contrato JSON del panel (IDs como string, secciones Moderación/Bienvenida/Voz/Música/IA/Descargas/Conteo/YouTube).
 
-**`ColorService`**: dos paletas de 17 colores hardcodeadas (Normal: Rojo→Negro; Pastel: Rosa pastel→Perla). `InstalarAsync` reemplaza paletas cruzadas (borra roles de la otra paleta y crea los que falten). Roles con prefijo `• `. `HandleSelectAsync` gestiona el menú (quita el color anterior, asigna el nuevo).
+**`VoiceHubService`** (join-to-create): al entrar al canal hub → crea canal con el nombre de `TempChannelNameTemplate` (placeholder `{usuario}`; si no, el por defecto de messages.json) en la misma categoría, con overwrites al dueño (ManageChannels, MoveMembers, MuteMembers, DeafenMembers, AccessChannels, UseVoice), lo mueve dentro y lo registra en `TempChannels`. Al salir de un canal temporal → si queda vacío lo borra y elimina el registro. Ignora cambios de mute/deafen.
 
-**`MusicService`**: lógica Lavalink4NET (ver sección 9). Inyecta `IDbContextFactory<BotDbContext>` para persistir/aplicar volumen.
+**`ColorService`**: dos paletas de 17 colores **configurables en appsettings.json** (sección `Colors`, vía `ColorOptions`): Normal: Rojo→Negro; Pastel: Rosa pastel→Perla. `InstalarAsync` reemplaza paletas cruzadas (borra roles de la otra paleta y crea los que falten). Roles con prefijo `• `. `HandleSelectAsync` gestiona el menú (quita el color anterior, asigna el nuevo).
 
-**`MusicWidgetService`**: widget "reproduciendo ahora" (embed + 4 botones: ⏯️ pausa, ⏭️ skip, 📋 cola, ⏹️ stop; custom_ids `snowflake_music_pause/skip/cola/stop`). Un widget por guild, guardado en `ConcurrentDictionary<guildId, (messageId, channelId)>`. **No se autoactualiza** — solo se refresca ante acciones del usuario (decisión de diseño deliberada, sin barra de progreso viva). Stop deja el widget estático con botones deshabilitados. El botón cola responde efímero.
+**`MusicService`**: lógica Lavalink4NET (ver sección 9). El volumen persistente se lee/guarda vía `GuildSettingsService` y se acota con `MusicOptions` (MinVolume/MaxVolume).
+
+**`MusicWidgetService`**: widget "reproduciendo ahora" (embed + 4 botones: ⏯️ pausa, ⏭️ skip, 📋 cola, ⏹️ stop; custom_ids `snowflake_music_pause/skip/cola/stop`). Un widget por guild, guardado en `ConcurrentDictionary<guildId, (messageId, channelId)>`. **No se autoactualiza** — solo se refresca ante acciones del usuario (decisión de diseño deliberada, sin barra de progreso viva). Stop deja el widget estático con botones deshabilitados y lo borra tras `MusicOptions.WidgetDeleteDelaySeconds` (default 5s). El botón cola responde efímero. `EsInteraccionMusica(customId)` es el check del router de componentes.
 
 **`CountingService`** (juego de conteo): parsee en base configurada (`IntentarParsear`/`Formatear` con `Convert.ToString(value, radix)`), semáforo por guild contra carreras, persistencia de config/stats. Detecta: correcto (reacciona ✅/🎉 y actualiza récord), incorrecto normal (❌ + reset), **primera vez perdonada** (🛡️ + DM hint privado con el número correcto, fallback a reply si MD cerrados), oportunidades extra diarias (🛡️, reset diario UTC), mismo usuario dos veces (reset). Construye embeds de leaderboard (top 10 con medallas) y stats (totales, precisión, mejor aporte en la base activa).
 
-**`GeminiService`** (chatbot): API gratuita de Google Gemini (`v1beta/models/{model}:generateContent`). Conversación compartida por servidor (histórico acotado por `MaxHistoryTurns`), serialización por `SemaphoreSlim` + límite de 2 solicitudes simultáneas por guild (`Conversacion`). `_mensajesGenerados` (messageId→guildId) para detectar respuestas a mensajes del bot. `Limpiar` reinicia. **Modo espontáneo:** `EstadoEspontaneo` por guild con umbral `100 + rand(1..50)` y cola de últimos 15 mensajes ambientales; `GenerarComentarioEspontaneoAsync` llama a Gemini con un prompt casual sin tocar la conversación de `/charlar`. Refactor `LlamarAGeminiAsync` compartido por `PreguntarAsync` y el espontáneo. Persona de gemini, errores `GeminiException`/`GeminiBusyException`.
+**`GeminiService`** (chatbot): API gratuita de Google Gemini (`v1beta/models/{model}:generateContent`). Conversación compartida por servidor (histórico acotado por `MaxHistoryTurns`), serialización por `SemaphoreSlim` + límite de solicitudes simultáneas por guild (`MaxConcurrentPerGuild`, default 2). `_mensajesGenerados` (messageId→guildId) para detectar respuestas a mensajes del bot. `Limpiar` reinicia. **Modo espontáneo:** `EstadoEspontaneo` por guild con umbral `SpontaneousBaseMessages + jitter(min..max)` (defaults 100 y 1..50) y cola de últimos `SpontaneousRecentBuffer` (default 15) mensajes ambientales; `GenerarComentarioEspontaneoAsync` llama a Gemini con un prompt casual sin tocar la conversación de `/charlar`. Refactor `LlamarAGeminiAsync` compartido por `PreguntarAsync` y el espontáneo. Errores `GeminiException`/`GeminiBusyException`.
 
-**`YouTubeNotifyService`** (BackgroundService): polling del feed RSS público `https://www.youtube.com/feeds/videos.xml?channel_id={UC}` cada 5 min (sin API key). Agrupa suscripciones por `YTChannelId` (un fetch por canal), parsea XML con `XDocument`, compara `LastVideoId`. **Backfill silencioso** al crear suscripción (marca el último vídeo como visto, no notifica antiguos). Resolución de URL/`@handle` a `channel_id` con `yt-dlp --print channel_id` (+`channel` para el nombre). Notificación: texto (personalizado o por defecto) + embed con título, autor, miniatura `i.ytimg.com/vi/{id}/hqdefault.jpg`, timestamp, y mención de rol opcional (`RoleMention` para que el ping funcione). Errores por canal aislados (un feed caído no aborta el resto).
+**`YouTubeNotifyService`** (BackgroundService): polling del feed RSS público `https://www.youtube.com/feeds/videos.xml?channel_id={UC}` (intervalo y retardos en `YouTubeOptions`; default 5 min; sin API key). Agrupa suscripciones por `YTChannelId` (un fetch por canal), parsea XML con `XDocument`, compara `LastVideoId`. **Backfill silencioso** al crear suscripción (marca el último vídeo como visto, no notifica antiguos). Resolución de URL/`@handle` a `channel_id` con `yt-dlp --print channel_id` (+`channel` para el nombre; timeouts en options). Notificación: texto (personalizado o por defecto) + embed con título, autor, miniatura `i.ytimg.com/vi/{id}/hqdefault.jpg`, timestamp, y mención de rol opcional (`RoleMention` para que el ping funcione). Errores por canal aislados (un feed caído no aborta el resto).
 
-**`DownloadService`**: lanza `yt-dlp` como proceso externo con args `--no-playlist --no-progress --no-warnings --no-part --restrict-filenames --print after_move:filepath -o {plantilla}`, cookies opcionales de `YT_COOKIES_FILE`, modo audio = `-x --audio-format mp3 --audio-quality 0`. Timeout duro 5 min, plantilla `%(title).80B [%(id)s].%(ext)s` en `/tmp/snowflake/{guid}/`. Errores → `YtDlpException` con las últimas 3 líneas de stderr saneadas (máx 800 chars). El llamador limpia el temp dir en `finally`.
+**`DownloadService`**: lanza `yt-dlp` como proceso externo con args `--no-playlist --no-progress --no-warnings --no-part --restrict-filenames --print after_move:filepath -o {plantilla}`, cookies opcionales de `YT_COOKIES_FILE`, modo audio = `-x --audio-format mp3 --audio-quality 0`. Timeout duro desde `DownloadOptions` (`TimeoutMinutes` + 1 min de margen), plantilla `%(title).80B [%(id)s].%(ext)s` en `/tmp/snowflake/{guid}/`. Errores → `YtDlpException` con las últimas 3 líneas de stderr saneadas (máx 800 chars). El llamador limpia el temp dir en `finally`.
 
-**`LitterboxService`**: multipart POST a `litterbox.catbox.moe` con `reqtype=fileupload`, `time=72h`. Devuelve la URL (validada).
+**`LitterboxService`**: multipart POST a `litterbox.catbox.moe` con `reqtype=fileupload`, `time=72h` (cliente HTTP nombrado `"Litterbox"`). Devuelve la URL (validada).
 
 **`ModerationLogService`**: `RegistrarAsync` guarda el Incident (devuelve con Id), `AnunciarAsync` lo publica si hay canal de logs, `CrearEmbedIncidente` (colores por tipo: amarillo/naranja/rojo/morado/verde).
 
@@ -210,22 +225,27 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 **Widget:** embed con título/url, autor, miniatura (ArtworkUri o fallback `https://i.ytimg.com/vi/{identifier}/hqdefault.jpg`), estado (pausado/reproduciendo), duración (`FormatearDuracion`: `🔴 EN VIVO` / `h:mm:ss` / `m:ss`).
 
 ## 10. Descargas con yt-dlp — detalles
-- Límite Discord: 9 MiB (9.437.184 bytes, holgado bajo 10 MB).
+- Límite para adjuntar en Discord: `DownloadOptions.MaxDiscordBytes` (default 9.437.184 bytes = 9 MiB, holgado bajo 10 MB); lo que lo supere va a litterbox.
 - Archivos grandes: embed con enlace litterbox (72h) + footer + tamaño en MB.
 - URL validada con `Uri.TryCreate` (http/https).
 - Errores yt-dlp muestran detalles solo en modo Debug (`Bot.Debug`).
 - Los títulos de archivo se sanear (restrict-filenames), el título mostrado es el nombre de archivo.
+- Interruptor por servidor: `DownloadsEnabled` (default true).
 
 ## 11. Estado actual (agosto 2026)
-**Funcionando:** todo lo de las secciones 7-8, Lavalink con youtube-source + LavaSrc, reproducción normal de YouTube, volumen persistente por servidor y enlaces de canciones individuales de Spotify mediante el fallback oEmbed → búsqueda YouTube del bot. Las playlists/álbumes de Spotify dependen de credenciales de Spotify porque el token anónimo está fallando actualmente. **Juego de conteo, chat Gemini (menciones + espontáneo) y notificaciones de YouTube** están implementados y cargados.
+**En producción (Fly.io):** el bot corre en la app `snowflake-discord-bot-floral-river-8992` (máquina `e822700fd17278`) con su BD en el volumen `/app/data/snowflake.db`; Lavalink en la app auxiliar `lavalink-silent-snowflake-2883` (hostname interno `lavalink-silent-snowflake-2883.internal:2333`). La API del panel responde en `https://snowflake-discord-bot-floral-river-8992.fly.dev/api/...`. **No debe haber otra instancia del bot con el mismo token** (local quedó detenido).
+
+**Funcionando:** moderación, bienvenidas, descargas, colores, canales, join-to-create, música (volumen persistente + fallback Spotify oEmbed), juego de conteo, chat Gemini (menciones + espontáneo), notificaciones de YouTube, `/config ver` y la API REST del panel (snapshot + patches + servidores compartidos). Frontend del panel: **en desarrollo por un colaborador** (ya conectado el contrato de `/api/bot/shared-guilds`).
 
 **Sesiones previas — resumen de lo estable:**
 1. Añadido `Volume int?` a `GuildConfig`, migración `20260804062107_InitialCreate` y paso `EnsureCreatedAsync()` → `MigrateAsync()`.
-2. `MusicService` inyecta `IDbContextFactory` para persistir/aplicar volumen.
+2. Volumen persistente por servidor aplicado en Lavalink.
 3. LavaSrc 4.8.3 en `application.yml`; fallback oEmbed de Spotify.
 4. `SPOTIFY_CLIENT_ID`/`SECRET` opcionales; `run.sh` carga `.env`.
+5. Fly.io: `Dockerfile` + `fly.toml` (bot + API web en `ASPNETCORE_URLS`, BD en volumen `DATA_DIR`, Lavalink como máquina auxiliar).
+6. Refactorización completa (sección 16) y API de servidores compartidos + CORS (sección 17).
 
-**Validado:** el usuario confirmó que el volumen persistente, los enlaces de canciones de Spotify y el juego de conteo funcionan correctamente en Discord.
+**Validado:** el usuario confirmó que el volumen persistente, los enlaces de canciones de Spotify y el juego de conteo funcionan correctamente en Discord. La API del panel quedó probada en producción (snapshot, POST de ajustes y shared-guilds).
 
 ## 12. Pendientes / roadmap
 - [x] Probar en Discord el volumen persistente y la reproducción de enlaces de canciones de Spotify.
@@ -233,32 +253,41 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 - [x] IA: respuestas a menciones `@` y modo espontáneo con toggle por servidor.
 - [x] Primera equivocación perdonada con pista privada por DM.
 - [x] Notificaciones de YouTube vía feed RSS público (sin API key).
+- [x] Refactorización: modularizar, quitar hardcodes, auditoría de comandos peligrosos y preparar configs para portal web (sección 16).
+- [x] API REST del panel web (`/api/guilds/{id}/config`, patch por secciones, API key opcional). Referencia completa en la sección 18.
+- [x] Endpoint `/api/bot/shared-guilds` + CORS para el frontend del panel (secciones 17-18).
 - [ ] Probar en Discord: modo espontáneo real (el umbral mínimo es ~101 mensajes; bajarlo a 2-5 temporalmente para validar rápido).
 - [ ] Probar una suscripción de YouTube completa (suscribirse, esperar 5 min, subir vídeo o usar un canal activo).
+- [ ] Frontend del panel web (HTML/JS) consumiendo la API REST (en curso, a cargo de un colaborador); añadir OAuth de Discord antes de exponerla a Internet.
 - [ ] Añadir `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET` al `.env` desde una aplicación de Spotify Developer si se quieren usar playlists/álbumes de Spotify sin depender del token anónimo.
-- [ ] Fase 7: empaquetado VPS (systemd para el bot; Lavalink ya tiene run.sh, sin Docker). Decisión de despliegue: VPS Oracle Cloud con Ubuntu 24.04; IP pública activada; abrir solo 22/80/443; Lavalink en `127.0.0.1`; Portal web detrás de Caddy/Nginx con HTTPS.
-- [ ] Migrar `Debug`/toggles/permisos por comando de appsettings/atributos a SQLite (que los admins lo configuren sin tocar código).
-- [ ] Portal web para editar messages.json y permisos.
+- [ ] Fase 7 (opcional): empaquetado VPS propio (systemd para el bot; Lavalink ya tiene run.sh, sin Docker). Decisión de despliegue anterior: VPS Oracle Cloud con Ubuntu 24.04; IP pública activada; abrir solo 22/80/443; Lavalink en `127.0.0.1`; Portal web detrás de Caddy/Nginx con HTTPS. (Hoy el bot ya vive en Fly.io.)
 - [ ] Insignia Active Developer (endpoint HTTP de interacciones).
 
 ## 13. Comandos de operación (dev)
 ```bash
-# Build
+# Build local (necesita aspnet-runtime-10.0 para EJECUTAR; compilar no lo requiere)
 dotnet build src/Snowflake.Bot/Snowflake.Bot.csproj
-# Migraciones
+# Migraciones (dotnet-ef exige runtime ASP.NET instalado; ya está)
 cd src/Snowflake.Bot && dotnet ef migrations add Nombre --context BotDbContext
-# Arrancar bot (background)
+# Despliegue a producción (la build ocurre en los builders de Fly)
+fly deploy --ha=false          # CLI en ~/.fly/bin/fly
+# Estado / logs / SSH del VPS
+fly status; fly logs --no-tail
+fly ssh console -C "..."       # BD de producción: /app/data/snowflake.db
+# Arrancar bot EN LOCAL (solo si el de Fly está parado; nunca dos instancias)
 nohup dotnet src/Snowflake.Bot/bin/Debug/net10.0/Snowflake.Bot.dll > /tmp/snowflake-bot.log 2>&1 &
-# Arrancar Lavalink
+# Arrancar Lavalink local (mismo aviso de instancia única)
 nohup ./deploy/lavalink/run.sh > /tmp/lavalink.log 2>&1 &
 # Parar (el truco [.] evita matar el propio shell)
 pkill -f "Snowflake[.]Bot[.]dll"; pkill -f "Lavalink[.]jar"
 # Test rápido del servidor Lavalink
 curl -s -H "Authorization: youshallnotpass" http://127.0.0.1:2333/v4/loadtracks?identifier=YT_URL
+# API del panel en producción
+curl -s https://snowflake-discord-bot-floral-river-8992.fly.dev/api/status
 ```
-- La BD está en `src/Snowflake.Bot/bin/Debug/net10.0/snowflake.db`.
-- Logs: `/tmp/snowflake-bot.log` y `/tmp/lavalink.log`.
-- El token está en `.env` (no subir a git; `.env.example` es la plantilla).
+- BD local (dev): `src/Snowflake.Bot/bin/Debug/net10.0/snowflake.db`. BD de producción: volumen Fly en `/app/data/snowflake.db`.
+- Logs locales: `/tmp/snowflake-bot.log` y `/tmp/lavalink.log`; en producción: `fly logs`.
+- El token está en `.env` (no subir a git; `.env.example` es la plantilla). Secretos de Fly: `fly secrets set NOMBRE=valor`.
 
 ## 14. Registro de cambios — 2026-08-04
 
@@ -371,3 +400,218 @@ curl -s -H "Authorization: youshallnotpass" http://127.0.0.1:2333/v4/loadtracks?
 - `src/Snowflake.Bot/Program.cs` (HttpClient("YouTube") + AddHostedService + AddSingleton)
 - `src/Snowflake.Bot/messages.json` (secciones Conteo, YouTube; claves Chat nuevas)
 - `CONTEXTO.md`
+
+---
+
+## 16. Registro de cambios — 2026-08-12 (refactorización + auditoría + panel web)
+
+### Solicitudes
+1. Leer todo el código y refactorizar por completo: modularizar, que quede legible para intervenciones futuras y sin componentes hardcodeados.
+2. Auditoría de TODOS los comandos destructivos/peligrosos: que nadie sin permiso pueda usarlos.
+3. Preparar las configuraciones para un portal web, cubriendo todo lo configurable que suele tener un bot comercial.
+
+### Cambios realizados
+
+#### A. Capa de configuración global (Options pattern)
+- Nuevos `Configuration/DatabaseOptions` (ruta BD, respeta `DATA_DIR` de Fly.io), `YouTubeOptions` (polling, retardos, timeouts de yt-dlp), `MusicOptions` (delay de borrado del widget, rango de volumen), `DownloadOptions` (MaxDiscordBytes, timeout) y `ColorOptions` (paletas).
+- `GeminiOptions` extendida: `MaxConcurrentPerGuild`, `SpontaneousBaseMessages`, `SpontaneousJitterMin/Max`, `SpontaneousRecentBuffer` (antes hardcodeados 2 / 100+1..50 / 15).
+- `BotConfiguration` añade `SettingsCacheSeconds` (TTL de la caché de ajustes).
+
+#### B. GuildSettingsService — punto único de configuración (web-ready)
+- `Services/Settings/GuildSettingsService`: toda lectura/escritura de ajustes pasa por aquí (bot hoy, panel web mañana). `GuildConfig` cacheada con TTL (ruta caliente del chat); `CountingConfig`/`YouTubeSubscription` sin caché (cambian a menudo). Mutaciones vía `UpdateAsync`/`UpdateCountingAsync`/`UpdateYouTubeAsync`/`DeleteYouTubeAsync` con invalidación de caché.
+- `Services/Settings/GuildSettingsSnapshot`: contrato JSON del panel (IDs como string para JavaScript; secciones Moderación/Bienvenida/Voz/Música/IA/Descargas/Conteo/YouTube).
+
+#### C. Endpoints REST del panel web
+- `Endpoints/ConfigEndpoints`: `GET /api/guilds/{id}/config` (snapshot completo), `POST /` (patch de GuildConfig, null = no tocar), `POST /counting`, `POST|DELETE /youtube`. Todo a través de `GuildSettingsService` (nunca dos caminos de escritura).
+- **Seguridad:** si se define `WEB_PANEL_API_KEY` en `.env`, las mutaciones exigen cabecera `X-Api-Key`. Pendiente de producción: OAuth de Discord + HTTPS antes de exponer a Internet (documentado en el propio archivo).
+- `Program.cs` modularizado con extensiones `AddSnowflakeOptions/Database/HttpClients/Services/DiscordClient`; mantiene `WebApplication` (Sdk.Web), `/api/status`, `DATA_DIR` y la supresión de `PendingModelChangesWarning`.
+
+#### D. Auditoría de comandos peligrosos (endurecido)
+- `/charlar-limpiar`: de "todos" a `ManageGuild` (cualquiera podía borrar la conversación compartida de IA).
+- `/clear`: ahora verifica los permisos `ManageMessages` de **usuario y bot en el canal destino** (los overrides de canal pueden quitarlos aunque el permiso global exista). Nuevas claves `Limpiar:SinPermisosCanal/SinPermisosBotCanal`.
+- Música: `skip/pausa/reanuda/stop` exigen estar en el mismo canal de voz que el bot, tener el **rol DJ** (`DjRoleId`, nuevo ajuste) o `ManageGuild`. `/m play` sigue abierto (como en bots comerciales). Nuevas claves `Musica:MismoCanal/RequiereDj`.
+- `/descargar` y `/charlar`: interruptores por servidor `DownloadsEnabled`/`GeminiChatEnabled` (default true). Nuevas claves `Descargas:Desactivado`, `Chat:Desactivado`.
+- Moderación ya estaba bien protegida (Kick/Ban/Moderate + permisos del bot + jerarquía de roles + no al owner/al bot/a sí mismo). Se mantiene.
+
+#### E. Deshardcoding general
+- `GeminiService`: concurrencia y parámetros del espontáneo desde options.
+- `YouTubeNotifyService`: polling/retardos/timeouts desde `YouTubeOptions`; `ResolverCanalAsync` pasa de static (recibía ILogger) a método de instancia.
+- `MusicWidgetService`: delay de borrado desde `MusicOptions`; nuevo `EsInteraccionMusica(customId)` público (se elimina el literal `"snowflake_music_"` del router).
+- `DownloadService`: tope duro desde `DownloadOptions` (TimeoutMinutes + 1 de margen).
+- `MusicService`: clamp de volumen desde `MusicOptions`; volumen persistente vía `GuildSettingsService`.
+- `LitterboxService`: pasa de `static HttpClient` a `IHttpClientFactory("Litterbox")`.
+- `VoiceHubService`: plantilla de nombre desde `TempChannelNameTemplate` (nuevo comando `/canal plantilla`).
+- `DiscordBotService`: sin `IDbContextFactory` (usa settings service); router con constantes de MusicWidgetService.
+- `CountingService`: emojis de reacción por defecto como constantes nombradas (`EmojiCorrectoPorDefecto`…).
+- `Utilities/BotEmojis`: constantes de los emojis de aplicación (check/error/load/loadingwindows/snowflake) para mensajes compuestos en código.
+- `Modules/SnowflakeModuleBase`: base común de módulos (ResponderAsync texto/embed, ResponderErrorAsync efímero con emoji de error, SafeEditAsync) — elimina la duplicación en 10 módulos.
+- `ModerationModule`: el `❌` hardcodeado pasa a `BotEmojis.Error`.
+- `CountingModule`: quita la segunda consulta redundante de `/counting objetivo`.
+
+#### F. Migración y datos
+- Nuevos campos en `GuildConfigs`: `DjRoleId`, `TempChannelNameTemplate`, `GeminiChatEnabled` (default true), `DownloadsEnabled` (default true).
+- Migración `20260812000000_AddGuildFeatureToggles` (escrita a mano: el tool `dotnet-ef` no corre sin runtime ASP.NET local) y aplicada a la BD local.
+- Nuevas claves en `messages.json` (27): Musica, Limpiar, Chat, Descargas, Voces, Config (resumen `/config ver`).
+- Nuevo comando `/config ver`: resumen efímero de todos los ajustes (mini-panel en Discord).
+
+### Validación
+- Compilación limpia (0 errores, 0 advertencias) con `Sdk.Web`.
+- Migración aplicada a la BD local y marcada como aplicada en la BD del volumen de Fly.io (las columnas ya existían allí: `InitialCreate` del VPS era el actualizado; se insertó la fila en `__EFMigrationsHistory` para evitar un ALTER duplicado).
+- **Desplegado en Fly.io** (`fly deploy`, máquina `e822700fd17278`): bot conectado al gateway de Discord (TCP establecido a :443), Lavalink reanudado (`lavalink-silent-snowflake-2883`, conexión establecida a :2333), API pública respondiendo en `https://snowflake-discord-bot-floral-river-8992.fly.dev/api/status` y ciclo POST de ajustes validado en local (volumen 2→25→2).
+- El bot local y el Lavalink local quedaron DETENIDOS: la única instancia activa es la de Fly.io (el usuario quiere preservar los datos del volumen del VPS).
+
+### Gotchas nuevos esta sesión
+- El proyecto pasó a `Microsoft.NET.Sdk.Web`: el binario ya no arranca sin el runtime ASP.NET (`Microsoft.AspNetCore.App`). En Fly.io sí está (imagen `mcr.microsoft.com/dotnet/aspnet:10.0`); en local hay que instalar `aspnet-runtime-10.0`.
+- `dotnet ef` dejó de funcionar en local por lo mismo (necesita el runtime ASP.NET): las migraciones nuevas se escriben a mano siguiendo el patrón existente hasta instalar el runtime.
+- El git de este repo ya contenía commits de sesiones posteriores (Fly.io, refactor web inicial): antes de editar un archivo conviene comparar con HEAD (`git show HEAD:ruta`) para no pisar trabajo previo.
+- messages.json tiene indentación mixta y comentarios: las ediciones automáticas deben preservar los comentarios (el parser de .NET los tolera) y vigilar la coma de la última clave de cada sección.
+- En Fly.io los nombres de host de otras apps se resuelven como `{app}.internal` (p. ej. `lavalink-silent-snowflake-2883.internal`); si la app auxiliar está suspendida, el bot la reintenta cada minuto y falla con "Name or service not known" hasta reanudarla (`fly machine start <id> -a <app>`).
+- Dos instancias del bot con el mismo token NO deben convivir (gateway conflictivo): en local o en el VPS, nunca en ambos a la vez.
+
+---
+
+## 17. Registro de cambios — 2026-08-13 (API de servidores compartidos + CORS para el panel web)
+
+### Solicitud
+El compañero que desarrolla el frontend del panel necesita un endpoint que resuelva "en cuáles de los servidores del usuario está el bot": desde el navegador (solo con el token del usuario) Discord no lo dice. Su mock `filtrarServidoresDelBot` quedará conectado a esta API.
+
+### Cambios realizados
+- **`Endpoints/BotInfoEndpoints.cs` (nuevo):** `POST /api/bot/shared-guilds` — el panel envía `{ "guildIds": ["id1", …] }` (strings, por la precisión de JS) y el bot responde `{ "shared": [ { "id": "…", "name": "…" }, … ] }` con los servidores del usuario donde el bot está presente (fuente: `DiscordClient.Guilds`, el caché del gateway). Si aún no conectó, devuelve lista vacía.
+- **`Endpoints/ApiKeyGuard.cs` (nuevo):** guarda compartida de `X-Api-Key` (env `WEB_PANEL_API_KEY` opcional); `ConfigEndpoints` ahora la reutiliza en vez de tener la suya.
+- **CORS en `Program.cs`:** política `SnowflakeWeb` (`Web:AllowedOrigins` en appsettings.json, `"*"` por defecto; en producción, la URL del frontend). Sin esto el navegador bloquearía las llamadas al API.
+- Sección `Web` nueva en `appsettings.json`.
+
+### Contrato para el frontend
+```
+POST {baseUrl}/api/bot/shared-guilds
+Content-Type: application/json
+{ "guildIds": ["1475204967567589440", …] }   // los que el usuario administra (token OAuth del usuario)
+→ 200 { "shared": [ { "id": "1475204967567589440", "name": "El servidor de Britex" } ] }
+```
+- `{baseUrl}` en producción: `https://snowflake-discord-bot-floral-river-8992.fly.dev`.
+- Si se configura `WEB_PANEL_API_KEY`, añadir cabecera `X-Api-Key`.
+- El resto del API del panel está en `ConfigEndpoints` (sección 16) — referencia completa en la sección 18.
+
+### Validación
+- Desplegado en Fly.io y probado en producción: con 3 IDs (2 reales + 1 falso) devuelve exactamente los 2 servidores del bot, con nombres.
+- Cabecera `access-control-allow-origin: *` verificada con `Origin` simulado.
+- Bot conectado tras el redeploy (gateway Discord :443 y Lavalink :2333 establecidos).
+
+---
+
+## 18. Referencia de la API REST (panel web)
+
+> Contrato completo para el frontend. Base en producción: `https://snowflake-discord-bot-floral-river-8992.fly.dev` (local: `http://localhost:5000`).
+
+### Convenciones generales
+- **Autenticación:** si el backend tiene definida la variable `WEB_PANEL_API_KEY`, TODA mutación (POST/DELETE) exige la cabecera `X-Api-Key: <clave>`. Si la clave no está definida, las mutaciones pasan sin ella (desarrollo). Respuesta de fallo: `401 Unauthorized`.
+- **CORS:** política `SnowflakeWeb` — orígenes permitidos en `appsettings.json` → `Web:AllowedOrigins` (default `["*"]`).
+- **IDs de Discord:** siempre como **string** en JSON (JavaScript pierde precisión con enteros > 2^53). El backend los parsea con `ulong.TryParse` (los que no parsean se ignoran).
+- **Formato:** JSON; la serialización usa camelCase (p. ej. `djRoleId`, `youTube`).
+- **Patching:** en los POST, un campo `null` significa "no tocar este ajuste". Para "quitar" un valor (canal, rol, plantilla…) se envía `""` (string vacía), que se interpreta como null.
+
+### Endpoints
+
+#### `GET /api/status`
+Health check. No requiere auth.
+```json
+{ "status": "online", "timestamp": "2026-08-13T00:44:55.828Z" }
+```
+
+#### `POST /api/bot/shared-guilds` — ¿en cuáles de mis servidores está el bot?
+El navegador solo conoce los servidores del USUARIO; este endpoint cruza esa lista con los servidores del bot.
+```json
+// Request
+{ "guildIds": ["1475204967567589440", "…"] }
+// Response 200
+{ "shared": [ { "id": "1475204967567589440", "name": "El servidor de Britex" } ] }
+```
+Si el bot aún no terminó de conectar al gateway devuelve `{ "shared": [] }` (reintentar).
+
+#### `GET /api/guilds/{guildId}/config` — snapshot completo de un servidor
+```json
+{
+  "guildId": "1475204967567589440",
+  "moderation": { "logChannelId": "…" },
+  "welcome":    { "enabled": false, "channelId": "…", "message": "…" },
+  "voice":      { "hubChannelId": "…", "tempChannelNameTemplate": "…" },
+  "music":      { "volume": 25, "djRoleId": "…" },
+  "ai":         { "chatEnabled": true, "mentionsEnabled": false, "spontaneousEnabled": false },
+  "downloads":  { "enabled": true },
+  "blockedChannels": ["…"],
+  "counting":   { "enabled": true, "channelId": "…", "base": "Decimal|Binario|Octal|Hexadecimal",
+                  "goal": 100, "extraChancesPerDay": 1,
+                  "emojiCorrect": "✅", "emojiIncorrect": "❌", "emojiRecord": "🎉",
+                  "loseMessage": "…",
+                  "currentValue": 42, "currentRecord": 57 },
+  "youTube":    { "channelId": "UC…", "channelName": "…", "notifyChannelId": "…",
+                  "notifyRoleId": "…", "customMessage": "…" }
+}
+```
+`counting` y `youTube` son `null` si esa feature nunca se configuró en el servidor. Los campos que valen `null` = sin configurar. `blockedChannels` son los canales en lockdown con `/bloquear` (solo lectura desde el panel; se gestionan con los comandos).
+
+#### `POST /api/guilds/{guildId}/config` — editar ajustes generales
+Body (todos opcionales, `null` = no tocar; `""` = quitar):
+```json
+{
+  "modLogChannelId": "…", "welcomeChannelId": "…", "welcomeMessage": "…",
+  "hubChannelId": "…", "tempChannelNameTemplate": "…",
+  "volume": 25, "djRoleId": "…",
+  "geminiChatEnabled": true, "geminiMentionsEnabled": false,
+  "geminiSpontaneousEnabled": false, "downloadsEnabled": true
+}
+```
+Respuesta `200`: el snapshot completo actualizado (igual que el GET).
+
+#### `POST /api/guilds/{guildId}/config/counting` — editar juego de conteo
+```json
+{
+  "channelId": "…", "base": "Hexadecimal", "goal": 100,
+  "extraChancesPerDay": 2,
+  "emojiCorrect": "✅", "emojiIncorrect": "❌", "emojiRecord": "🎉",
+  "loseMessage": "…"
+}
+```
+Respuesta `200`: snapshot completo. Nota: `currentValue`/`currentRecord` son de solo lectura (los gestiona el bot).
+
+#### `POST /api/guilds/{guildId}/config/youtube` — crear/editar suscripción YouTube
+```json
+{
+  "ytChannelId": "UC…", "ytChannelName": "…",
+  "notifyChannelId": "…", "notifyRoleId": "…", "customMessage": "…"
+}
+```
+Respuesta `200`: snapshot completo. Si el servidor no tenía suscripción, la crea (el bot hará backfill silencioso del feed).
+
+#### `DELETE /api/guilds/{guildId}/config/youtube` — quitar suscripción YouTube
+`204 No Content` si existía; `404` si no había.
+
+### Notas para el frontend
+- Tras guardar, la caché del bot (`GuildSettingsService`) se invalida sola: los cambios aplican de inmediato en Discord.
+- El guardado de `volume` se acota a 0-100 y el de `extraChancesPerDay` a 0-10 en el backend.
+- Los IDs de canal/rol deben ser de recursos del MISMO servidor indicado en la ruta (el backend no lo valida todavía; sí falla al usarlos si no existen).
+- Falta por construir (pendiente): OAuth de Discord para saber QUIÉN administra qué servidor; hoy la única protección es la API key.
+
+---
+
+## 19. Registro de cambios — 2026-08-13 (lockdown de canales: /bloquear y /desbloquear)
+
+### Solicitud
+Comandos `/bloquear` (canal específico o el actual) y `/desbloquear` para impedir que nadie hable en un canal — estilo `/lock` de los bots comerciales (Carl-bot, Dyno).
+
+### Cambios realizados
+- **`Data/Entities/ChannelLock.cs` (nuevo):** guarda por canal bloqueado el overwrite ORIGINAL de @everyone (`AllowBits`/`DenyBits`, `HadOverwrite`) para restaurarlo exactamente al desbloquear. PK `ChannelId`, índice `GuildId`. Migración `20260813024549_AddChannelLocks` (creada con `dotnet-ef` — volvió a funcionar tras instalar el runtime ASP.NET).
+- **`Services/ChannelLockService.cs` (nuevo):** `BloquearAsync` niega `SendMessages+AddReactions` en texto/news/foro y `UseVoice` en voz/escenario, preservando los permisos previos del overwrite. `DesbloquearAsync` restaura el overwrite original exacto, o si no había uno, quita solo los bits del bloqueo (y borra el overwrite si queda vacío). `ListarAsync` para el panel.
+- **`Modules/LockModule.cs` (nuevo):** `/bloquear` y `/desbloquear` con `[SlashRequirePermissions(ManageChannels)]` + `[SlashRequireBotPermissions(ManageRoles)]`, con verificación ADICIONAL de permisos del usuario y del bot sobre el canal destino (los overrides de canal pueden quitarlos). Solo canales de texto/voz (el resto → error).
+- **Panel web:** el snapshot (`GET /api/guilds/{id}/config`) ahora incluye `blockedChannels` (IDs de canales en lockdown, solo lectura) y `/config ver` muestra la lista en Discord.
+- **messages.json:** nueva sección `Bloqueo` (7 claves).
+
+### Notas técnicas
+- El API real de DSharpPlus 5 para overwrites es `AddOverwriteAsync(DiscordRole, Permissions allow, Permissions deny, string reason)` y `DeleteOverwriteAsync(DiscordRole, string reason)` — NO existe overload con `DiscordOverwriteBuilder` en canales existentes.
+- `ChannelType.Forum` no existe en DSharpPlus 5; el foro se llama `ChannelType.GuildForum`.
+- Cambiar overwrites exige al BOT el permiso "Gestionar roles" (ManageRoles) en ese canal, no "Gestionar canales".
+
+### Validación
+- Compilación limpia y desplegado en Fly.io; migración `AddChannelLocks` aplicada automáticamente al arrancar (verificada en `/app/data/snowflake.db`).
+- Bot conectado (gateway + Lavalink) y API respondiendo tras el deploy.
+- Pendiente de probar en Discord: bloquear/desbloquear un canal real y comprobar que un usuario sin roles no puede hablar.
