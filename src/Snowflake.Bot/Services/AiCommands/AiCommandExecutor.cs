@@ -107,9 +107,8 @@ public sealed partial class AiCommandExecutor
     /// <summary>Todas las tools expuestas al modelo.</summary>
     public IReadOnlyCollection<ToolDef> Herramientas => _tools.Values;
 
-    /// <summary>Ejecuta (o marca como pendiente) una tool pedida por el modelo.</summary>
     public async Task<AiToolExecution> EjecutarAsync(
-        AiCommandContext ctx, string nombre, JsonObject? args)
+        AiCommandContext ctx, string nombre, JsonObject? args, bool esConfirmacion = false)
     {
         args ??= new JsonObject();
 
@@ -123,7 +122,7 @@ public sealed partial class AiCommandExecutor
             };
         }
 
-        if (tool.Destructivo)
+        if (tool.Destructivo && !esConfirmacion)
         {
             var desc = tool.DescripcionComando is not null
                 ? await tool.DescripcionComando(ctx, args).ConfigureAwait(false)

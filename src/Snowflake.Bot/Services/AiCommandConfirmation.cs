@@ -207,7 +207,7 @@ public sealed class AiCommandConfirmation(
 
             // Ejecuta el comando REAL (permisos re-validados) y reanuda al modelo.
             var ejecucion = await executor.EjecutarAsync(
-                estado.Ctx, estado.Pendiente.ToolName, estado.Pendiente.Args).ConfigureAwait(false);
+                estado.Ctx, estado.Pendiente.ToolName, estado.Pendiente.Args, esConfirmacion: true).ConfigureAwait(false);
             var resultado = ejecucion.Resultado
                 ?? new AiCommandResult(false, msg.Get(guildId, "Chat:ErrorEjecucion"), estado.Pendiente.DescripcionComando);
 
