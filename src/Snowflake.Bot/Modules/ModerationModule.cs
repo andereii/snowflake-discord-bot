@@ -34,48 +34,76 @@ public sealed class ModerationModule : SnowflakeModuleBase
         _msg = msg;
     }
 
-    [SlashCommand("expulsar", "Expulsa a un usuario del servidor")]
+    [SlashCommand("kick", "Kick a user from the server")]
+    [NameLocalization(Localization.Spanish, "expulsar")]
+    [NameLocalization(Localization.Portuguese, "expulsar")]
+    [DescriptionLocalization(Localization.Spanish, "Expulsa a un usuario del servidor")]
+    [DescriptionLocalization(Localization.Portuguese, "Expulsa um usuário do servidor")]
     [SlashRequirePermissions(Permissions.KickMembers)]
     [SlashRequireBotPermissions(Permissions.KickMembers)]
     public async Task ExpulsarAsync(
         InteractionContext ctx,
-        [Option("usuario", "Usuario a expulsar")] DiscordUser usuario,
-        [Option("motivo", "Motivo de la expulsión")] string? motivo = null)
+        [Option("user", "User to kick")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a expulsar")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a expulsar")] DiscordUser usuario,
+        [Option("reason", "Reason for the kick")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo de la expulsión")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo da expulsão")] string? motivo = null)
     {
-        motivo ??= _msg.Get("Moderacion:MotivoPorDefecto");
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
 
         var miembro = await ValidarObjetivoAsync(ctx, usuario);
         if (miembro is null) return;
 
         await IntentarAvisoPrivadoAsync(miembro, ctx.Guild.Name,
-            _msg.Get("Moderacion:Dm:Acciones:Expulsion"), motivo);
+            _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Expulsion"), motivo);
         await miembro.RemoveAsync(motivo);
 
         var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.Expulsion, motivo);
         await _log.AnunciarAsync(ctx.Guild, incidente);
         await ResponderExitoAsync(ctx,
-            _msg.Get("Moderacion:Exito:Expulsion", ("usuario", usuario.Username)), incidente);
+            _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Expulsion", ("usuario", usuario.Username)), incidente);
     }
 
-    [SlashCommand("vetar", "Veta (banea) a un usuario del servidor")]
+    [SlashCommand("ban", "Ban a user from the server")]
+    [NameLocalization(Localization.Spanish, "vetar")]
+    [NameLocalization(Localization.Portuguese, "banir")]
+    [DescriptionLocalization(Localization.Spanish, "Veta (banea) a un usuario del servidor")]
+    [DescriptionLocalization(Localization.Portuguese, "Bane um usuário do servidor")]
     [SlashRequirePermissions(Permissions.BanMembers)]
     [SlashRequireBotPermissions(Permissions.BanMembers)]
     public async Task VetarAsync(
         InteractionContext ctx,
-        [Option("usuario", "Usuario a vetar")] DiscordUser usuario,
-        [Option("motivo", "Motivo del veto")] string? motivo = null,
-        [Option("borrar_dias", "Días de mensajes a borrar (0-7)")] long borrarDias = 0)
+        [Option("user", "User to ban")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a vetar")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a banir")] DiscordUser usuario,
+        [Option("reason", "Reason for the ban")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo del veto")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo do banimento")] string? motivo = null,
+        [Option("delete_days", "Days of messages to delete (0-7)")]
+        [NameLocalization(Localization.Spanish, "borrar_dias")]
+        [NameLocalization(Localization.Portuguese, "excluir_dias")]
+        [DescriptionLocalization(Localization.Spanish, "Días de mensajes a borrar (0-7)")]
+        [DescriptionLocalization(Localization.Portuguese, "Dias de mensagens a excluir (0-7)")] long borrarDias = 0)
     {
-        motivo ??= _msg.Get("Moderacion:MotivoPorDefecto");
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
 
         if (usuario.Id == ctx.User.Id)
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Moderacion:Errores:MismoUsuario"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:MismoUsuario"));
             return;
         }
         if (usuario.Id == ctx.Client.CurrentUser.Id)
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Moderacion:Errores:AlBot"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:AlBot"));
             return;
         }
 
@@ -85,7 +113,7 @@ public sealed class ModerationModule : SnowflakeModuleBase
         {
             if (!await ValidarJerarquiaAsync(ctx, miembro)) return;
             await IntentarAvisoPrivadoAsync(miembro, ctx.Guild.Name,
-                _msg.Get("Moderacion:Dm:Acciones:Veto"), motivo);
+                _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Veto"), motivo);
         }
 
         await ctx.Guild.BanMemberAsync(usuario.Id, (int)Math.Clamp(borrarDias, 0, 7), motivo);
@@ -93,28 +121,44 @@ public sealed class ModerationModule : SnowflakeModuleBase
         var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.Veto, motivo);
         await _log.AnunciarAsync(ctx.Guild, incidente);
         await ResponderExitoAsync(ctx,
-            _msg.Get("Moderacion:Exito:Veto", ("usuario", usuario.Username)), incidente);
+            _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Veto", ("usuario", usuario.Username)), incidente);
     }
 
-    [SlashCommand("aislar", "Aísla (timeout) a un usuario durante un tiempo")]
+    [SlashCommand("timeout", "Time out (mute) a user")]
+    [NameLocalization(Localization.Spanish, "aislar")]
+    [NameLocalization(Localization.Portuguese, "silenciar")]
+    [DescriptionLocalization(Localization.Spanish, "Aísla (timeout) a un usuario durante un tiempo")]
+    [DescriptionLocalization(Localization.Portuguese, "Silencia um usuário por um tempo")]
     [SlashRequirePermissions(Permissions.ModerateMembers)]
     [SlashRequireBotPermissions(Permissions.ModerateMembers)]
     public async Task AislarAsync(
         InteractionContext ctx,
-        [Option("usuario", "Usuario a aislar")] DiscordUser usuario,
-        [Option("duracion", "Duración: 30s, 10m, 2h, 7d (máx. 28 días)")] string duracion,
-        [Option("motivo", "Motivo del aislamiento")] string? motivo = null)
+        [Option("user", "User to time out")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a aislar")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a silenciar")] DiscordUser usuario,
+        [Option("duration", "Duration: 30s, 10m, 2h, 7d (max 28 days)")]
+        [NameLocalization(Localization.Spanish, "duracion")]
+        [NameLocalization(Localization.Portuguese, "duração")]
+        [DescriptionLocalization(Localization.Spanish, "Duración: 30s, 10m, 2h, 7d (máx. 28 días)")]
+        [DescriptionLocalization(Localization.Portuguese, "Duração: 30s, 10m, 2h, 7d (máx. 28 dias)")] string duracion,
+        [Option("reason", "Reason for the timeout")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo del aislamiento")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo do silêncio")] string? motivo = null)
     {
-        motivo ??= _msg.Get("Moderacion:MotivoPorDefecto");
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
 
         if (!DurationParser.TryParse(duracion, out var tiempo) || tiempo <= TimeSpan.Zero)
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Moderacion:Errores:DuracionInvalida"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:DuracionInvalida"));
             return;
         }
         if (tiempo > MaxAislamiento)
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Moderacion:Errores:DuracionMaxima"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:DuracionMaxima"));
             return;
         }
 
@@ -122,27 +166,39 @@ public sealed class ModerationModule : SnowflakeModuleBase
         if (miembro is null) return;
 
         await IntentarAvisoPrivadoAsync(miembro, ctx.Guild.Name,
-            _msg.Get("Moderacion:Dm:Acciones:Aislamiento", ("duracion", DurationParser.Format(tiempo))), motivo);
+            _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Aislamiento", ("duracion", DurationParser.Format(tiempo, _msg.Locale(ctx.Guild.Id)))), motivo);
         await miembro.TimeoutAsync(DateTimeOffset.UtcNow + tiempo, motivo);
 
         var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.Aislamiento, motivo, tiempo);
         await _log.AnunciarAsync(ctx.Guild, incidente);
         await ResponderExitoAsync(ctx,
-            _msg.Get("Moderacion:Exito:Aislamiento",
+            _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Aislamiento",
                 ("usuario", usuario.Username),
-                ("duracion", DurationParser.Format(tiempo))),
+                ("duracion", DurationParser.Format(tiempo, _msg.Locale(ctx.Guild.Id)))),
             incidente);
     }
 
-    [SlashCommand("desaislar", "Quita el aislamiento (timeout) a un usuario")]
+    [SlashCommand("untimeout", "Remove a user's timeout")]
+    [NameLocalization(Localization.Spanish, "desaislar")]
+    [NameLocalization(Localization.Portuguese, "dessilenciar")]
+    [DescriptionLocalization(Localization.Spanish, "Quita el aislamiento (timeout) a un usuario")]
+    [DescriptionLocalization(Localization.Portuguese, "Remove o silêncio de um usuário")]
     [SlashRequirePermissions(Permissions.ModerateMembers)]
     [SlashRequireBotPermissions(Permissions.ModerateMembers)]
     public async Task DesaislarAsync(
         InteractionContext ctx,
-        [Option("usuario", "Usuario a desaislar")] DiscordUser usuario,
-        [Option("motivo", "Motivo")] string? motivo = null)
+        [Option("user", "User to remove the timeout from")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a desaislar")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a dessilenciar")] DiscordUser usuario,
+        [Option("reason", "Reason")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo")] string? motivo = null)
     {
-        motivo ??= _msg.Get("Moderacion:MotivoPorDefecto");
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
 
         var miembro = await ValidarObjetivoAsync(ctx, usuario);
         if (miembro is null) return;
@@ -152,33 +208,53 @@ public sealed class ModerationModule : SnowflakeModuleBase
         var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.FinAislamiento, motivo);
         await _log.AnunciarAsync(ctx.Guild, incidente);
         await ResponderExitoAsync(ctx,
-            _msg.Get("Moderacion:Exito:FinAislamiento", ("usuario", usuario.Username)), incidente);
+            _msg.Get(ctx.Guild.Id, "Moderacion:Exito:FinAislamiento", ("usuario", usuario.Username)), incidente);
     }
 
-    [SlashCommand("advertir", "Registra una advertencia a un usuario")]
+    [SlashCommand("warn", "Record a warning for a user")]
+    [NameLocalization(Localization.Spanish, "advertir")]
+    [NameLocalization(Localization.Portuguese, "advertir")]
+    [DescriptionLocalization(Localization.Spanish, "Registra una advertencia a un usuario")]
+    [DescriptionLocalization(Localization.Portuguese, "Registra uma advertência para um usuário")]
     [SlashRequirePermissions(Permissions.ModerateMembers)]
     public async Task AdvertirAsync(
         InteractionContext ctx,
-        [Option("usuario", "Usuario a advertir")] DiscordUser usuario,
-        [Option("motivo", "Motivo de la advertencia")] string motivo)
+        [Option("user", "User to warn")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a advertir")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a advertir")] DiscordUser usuario,
+        [Option("reason", "Reason for the warning")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo de la advertencia")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo da advertência")] string motivo)
     {
         var miembro = await ValidarObjetivoAsync(ctx, usuario);
         if (miembro is null) return;
 
         await IntentarAvisoPrivadoAsync(miembro, ctx.Guild.Name,
-            _msg.Get("Moderacion:Dm:Acciones:Advertencia"), motivo);
+            _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Advertencia"), motivo);
 
         var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.Advertencia, motivo);
         await _log.AnunciarAsync(ctx.Guild, incidente);
         await ResponderExitoAsync(ctx,
-            _msg.Get("Moderacion:Exito:Advertencia", ("usuario", usuario.Username)), incidente);
+            _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Advertencia", ("usuario", usuario.Username)), incidente);
     }
 
-    [SlashCommand("historial", "Muestra los incidentes de un usuario (o los últimos del servidor)")]
+    [SlashCommand("history", "Show a user's incidents (or the server's latest)")]
+    [NameLocalization(Localization.Spanish, "historial")]
+    [NameLocalization(Localization.Portuguese, "historico")]
+    [DescriptionLocalization(Localization.Spanish, "Muestra los incidentes de un usuario (o los últimos del servidor)")]
+    [DescriptionLocalization(Localization.Portuguese, "Mostra os incidentes de um usuário (ou os últimos do servidor)")]
     [SlashRequirePermissions(Permissions.ModerateMembers)]
     public async Task HistorialAsync(
         InteractionContext ctx,
-        [Option("usuario", "Usuario a consultar (vacío = últimos del servidor)")] DiscordUser? usuario = null)
+        [Option("user", "User to look up (empty = server's latest)")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a consultar (vacío = últimos del servidor)")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a consultar (vazio = últimos do servidor)")] DiscordUser? usuario = null)
     {
         await using var db = await _dbFactory.CreateDbContextAsync();
 
@@ -190,25 +266,25 @@ public sealed class ModerationModule : SnowflakeModuleBase
 
         var embed = new DiscordEmbedBuilder()
             .WithTitle(usuario is null
-                ? _msg.Get("Moderacion:Historial:TituloServidor")
-                : _msg.Get("Moderacion:Historial:TituloUsuario", ("usuario", usuario.Username)))
+                ? _msg.Get(ctx.Guild.Id, "Moderacion:Historial:TituloServidor")
+                : _msg.Get(ctx.Guild.Id, "Moderacion:Historial:TituloUsuario", ("usuario", usuario.Username)))
             .WithColor(DiscordColor.Blurple);
 
         if (ultimos.Count == 0)
         {
-            embed.WithDescription(_msg.Get("Moderacion:Historial:Vacio"));
+            embed.WithDescription(_msg.Get(ctx.Guild.Id, "Moderacion:Historial:Vacio"));
         }
         else
         {
             foreach (var i in ultimos)
             {
-                var duracion = i.Duration is { } d ? $" · {DurationParser.Format(d)}" : "";
-                var cabecera = _msg.Get("Moderacion:Historial:CabeceraCaso",
+                var duracion = i.Duration is { } d ? $" · {DurationParser.Format(d, _msg.Locale(ctx.Guild.Id))}" : "";
+                var cabecera = _msg.Get(ctx.Guild.Id, "Moderacion:Historial:CabeceraCaso",
                     ("caso", i.Id),
-                    ("tipo", _msg.Get($"Moderacion:Tipos:{i.Type}")),
+                    ("tipo", _msg.Get(ctx.Guild.Id, $"Moderacion:Tipos:{i.Type}")),
                     ("duracion", duracion),
                     ("fecha", $"<t:{i.CreatedAt.ToUnixTimeSeconds()}:d>"));
-                var linea = _msg.Get("Moderacion:Historial:Linea",
+                var linea = _msg.Get(ctx.Guild.Id, "Moderacion:Historial:Linea",
                     ("usuario", $"<@{i.TargetUserId}>"),
                     ("moderador", $"<@{i.ModeratorId}>"),
                     ("motivo", i.Reason));
@@ -240,13 +316,13 @@ public sealed class ModerationModule : SnowflakeModuleBase
     {
         if (miembro.IsOwner)
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Moderacion:Errores:EsOwner"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:EsOwner"));
             return false;
         }
         if (miembro.Hierarchy >= ctx.Guild.CurrentMember.Hierarchy)
         {
             await ResponderErrorAsync(ctx,
-                _msg.Get("Moderacion:Errores:Jerarquia", ("usuario", miembro.Username)));
+                _msg.Get(ctx.Guild.Id, "Moderacion:Errores:Jerarquia", ("usuario", miembro.Username)));
             return false;
         }
         return true;
@@ -257,12 +333,12 @@ public sealed class ModerationModule : SnowflakeModuleBase
     {
         if (usuario.Id == ctx.User.Id)
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Moderacion:Errores:MismoUsuario"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:MismoUsuario"));
             return null;
         }
         if (usuario.Id == ctx.Client.CurrentUser.Id)
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Moderacion:Errores:AlBot"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:AlBot"));
             return null;
         }
 
@@ -270,7 +346,7 @@ public sealed class ModerationModule : SnowflakeModuleBase
         if (miembro is null)
         {
             await ResponderErrorAsync(ctx,
-                _msg.Get("Moderacion:Errores:NoEnServidor", ("usuario", usuario.Username)));
+                _msg.Get(ctx.Guild.Id, "Moderacion:Errores:NoEnServidor", ("usuario", usuario.Username)));
             return null;
         }
 
@@ -278,31 +354,16 @@ public sealed class ModerationModule : SnowflakeModuleBase
     }
 
     /// <summary>Intenta avisar al usuario por MD antes de la acción (si tiene los MD abiertos).</summary>
-    private async Task IntentarAvisoPrivadoAsync(
+    private Task IntentarAvisoPrivadoAsync(
         DiscordMember miembro, string servidor, string accion, string motivo)
-    {
-        try
-        {
-            var dm = await miembro.CreateDmChannelAsync();
-            var embed = new DiscordEmbedBuilder()
-                .WithTitle(_msg.Get("Moderacion:Dm:Titulo",
-                    ("accion", accion), ("servidor", servidor)))
-                .WithColor(DiscordColor.Red)
-                .AddField(_msg.Get("Moderacion:Dm:CampoMotivo"), motivo);
-            await dm.SendMessageAsync(embed);
-        }
-        catch
-        {
-            // Tiene los mensajes directos cerrados: se continúa sin avisar.
-        }
-    }
+        => _log.AvisarPrivadoAsync(miembro, servidor, accion, motivo);
 
     private async Task ResponderExitoAsync(InteractionContext ctx, string texto, Incident incidente)
     {
         var embed = new DiscordEmbedBuilder()
-            .WithDescription(_msg.Get("Moderacion:Exito:Formato",
+            .WithDescription(_msg.Get(ctx.Guild.Id, "Moderacion:Exito:Formato",
                 ("texto", texto), ("motivo", incidente.Reason)))
-            .WithFooter(_msg.Get("Moderacion:Caso", ("caso", incidente.Id)))
+            .WithFooter(_msg.Get(ctx.Guild.Id, "Moderacion:Caso", ("caso", incidente.Id)))
             .WithColor(DiscordColor.Green);
 
         await ctx.CreateResponseAsync(

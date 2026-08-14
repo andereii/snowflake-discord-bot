@@ -22,23 +22,35 @@ public sealed class ClearModule : SnowflakeModuleBase
 
     public ClearModule(MessagesService msg) => _msg = msg;
 
-    [SlashCommand("clear", "Borra una cantidad de mensajes en un canal")]
+    [SlashCommand("clear", "Delete a number of messages in a channel")]
+    [NameLocalization(Localization.Spanish, "clear")]
+    [NameLocalization(Localization.Portuguese, "clear")]
+    [DescriptionLocalization(Localization.Spanish, "Borra una cantidad de mensajes en un canal")]
+    [DescriptionLocalization(Localization.Portuguese, "Apaga uma quantidade de mensagens em um canal")]
     [SlashRequirePermissions(Permissions.ManageMessages)]
     [SlashRequireBotPermissions(Permissions.ManageMessages)]
     public async Task ClearAsync(
         InteractionContext ctx,
-        [Option("cantidad", "Cuántos mensajes borrar (1-100)")] long cantidad,
-        [Option("canal", "Canal donde borrar (vacío = este canal)")] DiscordChannel? canal = null)
+        [Option("amount", "How many messages to delete (1-100)")]
+        [NameLocalization(Localization.Spanish, "cantidad")]
+        [NameLocalization(Localization.Portuguese, "quantidade")]
+        [DescriptionLocalization(Localization.Spanish, "Cuántos mensajes borrar (1-100)")]
+        [DescriptionLocalization(Localization.Portuguese, "Quantas mensagens apagar (1-100)")] long cantidad,
+        [Option("channel", "Channel to delete in (empty = this channel)")]
+        [NameLocalization(Localization.Spanish, "canal")]
+        [NameLocalization(Localization.Portuguese, "canal")]
+        [DescriptionLocalization(Localization.Spanish, "Canal donde borrar (vacío = este canal)")]
+        [DescriptionLocalization(Localization.Portuguese, "Canal para apagar (vazio = este canal)")] DiscordChannel? canal = null)
     {
         canal ??= ctx.Channel;
         if (canal.Type != ChannelType.Text)
         {
-            await ResponderAsync(ctx, _msg.Get("Limpiar:CanalDebeSerTexto"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Limpiar:CanalDebeSerTexto"), ephemeral: true);
             return;
         }
         if (cantidad < 1 || cantidad > 100)
         {
-            await ResponderAsync(ctx, _msg.Get("Limpiar:SinCantidad"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Limpiar:SinCantidad"), ephemeral: true);
             return;
         }
 
@@ -49,7 +61,7 @@ public sealed class ClearModule : SnowflakeModuleBase
         if (miembro is not null
             && !canal.PermissionsFor(miembro).HasPermission(Permissions.ManageMessages))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Limpiar:SinPermisosCanal"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Limpiar:SinPermisosCanal"));
             return;
         }
 
@@ -57,7 +69,7 @@ public sealed class ClearModule : SnowflakeModuleBase
         if (bot is not null
             && !canal.PermissionsFor(bot).HasPermission(Permissions.ManageMessages))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Limpiar:SinPermisosBotCanal"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Limpiar:SinPermisosBotCanal"));
             return;
         }
 
@@ -117,18 +129,18 @@ public sealed class ClearModule : SnowflakeModuleBase
             string resultado;
             if (viejos.Count > 0 && borrables.Count > 0)
             {
-                resultado = _msg.Get("Limpiar:ExitoExcluido",
+                resultado = _msg.Get(ctx.Guild.Id, "Limpiar:ExitoExcluido",
                     ("n", borrados),
                     ("canal", canal.Mention),
                     ("excluidos", viejos.Count));
             }
             else if (borrados == 0)
             {
-                resultado = _msg.Get("Limpiar:SinMensajes", ("canal", canal.Mention));
+                resultado = _msg.Get(ctx.Guild.Id, "Limpiar:SinMensajes", ("canal", canal.Mention));
             }
             else
             {
-                resultado = _msg.Get("Limpiar:Exito", ("n", borrados), ("canal", canal.Mention));
+                resultado = _msg.Get(ctx.Guild.Id, "Limpiar:Exito", ("n", borrados), ("canal", canal.Mention));
             }
 
             // La respuesta diferida es efímera para no ensuciar el canal recién limpiado.
@@ -136,7 +148,7 @@ public sealed class ClearModule : SnowflakeModuleBase
         }
         catch (Exception)
         {
-            await SafeEditAsync(ctx, _msg.Get("Errores:Interno"));
+            await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Errores:Interno"));
         }
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Data.Entities;
+using Snowflake.Bot.Utilities;
 
 namespace Snowflake.Bot.Services.Settings;
 
@@ -77,6 +78,17 @@ public sealed class GuildSettingsService(
 
     /// <summary>Descarta la entrada cacheada del servidor (la próxima lectura irá a BD).</summary>
     public void Invalidate(ulong guildId) => _cache.TryRemove(guildId, out _);
+
+    /// <summary>
+    /// Idioma activo del servidor SIN tocar la base de datos (lectura de la
+    /// caché). Si la caché aún no está precargada devuelve inglés, que es el
+    /// idioma por defecto. La caché se precarga al conectar (GuildDownloadCompleted)
+    /// y se refresca en cada mutación de ajustes.
+    /// </summary>
+    public string Locale(ulong guildId)
+        => _cache.TryGetValue(guildId, out var entry)
+            ? Languages.Normalizar(entry.Config.Language)
+            : Languages.English;
 
     // ------------------- CountingConfig / YouTube (sin caché) -------------------
 
@@ -166,6 +178,7 @@ public sealed class GuildSettingsService(
         return new GuildSettingsSnapshot
         {
             GuildId = guildId.ToString(),
+            Language = Languages.Normalizar(cfg.Language),
             Moderation = new GuildSettingsSnapshot.ModerationSection
             {
                 LogChannelId = IdToString(cfg.ModLogChannelId)
@@ -190,7 +203,9 @@ public sealed class GuildSettingsService(
             {
                 ChatEnabled = cfg.GeminiChatEnabled,
                 MentionsEnabled = cfg.GeminiMentionsEnabled,
-                SpontaneousEnabled = cfg.GeminiSpontaneousEnabled
+                SpontaneousEnabled = cfg.GeminiSpontaneousEnabled,
+                WebSearchEnabled = cfg.AiWebSearchEnabled,
+                CommandsEnabled = cfg.AiCommandsEnabled
             },
             Downloads = new GuildSettingsSnapshot.DownloadsSection
             {
@@ -239,6 +254,9 @@ public sealed class GuildSettingsService(
         GeminiChatEnabled = c.GeminiChatEnabled,
         GeminiMentionsEnabled = c.GeminiMentionsEnabled,
         GeminiSpontaneousEnabled = c.GeminiSpontaneousEnabled,
-        DownloadsEnabled = c.DownloadsEnabled
+        DownloadsEnabled = c.DownloadsEnabled,
+        AiWebSearchEnabled = c.AiWebSearchEnabled,
+        AiCommandsEnabled = c.AiCommandsEnabled,
+        Language = c.Language
     };
 }

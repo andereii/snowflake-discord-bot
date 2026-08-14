@@ -34,6 +34,9 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
             // servidores que ya existían antes de la migración.
             e.Property(g => g.GeminiChatEnabled).HasDefaultValue(true);
             e.Property(g => g.DownloadsEnabled).HasDefaultValue(true);
+            e.Property(g => g.AiWebSearchEnabled).HasDefaultValue(true);
+            e.Property(g => g.AiCommandsEnabled).HasDefaultValue(true);
+            e.Property(g => g.Language).HasDefaultValue("en");
         });
 
         modelBuilder.Entity<ColorRole>(e =>

@@ -52,7 +52,11 @@ public static class ConfigEndpoints
                 if (patch.GeminiChatEnabled is { } chat) c.GeminiChatEnabled = chat;
                 if (patch.GeminiMentionsEnabled is { } menc) c.GeminiMentionsEnabled = menc;
                 if (patch.GeminiSpontaneousEnabled is { } esp) c.GeminiSpontaneousEnabled = esp;
+                if (patch.AiWebSearchEnabled is { } busca) c.AiWebSearchEnabled = busca;
+                if (patch.AiCommandsEnabled is { } comandos) c.AiCommandsEnabled = comandos;
                 if (patch.DownloadsEnabled is { } dl) c.DownloadsEnabled = dl;
+                if (patch.Language is { } lang)
+                    c.Language = Snowflake.Bot.Utilities.Languages.Normalizar(lang);
             }, ct);
 
             return Results.Ok(await settings.GetSnapshotAsync(guildId, ct));
@@ -139,7 +143,12 @@ public static class ConfigEndpoints
         public bool? GeminiChatEnabled { get; init; }
         public bool? GeminiMentionsEnabled { get; init; }
         public bool? GeminiSpontaneousEnabled { get; init; }
+        public bool? AiWebSearchEnabled { get; init; }
+        public bool? AiCommandsEnabled { get; init; }
         public bool? DownloadsEnabled { get; init; }
+
+        /// <summary>Idioma del bot en el servidor: "en", "es" o "pt".</summary>
+        public string? Language { get; init; }
     }
 
     /// <summary>Campos editables del juego de conteo. Null = no tocar.</summary>

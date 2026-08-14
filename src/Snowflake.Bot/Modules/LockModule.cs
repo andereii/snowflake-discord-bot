@@ -22,20 +22,32 @@ public sealed class LockModule : SnowflakeModuleBase
         _msg = msg;
     }
 
-    [SlashCommand("bloquear", "Bloquea un canal: nadie podrá hablar en él (lockdown)")]
+    [SlashCommand("lock", "Lock a channel: nobody will be able to talk in it (lockdown)")]
+    [NameLocalization(Localization.Spanish, "bloquear")]
+    [NameLocalization(Localization.Portuguese, "bloquear")]
+    [DescriptionLocalization(Localization.Spanish, "Bloquea un canal: nadie podrá hablar en él (lockdown)")]
+    [DescriptionLocalization(Localization.Portuguese, "Bloqueia um canal: ninguém poderá falar nele (lockdown)")]
     [SlashRequirePermissions(Permissions.ManageChannels)]
     [SlashRequireBotPermissions(Permissions.ManageRoles)]
     public async Task BloquearAsync(
         InteractionContext ctx,
-        [Option("canal", "Canal a bloquear (vacío = este canal)")] DiscordChannel? canal = null,
-        [Option("motivo", "Motivo del bloqueo")] string? motivo = null)
+        [Option("channel", "Channel to lock (empty = this channel)")]
+        [NameLocalization(Localization.Spanish, "canal")]
+        [NameLocalization(Localization.Portuguese, "canal")]
+        [DescriptionLocalization(Localization.Spanish, "Canal a bloquear (vacío = este canal)")]
+        [DescriptionLocalization(Localization.Portuguese, "Canal a bloquear (vazio = este canal)")] DiscordChannel? canal = null,
+        [Option("reason", "Reason for the lockdown")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo del bloqueo")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo do bloqueio")] string? motivo = null)
     {
         canal ??= ctx.Channel;
-        motivo ??= _msg.Get("Moderacion:MotivoPorDefecto");
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
 
         if (!EsCanalValido(canal))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Bloqueo:CanalInvalido"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Bloqueo:CanalInvalido"));
             return;
         }
 
@@ -45,7 +57,7 @@ public sealed class LockModule : SnowflakeModuleBase
         if (miembro is not null
             && !canal.PermissionsFor(miembro).HasPermission(Permissions.ManageChannels))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Bloqueo:SinPermisosCanal", ("canal", canal.Mention)));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Bloqueo:SinPermisosCanal", ("canal", canal.Mention)));
             return;
         }
 
@@ -54,31 +66,43 @@ public sealed class LockModule : SnowflakeModuleBase
         if (bot is not null
             && !canal.PermissionsFor(bot).HasPermission(Permissions.ManageRoles))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Bloqueo:SinPermisosBotCanal", ("canal", canal.Mention)));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Bloqueo:SinPermisosBotCanal", ("canal", canal.Mention)));
             return;
         }
 
         var aplicado = await _locks.BloquearAsync(canal, motivo);
         var texto = aplicado
-            ? _msg.Get("Bloqueo:Bloqueado", ("canal", canal.Mention))
-            : _msg.Get("Bloqueo:YaBloqueado", ("canal", canal.Mention));
+            ? _msg.Get(ctx.Guild.Id, "Bloqueo:Bloqueado", ("canal", canal.Mention))
+            : _msg.Get(ctx.Guild.Id, "Bloqueo:YaBloqueado", ("canal", canal.Mention));
         await ResponderAsync(ctx, texto, ephemeral: !aplicado);
     }
 
-    [SlashCommand("desbloquear", "Desbloquea un canal: restaura los permisos anteriores")]
+    [SlashCommand("unlock", "Unlock a channel: restore the previous permissions")]
+    [NameLocalization(Localization.Spanish, "desbloquear")]
+    [NameLocalization(Localization.Portuguese, "desbloquear")]
+    [DescriptionLocalization(Localization.Spanish, "Desbloquea un canal: restaura los permisos anteriores")]
+    [DescriptionLocalization(Localization.Portuguese, "Desbloqueia um canal: restaura as permissões anteriores")]
     [SlashRequirePermissions(Permissions.ManageChannels)]
     [SlashRequireBotPermissions(Permissions.ManageRoles)]
     public async Task DesbloquearAsync(
         InteractionContext ctx,
-        [Option("canal", "Canal a desbloquear (vacío = este canal)")] DiscordChannel? canal = null,
-        [Option("motivo", "Motivo del desbloqueo")] string? motivo = null)
+        [Option("channel", "Channel to unlock (empty = this channel)")]
+        [NameLocalization(Localization.Spanish, "canal")]
+        [NameLocalization(Localization.Portuguese, "canal")]
+        [DescriptionLocalization(Localization.Spanish, "Canal a desbloquear (vacío = este canal)")]
+        [DescriptionLocalization(Localization.Portuguese, "Canal a desbloquear (vazio = este canal)")] DiscordChannel? canal = null,
+        [Option("reason", "Reason for the unlock")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo del desbloqueo")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo do desbloqueio")] string? motivo = null)
     {
         canal ??= ctx.Channel;
-        motivo ??= _msg.Get("Moderacion:MotivoPorDefecto");
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
 
         if (!EsCanalValido(canal))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Bloqueo:CanalInvalido"));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Bloqueo:CanalInvalido"));
             return;
         }
 
@@ -86,7 +110,7 @@ public sealed class LockModule : SnowflakeModuleBase
         if (miembro is not null
             && !canal.PermissionsFor(miembro).HasPermission(Permissions.ManageChannels))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Bloqueo:SinPermisosCanal", ("canal", canal.Mention)));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Bloqueo:SinPermisosCanal", ("canal", canal.Mention)));
             return;
         }
 
@@ -94,14 +118,14 @@ public sealed class LockModule : SnowflakeModuleBase
         if (bot is not null
             && !canal.PermissionsFor(bot).HasPermission(Permissions.ManageRoles))
         {
-            await ResponderErrorAsync(ctx, _msg.Get("Bloqueo:SinPermisosBotCanal", ("canal", canal.Mention)));
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Bloqueo:SinPermisosBotCanal", ("canal", canal.Mention)));
             return;
         }
 
         var aplicado = await _locks.DesbloquearAsync(canal, motivo);
         var texto = aplicado
-            ? _msg.Get("Bloqueo:Desbloqueado", ("canal", canal.Mention))
-            : _msg.Get("Bloqueo:NoBloqueado", ("canal", canal.Mention));
+            ? _msg.Get(ctx.Guild.Id, "Bloqueo:Desbloqueado", ("canal", canal.Mention))
+            : _msg.Get(ctx.Guild.Id, "Bloqueo:NoBloqueado", ("canal", canal.Mention));
         await ResponderAsync(ctx, texto, ephemeral: !aplicado);
     }
 

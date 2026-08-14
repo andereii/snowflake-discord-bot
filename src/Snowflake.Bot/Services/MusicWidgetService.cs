@@ -106,7 +106,7 @@ public sealed class MusicWidgetService(
             var mensaje = await canal.GetMessageAsync(w.MessageId);
             await mensaje.ModifyAsync(new DiscordMessageBuilder()
                 .WithEmbed(new DiscordEmbedBuilder()
-                    .WithDescription(msg.Get("Musica:ReproduccionDetenida"))
+                    .WithDescription(msg.Get(guildId, "Musica:ReproduccionDetenida"))
                     .WithColor(DiscordColor.Grayple))
                 .AddComponents(ConstruirBotones(deshabilitados: true)));
 
@@ -129,7 +129,7 @@ public sealed class MusicWidgetService(
             {
                 var embedCola = music.ConstruirEmbedCola(e.Guild.Id, msg);
                 var builder = embedCola is null
-                    ? new DiscordInteractionResponseBuilder().WithContent(msg.Get("Musica:ColaVacia"))
+                    ? new DiscordInteractionResponseBuilder().WithContent(msg.Get(e.Guild.Id, "Musica:ColaVacia"))
                     : new DiscordInteractionResponseBuilder().AddEmbed(embedCola);
                 await e.Interaction.CreateResponseAsync(
                     InteractionResponseType.ChannelMessageWithSource, builder.AsEphemeral());
@@ -180,14 +180,14 @@ public sealed class MusicWidgetService(
     private DiscordEmbed ConstruirEmbed(ulong guildId)
     {
         if (!players.TryGetPlayer<IQueuedLavalinkPlayer>(guildId, out var p) || p is null)
-            return new DiscordEmbedBuilder().WithDescription(msg.Get("Musica:NoActivo")).Build();
+            return new DiscordEmbedBuilder().WithDescription(msg.Get(guildId, "Musica:NoActivo")).Build();
 
         var track = p.CurrentTrack;
         if (track is null)
-            return new DiscordEmbedBuilder().WithDescription(msg.Get("Musica:WidgetSinPista")).Build();
+            return new DiscordEmbedBuilder().WithDescription(msg.Get(guildId, "Musica:WidgetSinPista")).Build();
 
         var builder = new DiscordEmbedBuilder()
-            .WithTitle(msg.Get("Musica:WidgetTitulo"))
+            .WithTitle(msg.Get(guildId, "Musica:WidgetTitulo"))
             .WithDescription($"**[{track.Title}]({track.Uri})**\n{track.Author}")
             .WithColor(DiscordColor.Blurple);
 
@@ -196,12 +196,12 @@ public sealed class MusicWidgetService(
             builder.WithThumbnail(artwork);
 
         var estado = ((LavalinkPlayer)p).IsPaused
-            ? msg.Get("Musica:EstadoPausado")
-            : msg.Get("Musica:EstadoReproduciendo");
+            ? msg.Get(guildId, "Musica:EstadoPausado")
+            : msg.Get(guildId, "Musica:EstadoReproduciendo");
 
-        builder.AddField(msg.Get("Musica:WidgetEstado"), estado, true);
-        builder.AddField(msg.Get("Musica:WidgetDuracion"),
-            MusicService.FormatearDuracion(track.Duration, track.IsLiveStream), true);
+        builder.AddField(msg.Get(guildId, "Musica:WidgetEstado"), estado, true);
+        builder.AddField(msg.Get(guildId, "Musica:WidgetDuracion"),
+            MusicService.FormatearDuracion(track.Duration, track.IsLiveStream, msg.Get(guildId, "Musica:EnVivo")), true);
 
         return builder.Build();
     }

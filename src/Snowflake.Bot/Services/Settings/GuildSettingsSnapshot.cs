@@ -11,6 +11,9 @@ public sealed record GuildSettingsSnapshot
 {
     public required string GuildId { get; init; }
 
+    /// <summary>Idioma del bot en el servidor: "en", "es" o "pt".</summary>
+    public string Language { get; init; } = "en";
+
     public ModerationSection Moderation { get; init; } = new();
     public WelcomeSection Welcome { get; init; } = new();
     public VoiceSection Voice { get; init; } = new();
@@ -73,6 +76,12 @@ public sealed record GuildSettingsSnapshot
 
         /// <summary>Comentarios espontáneos en el chat ambiental.</summary>
         public bool SpontaneousEnabled { get; init; }
+
+        /// <summary>Búsqueda en internet (web_search de DeepSeek) a criterio del modelo.</summary>
+        public bool WebSearchEnabled { get; init; }
+
+        /// <summary>Ejecución de comandos del bot desde instrucciones del chat.</summary>
+        public bool CommandsEnabled { get; init; }
     }
 
     public sealed record DownloadsSection

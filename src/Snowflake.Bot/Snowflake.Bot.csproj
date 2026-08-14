@@ -10,7 +10,9 @@
 
   <ItemGroup>
     <None Include="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="messages.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="messages.en.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="messages.es.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="messages.pt.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

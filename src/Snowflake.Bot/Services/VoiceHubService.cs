@@ -73,7 +73,7 @@ public sealed class VoiceHubService(
 
         // Plantilla personalizada del servidor o el nombre por defecto del bot.
         var nombre = string.IsNullOrWhiteSpace(plantilla)
-            ? msg.Get("Voces:NombreTemporal", ("usuario", usuario.Username))
+            ? msg.Get(guild.Id, "Voces:NombreTemporal", ("usuario", usuario.Username))
             : plantilla.Replace("{usuario}", usuario.Username);
 
         var categoria = hub.Parent;

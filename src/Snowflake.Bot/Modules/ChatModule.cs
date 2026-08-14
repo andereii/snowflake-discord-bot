@@ -5,103 +5,143 @@ using DSharpPlus.SlashCommands.Attributes;
 using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.AiCommands;
 using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
 namespace Snowflake.Bot.Modules;
 
 /// <summary>
-/// Chatbot con Gemini. <c>/charlar</c> usa una conversación compartida por
+/// Chatbot con DeepSeek. <c>/talk</c> usa una conversación compartida por
 /// todos los usuarios del servidor; <c>/charlar-limpiar</c> la reinicia.
-/// <c>/gemini-menciones</c> y <c>/gemini-espontaneo</c> activan los modos extra.
+/// <c>/ai-mentions</c> y <c>/ai-spontaneous</c> activan los modos extra.
 /// </summary>
 public sealed class ChatModule : SnowflakeModuleBase
 {
-    private readonly GeminiService _gemini;
+    private readonly DeepSeekService _ia;
     private readonly GuildSettingsService _settings;
+    private readonly AiCommandConfirmation _confirmaciones;
     private readonly MessagesService _msg;
     private readonly IOptionsMonitor<BotConfiguration> _config;
 
     public ChatModule(
-        GeminiService gemini,
+        DeepSeekService ia,
         GuildSettingsService settings,
+        AiCommandConfirmation confirmaciones,
         MessagesService msg,
         IOptionsMonitor<BotConfiguration> config)
     {
-        _gemini = gemini;
+        _ia = ia;
         _settings = settings;
+        _confirmaciones = confirmaciones;
         _msg = msg;
         _config = config;
     }
 
-    [SlashCommand("charlar", "Habla con la IA en la conversación compartida del servidor")]
+    [SlashCommand("talk", "Talk to the AI in the server's shared conversation")]
+    [NameLocalization(Localization.Spanish, "charlar")]
+    [NameLocalization(Localization.Portuguese, "conversar")]
+    [DescriptionLocalization(Localization.Spanish, "Habla con la IA en la conversación compartida del servidor")]
+    [DescriptionLocalization(Localization.Portuguese, "Fala com a IA na conversa compartilhada do servidor")]
     public async Task CharlarAsync(
         InteractionContext ctx,
-        [Option("texto", "Lo que quieres decirle o preguntarle")] string texto)
+        [Option("text", "What you want to say or ask")]
+        [NameLocalization(Localization.Spanish, "texto")]
+        [NameLocalization(Localization.Portuguese, "texto")]
+        [DescriptionLocalization(Localization.Spanish, "Lo que quieres decirle o preguntarle")]
+        [DescriptionLocalization(Localization.Portuguese, "O que você quer dizer ou perguntar")] string texto)
     {
         // Interruptor por servidor (desactivable desde el panel de configuración).
         if (!(await _settings.GetAsync(ctx.Guild.Id)).GeminiChatEnabled)
         {
-            await ResponderAsync(ctx, _msg.Get("Chat:Desactivado"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:Desactivado"), ephemeral: true);
             return;
         }
 
         // Respondemos inmediatamente con un mensaje visible y luego lo editamos.
-        // Así la interacción queda confirmada antes de llamar a Gemini.
+        // Así la interacción queda confirmada antes de llamar a DeepSeek.
         await ctx.CreateResponseAsync(
             InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().WithContent(_msg.Get("Chat:Pensando")));
+            new DiscordInteractionResponseBuilder().WithContent(_msg.Get(ctx.Guild.Id, "Chat:Pensando")));
 
         try
         {
             var nombre = ctx.Member?.DisplayName ?? ctx.User.Username;
-            var respuesta = await _gemini.PreguntarAsync(ctx.Guild.Id, nombre, texto);
-            var contenido = ChatResponseFormatter.Formatear(respuesta);
-            await EditarYRegistrarAsync(ctx, contenido, ctx.Guild.Id);
+            var aiCtx = new AiCommandContext(ctx.Client, ctx.Guild, ctx.Channel, ctx.Member);
+            var outcome = await _ia.PreguntarAsync(aiCtx, nombre, texto);
+
+            if (outcome.HayPendiente)
+            {
+                // Comando destructivo: pre-texto público + confirmación efímera con botones.
+                var pre = _msg.Get(ctx.Guild.Id, "Chat:ConfirmacionPendiente")
+                    + "\n" + outcome.Pendiente!.DescripcionComando;
+                await SafeEditAsync(ctx, pre);
+                await _confirmaciones.EnviarEfimeroAsync(ctx, outcome.Pendiente, aiCtx, outcome.Pendiente.DescripcionComando);
+                return;
+            }
+
+            var contenido = ChatResponseFormatter.Formatear(outcome.Texto ?? "", _msg.Get(ctx.Guild.Id, "Chat:Truncada"));
+            await EditarYRegistrarConEmbedsAsync(ctx, contenido, outcome.Comandos, ctx.Guild.Id);
         }
-        catch (GeminiBusyException)
+        catch (DeepSeekBusyException)
         {
-            await SafeEditAsync(ctx, _msg.Get("Chat:Ocupado"));
+            await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:Ocupado"));
         }
-        catch (GeminiException ex)
+        catch (DeepSeekConfirmationPendingException)
+        {
+            await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:ConfirmacionEnCurso"));
+        }
+        catch (DeepSeekException ex)
         {
             var debug = _config.CurrentValue.Debug;
-            var contenido = ex.Message == "Falta la variable de entorno GEMINI_API_KEY."
-                ? _msg.Get("Chat:SinApiKey")
+            var contenido = ex.Message == "DEEPSEEK_API_KEY environment variable is missing."
+                ? _msg.Get(ctx.Guild.Id, "Chat:SinApiKey")
                 : debug
-                    ? _msg.Get("Chat:ErrorDebug", ("mensaje", ex.Message))
-                    : _msg.Get("Chat:Error");
+                    ? _msg.Get(ctx.Guild.Id, "Chat:ErrorDebug", ("mensaje", ex.Message))
+                    : _msg.Get(ctx.Guild.Id, "Chat:Error");
             await SafeEditAsync(ctx, contenido);
         }
         catch (Exception ex)
         {
             var contenido = _config.CurrentValue.Debug
-                ? _msg.Get("Chat:ErrorDebug", ("mensaje", $"{ex.GetType().Name}: {ex.Message}"))
-                : _msg.Get("Chat:Error");
+                ? _msg.Get(ctx.Guild.Id, "Chat:ErrorDebug", ("mensaje", $"{ex.GetType().Name}: {ex.Message}"))
+                : _msg.Get(ctx.Guild.Id, "Chat:Error");
             await SafeEditAsync(ctx, contenido);
         }
     }
 
-    [SlashCommand("charlar-limpiar", "Reinicia la conversación compartida del servidor")]
+    [SlashCommand("talk-clear", "Reset the server's shared conversation")]
+    [NameLocalization(Localization.Spanish, "charlar-limpiar")]
+    [NameLocalization(Localization.Portuguese, "conversar-limpar")]
+    [DescriptionLocalization(Localization.Spanish, "Reinicia la conversación compartida del servidor")]
+    [DescriptionLocalization(Localization.Portuguese, "Reinicia a conversa compartilhada do servidor")]
     [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task LimpiarAsync(InteractionContext ctx)
     {
-        if (_gemini.Limpiar(ctx.Guild.Id))
+        if (_ia.Limpiar(ctx.Guild.Id))
         {
-            await ResponderAsync(ctx, _msg.Get("Chat:Limpiado"));
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:Limpiado"));
         }
         else
         {
-            await ResponderAsync(ctx, _msg.Get("Chat:SinConversacion"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:SinConversacion"), ephemeral: true);
         }
     }
 
-    [SlashCommand("gemini-menciones", "Activa o desactiva las respuestas cuando me mencionan con @")]
+    [SlashCommand("ai-mentions", "Enable or disable responses when I'm mentioned with @")]
+    [NameLocalization(Localization.Spanish, "ia-menciones")]
+    [NameLocalization(Localization.Portuguese, "ia-mencoes")]
+    [DescriptionLocalization(Localization.Spanish, "Activa o desactiva las respuestas cuando me mencionan con @")]
+    [DescriptionLocalization(Localization.Portuguese, "Ativa ou desativa as respostas quando me mencionam com @")]
     [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task MencionesAsync(
         InteractionContext ctx,
-        [Option("estado", "Activar o desactivar (vacío = mostrar estado actual)")]
-        [Choice("Activar", "on"), Choice("Desactivar", "off")]
+        [Option("state", "Enable or disable (empty = show current state)")]
+        [NameLocalization(Localization.Spanish, "estado")]
+        [NameLocalization(Localization.Portuguese, "estado")]
+        [DescriptionLocalization(Localization.Spanish, "Activar o desactivar (vacío = mostrar estado actual)")]
+        [DescriptionLocalization(Localization.Portuguese, "Ativar ou desativar (vazio = mostrar estado atual)")]
+        [Choice("Enable", "on"), Choice("Disable", "off")]
         string? estado = null)
     {
         var activar = estado switch
@@ -113,30 +153,34 @@ public sealed class ChatModule : SnowflakeModuleBase
 
         if (activar is { } valor)
         {
-            var clave = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            var clave = Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY");
             if (valor && string.IsNullOrWhiteSpace(clave))
             {
-                await ResponderAsync(ctx, _msg.Get("Chat:MencionesFaltaApiKey"), ephemeral: true);
+                await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:MencionesFaltaApiKey"), ephemeral: true);
                 return;
             }
 
             await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.GeminiMentionsEnabled = valor);
             await ResponderAsync(ctx,
                 valor
-                    ? _msg.Get("Chat:MencionesActivadas")
-                    : _msg.Get("Chat:MencionesDesactivadas"));
+                    ? _msg.Get(ctx.Guild.Id, "Chat:MencionesActivadas")
+                    : _msg.Get(ctx.Guild.Id, "Chat:MencionesDesactivadas"));
         }
         else
         {
             var cfg = await _settings.GetAsync(ctx.Guild.Id);
             var texto = cfg.GeminiMentionsEnabled
-                ? _msg.Get("Chat:MencionesActivadas")
-                : _msg.Get("Chat:MencionesDesactivadas");
+                ? _msg.Get(ctx.Guild.Id, "Chat:MencionesActivadas")
+                : _msg.Get(ctx.Guild.Id, "Chat:MencionesDesactivadas");
             await ResponderAsync(ctx, texto, ephemeral: true);
         }
     }
 
-    [SlashCommand("gemini-espontaneo", "Activa o desactiva que el bot hable solo en el chat (sin menciones)")]
+    [SlashCommand("ai-spontaneous", "Enable or disable the bot talking on its own in the chat (no mentions)")]
+    [NameLocalization(Localization.Spanish, "ia-espontaneo")]
+    [NameLocalization(Localization.Portuguese, "ia-espontaneo")]
+    [DescriptionLocalization(Localization.Spanish, "Activa o desactiva que el bot hable solo en el chat (sin menciones)")]
+    [DescriptionLocalization(Localization.Portuguese, "Ativa ou desativa o bot falar sozinho no chat (sem menções)")]
     [SlashRequirePermissions(Permissions.ManageGuild)]
     public async Task EspontaneoAsync(
         InteractionContext ctx,
@@ -153,26 +197,108 @@ public sealed class ChatModule : SnowflakeModuleBase
 
         if (activar is { } valor)
         {
-            var clave = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            var clave = Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY");
             if (valor && string.IsNullOrWhiteSpace(clave))
             {
-                await ResponderAsync(ctx, _msg.Get("Chat:EspontaneoFaltaApiKey"), ephemeral: true);
+                await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:EspontaneoFaltaApiKey"), ephemeral: true);
                 return;
             }
 
             await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.GeminiSpontaneousEnabled = valor);
-            _gemini.EstablecerEspontaneo(ctx.Guild.Id, valor); // actualiza la caché en caliente
+            _ia.EstablecerEspontaneo(ctx.Guild.Id, valor); // actualiza la caché en caliente
             await ResponderAsync(ctx,
                 valor
-                    ? _msg.Get("Chat:EspontaneoActivado")
-                    : _msg.Get("Chat:EspontaneoDesactivado"));
+                    ? _msg.Get(ctx.Guild.Id, "Chat:EspontaneoActivado")
+                    : _msg.Get(ctx.Guild.Id, "Chat:EspontaneoDesactivado"));
         }
         else
         {
             var cfg = await _settings.GetAsync(ctx.Guild.Id);
             var texto = cfg.GeminiSpontaneousEnabled
-                ? _msg.Get("Chat:EspontaneoActivado")
-                : _msg.Get("Chat:EspontaneoDesactivado");
+                ? _msg.Get(ctx.Guild.Id, "Chat:EspontaneoActivado")
+                : _msg.Get(ctx.Guild.Id, "Chat:EspontaneoDesactivado");
+            await ResponderAsync(ctx, texto, ephemeral: true);
+        }
+    }
+
+    [SlashCommand("ai-search", "Enable or disable the AI's internet search (the model decides when to use it)")]
+    [NameLocalization(Localization.Spanish, "ia-busqueda")]
+    [NameLocalization(Localization.Portuguese, "ia-busca")]
+    [DescriptionLocalization(Localization.Spanish, "Activa o desactiva que la IA busque en internet cuando lo considere necesario")]
+    [DescriptionLocalization(Localization.Portuguese, "Ativa ou desativa a busca na internet da IA quando ela julgar necessário")]
+    [SlashRequirePermissions(Permissions.ManageGuild)]
+    public async Task BusquedaAsync(
+        InteractionContext ctx,
+        [Option("estado", "Activar o desactivar (vacío = mostrar estado actual)")]
+        [NameLocalization(Localization.Spanish, "estado")]
+        [NameLocalization(Localization.Portuguese, "estado")]
+        [DescriptionLocalization(Localization.Spanish, "Activar o desactivar (vacío = mostrar estado actual)")]
+        [DescriptionLocalization(Localization.Portuguese, "Ativar ou desativar (vazio = mostrar estado atual)")]
+        [Choice("Activar", "on"), Choice("Desactivar", "off")]
+        string? estado = null)
+    {
+        var activar = estado switch
+        {
+            "on" => (bool?)true,
+            "off" => (bool?)false,
+            _ => null
+        };
+
+        if (activar is { } valor)
+        {
+            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.AiWebSearchEnabled = valor);
+            await ResponderAsync(ctx,
+                valor
+                    ? _msg.Get(ctx.Guild.Id, "Chat:BusquedaActivada")
+                    : _msg.Get(ctx.Guild.Id, "Chat:BusquedaDesactivada"));
+        }
+        else
+        {
+            var cfg = await _settings.GetAsync(ctx.Guild.Id);
+            var texto = cfg.AiWebSearchEnabled
+                ? _msg.Get(ctx.Guild.Id, "Chat:BusquedaActivada")
+                : _msg.Get(ctx.Guild.Id, "Chat:BusquedaDesactivada");
+            await ResponderAsync(ctx, texto, ephemeral: true);
+        }
+    }
+
+    [SlashCommand("ai-commands", "Enable or disable executing bot commands from chat instructions")]
+    [NameLocalization(Localization.Spanish, "ia-comandos")]
+    [NameLocalization(Localization.Portuguese, "ia-comandos")]
+    [DescriptionLocalization(Localization.Spanish, "Activa o desactiva que la IA ejecute comandos del bot desde el chat")]
+    [DescriptionLocalization(Localization.Portuguese, "Ativa ou desativa a IA executar comandos do bot pelo chat")]
+    [SlashRequirePermissions(Permissions.ManageGuild)]
+    public async Task ComandosAsync(
+        InteractionContext ctx,
+        [Option("estado", "Activar o desactivar (vacío = mostrar estado actual)")]
+        [NameLocalization(Localization.Spanish, "estado")]
+        [NameLocalization(Localization.Portuguese, "estado")]
+        [DescriptionLocalization(Localization.Spanish, "Activar o desactivar (vacío = mostrar estado actual)")]
+        [DescriptionLocalization(Localization.Portuguese, "Ativar ou desativar (vazio = mostrar estado atual)")]
+        [Choice("Activar", "on"), Choice("Desactivar", "off")]
+        string? estado = null)
+    {
+        var activar = estado switch
+        {
+            "on" => (bool?)true,
+            "off" => (bool?)false,
+            _ => null
+        };
+
+        if (activar is { } valor)
+        {
+            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.AiCommandsEnabled = valor);
+            await ResponderAsync(ctx,
+                valor
+                    ? _msg.Get(ctx.Guild.Id, "Chat:ComandosActivados")
+                    : _msg.Get(ctx.Guild.Id, "Chat:ComandosDesactivados"));
+        }
+        else
+        {
+            var cfg = await _settings.GetAsync(ctx.Guild.Id);
+            var texto = cfg.AiCommandsEnabled
+                ? _msg.Get(ctx.Guild.Id, "Chat:ComandosActivados")
+                : _msg.Get(ctx.Guild.Id, "Chat:ComandosDesactivados");
             await ResponderAsync(ctx, texto, ephemeral: true);
         }
     }
@@ -186,11 +312,42 @@ public sealed class ChatModule : SnowflakeModuleBase
         {
             await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(contenido));
             var mensaje = await ctx.GetOriginalResponseAsync();
-            _gemini.RegistrarMensajeGenerado(mensaje.Id, guildId);
+            _ia.RegistrarMensajeGenerado(mensaje.Id, guildId);
         }
         catch
         {
             // La respuesta ya no se puede actualizar; no se intenta revivirla.
         }
     }
+
+    /// <summary>Edita la respuesta con el texto del modelo + embeds con el output de los comandos ejecutados.</summary>
+    private async Task EditarYRegistrarConEmbedsAsync(
+        InteractionContext ctx,
+        string contenido,
+        List<AiCommandResult> comandos,
+        ulong guildId)
+    {
+        try
+        {
+            var builder = new DiscordWebhookBuilder().WithContent(contenido);
+            foreach (var comando in comandos)
+                builder.AddEmbed(ConstruirEmbedComando(comando));
+
+            await ctx.EditResponseAsync(builder);
+            var mensaje = await ctx.GetOriginalResponseAsync();
+            _ia.RegistrarMensajeGenerado(mensaje.Id, guildId);
+        }
+        catch
+        {
+            // La respuesta ya no se puede actualizar; no se intenta revivirla.
+        }
+    }
+
+    /// <summary>Embed con SOLO el output real del comando (verde/rojo según éxito).</summary>
+    internal static DiscordEmbed ConstruirEmbedComando(AiCommandResult comando) =>
+        new DiscordEmbedBuilder()
+            .WithTitle(comando.Descripcion)
+            .WithDescription(comando.Texto)
+            .WithColor(comando.Exitoso ? DiscordColor.Green : DiscordColor.Red)
+            .Build();
 }

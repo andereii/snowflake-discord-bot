@@ -10,6 +10,7 @@ using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Endpoints;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.AiCommands;
 using Snowflake.Bot.Services.Settings;
 
 // Carga las variables del archivo .env (si existe); nunca sobreescribe las del sistema.
@@ -28,8 +29,11 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // Configuración global (appsettings.json + .env), recargable en caliente.
 builder.Services.AddSnowflakeOptions(builder.Configuration);
 
-// Todos los textos del bot, editables sin tocar el código (recarga en caliente).
-builder.Configuration.AddJsonFile("messages.json", optional: false, reloadOnChange: true);
+// Textos localizados del bot (recarga en caliente). REGLA: todo mensaje nuevo
+// debe existir en los tres archivos (en/es/pt); el inglés es el idioma base.
+builder.Configuration.AddJsonFile("messages.en.json", optional: false, reloadOnChange: true);
+builder.Configuration.AddJsonFile("messages.es.json", optional: false, reloadOnChange: true);
+builder.Configuration.AddJsonFile("messages.pt.json", optional: false, reloadOnChange: true);
 builder.Services.AddSingleton<MessagesService>();
 
 // Base de datos SQLite (ruta configurable: sección "Database" o variable DATA_DIR).
@@ -98,7 +102,7 @@ public static partial class SnowflakeServiceExtensions
         this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<BotConfiguration>(configuration.GetSection("Bot"));
-        services.Configure<GeminiOptions>(configuration.GetSection("Gemini"));
+        services.Configure<DeepSeekOptions>(configuration.GetSection("DeepSeek"));
         services.Configure<ColorOptions>(configuration.GetSection("Colors"));
         services.Configure<DatabaseOptions>(configuration.GetSection("Database"));
         services.Configure<YouTubeOptions>(configuration.GetSection("YouTube"));
@@ -136,8 +140,8 @@ public static partial class SnowflakeServiceExtensions
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
         });
 
-        // Chatbot Gemini: la generación puede tardar varios segundos.
-        services.AddHttpClient("Gemini", client =>
+        // Chatbot DeepSeek: la generación puede tardar varios segundos.
+        services.AddHttpClient("DeepSeek", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
@@ -165,6 +169,8 @@ public static partial class SnowflakeServiceExtensions
     {
         // Ajustes por servidor: punto único de acceso (bot + panel web).
         services.AddSingleton<GuildSettingsService>();
+        services.AddSingleton<AiCommandExecutor>();
+        services.AddSingleton<AiCommandConfirmation>();
 
         services.AddSingleton<ModerationLogService>();
         services.AddSingleton<DownloadService>();
@@ -174,7 +180,7 @@ public static partial class SnowflakeServiceExtensions
         services.AddSingleton<MusicService>();
         services.AddSingleton<MusicWidgetService>();
         services.AddSingleton<CountingService>();
-        services.AddSingleton<GeminiService>();
+        services.AddSingleton<DeepSeekService>();
         services.AddSingleton<YouTubeNotifyService>();
         services.AddSingleton<ChannelLockService>();
         services.AddHostedService<YouTubeNotifyService>();

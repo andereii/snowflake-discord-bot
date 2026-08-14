@@ -2,9 +2,11 @@
 
 > Documento de contexto para compartir el estado completo del proyecto con otra IA o desarrollador.
 > Fecha: agosto 2026.
+>
+> ⚠️ **REGLAS DEL PROYECTO** (ver también `AGENTS.md`): el bot es trilingüe (en/es/pt, inglés por defecto). Todo mensaje nuevo va en los 3 `messages.*.json` con la misma clave, y todo comando slash lleva name/description localizados (es/pt). El idioma por servidor se cambia con `/lang` o desde el panel web.
 
 ## 1. Resumen
-Bot de Discord en **C# / .NET 10** con **DSharpPlus 5.0.0** que ofrece: moderación documentada, bienvenidas, descarga de vídeos/audio, paletas de colores autoasignables, creación de canales, música vía Lavalink, sistema join-to-create de canales de voz, **juego de conteo** (con bases alternativas, récords, oportunidades extra y leaderboard), **chatbot con Gemini** (vía `/charlar`, mención `@` y modo espontáneo) y **notificaciones de YouTube** vía feed RSS público. Incluye además una **API REST (panel web de configuración)** alojada en el mismo proceso (secciones 16-17). El bot está **desplegado y corriendo en Fly.io**; el frontend del panel lo está desarrollando un colaborador aparte.
+Bot de Discord en **C# / .NET 10** con **DSharpPlus 5.0.0** que ofrece: moderación documentada, bienvenidas, descarga de vídeos/audio, paletas de colores autoasignables, creación de canales, música vía Lavalink, sistema join-to-create de canales de voz, **juego de conteo** (con bases alternativas, récords, oportunidades extra y leaderboard), **chatbot con DeepSeek** (deepseek-v4-flash; vía `/talk`, mención `@` y modo espontáneo) y **notificaciones de YouTube** vía feed RSS público. Incluye además una **API REST (panel web de configuración)** alojada en el mismo proceso (secciones 16-17). El bot está **desplegado y corriendo en Fly.io**; el frontend del panel lo está desarrollando un colaborador aparte.
 
 - **Nombre:** Snowflake (`Snowflake#3104`)
 - **Client ID:** `1052318909035970641`
@@ -45,7 +47,7 @@ snowflake_discord_bot/
     ├── Snowflake.Bot.csproj # Sdk.Web (aloja bot + API REST del panel)
     ├── Program.cs           # host, DI, arranque (extensiones AddSnowflake*)
     ├── appsettings.json     # Bot:{TestGuildId,OwnerId,Debug,SettingsCacheSeconds}, Lavalink, Gemini, Database, YouTube, Music, Downloads, Colors
-    ├── messages.json        # TODOS los textos del bot (recarga en caliente)
+    ├── messages.en/es/pt.json  # TODOS los textos del bot en 3 idiomas (recarga en caliente; inglés base)
     ├── Configuration/       # BotConfiguration, GeminiOptions, LavalinkOptions, DatabaseOptions, YouTubeOptions, MusicOptions, DownloadOptions, ColorOptions
     ├── Endpoints/           # ConfigEndpoints (ajustes por sección), BotInfoEndpoints (servidores compartidos), ApiKeyGuard (X-Api-Key opcional)
     ├── Data/
@@ -81,7 +83,7 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 `Id`, `GuildId`, `TargetUserId`, `TargetTag`, `ModeratorId`, `ModeratorTag`, `Type` (enum guardado como string: Advertencia/Expulsion/Veto/Aislamiento/FinAislamiento), `Reason`, `Duration TimeSpan?` (solo aislamientos), `CreatedAt`. Índice `(GuildId, TargetUserId)`.
 
 **`GuildConfigs`** — config por servidor (PK `GuildId`):
-`ModLogChannelId ulong?`, `WelcomeChannelId ulong?`, `WelcomeMessage string?`, `HubChannelId ulong?`, `TempChannelNameTemplate string?` (plantilla de canales temporales, `{usuario}`), `Volume int?` (0-100, persistente, null = 100 por defecto), `DjRoleId ulong?` (rol DJ para controlar la música), `GeminiChatEnabled bool` (default true, interruptor de /charlar), `GeminiMentionsEnabled bool` (toggle de respuestas a `@`), `GeminiSpontaneousEnabled bool` (toggle de cháchara espontánea), `DownloadsEnabled bool` (default true, interruptor de /descargar).
+`ModLogChannelId ulong?`, `WelcomeChannelId ulong?`, `WelcomeMessage string?`, `HubChannelId ulong?`, `TempChannelNameTemplate string?` (plantilla de canales temporales, `{usuario}`), `Volume int?` (0-100, persistente, null = 100 por defecto), `DjRoleId ulong?` (rol DJ para controlar la música), `GeminiChatEnabled bool` (default true, interruptor de /talk), `GeminiMentionsEnabled bool` (toggle de respuestas a `@`), `GeminiSpontaneousEnabled bool` (toggle de cháchara espontánea), `AiWebSearchEnabled bool` (default true; búsqueda web de la IA a criterio del modelo, /ai-search o panel), `DownloadsEnabled bool` (default true, interruptor de /download), `Language string` (default "en"; "en"/"es"/"pt", vía /lang o panel web).
 
 **`ColorRoles`** — roles de color instalados:
 `Id`, `GuildId`, `RoleId`, `Name`, `ColorHex`. Único `(GuildId, RoleId)`.
@@ -103,11 +105,12 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 
 **Gotcha conocido:** con `EnsureCreated` la BD no se actualiza al añadir columnas (hubo que borrarla a mano dos veces); por eso se pasó a EF Migrations. Tras crear una migración con `dotnet ef migrations add` hay que **reconstruir** (`dotnet build`) antes de ejecutar la DLL: si no, EF Core 10 lanza `PendingModelChangesWarning` porque el ensamblado no incluye el snapshot actualizado.
 
-## 6. Sistema de textos (`messages.json` + `MessagesService`)
-- Todos los mensajes viven en `messages.json` con estructura de secciones: `Ping`, `Errores`, `Presentacion`, `Moderacion`, `Descargas`, `Bienvenida`, `Musica`, `Colores`, `Voces`, `Config`, `Chat`, `Conteo`, `YouTube`, `Limpiar`, `Bloqueo`.
+## 6. Sistema de textos (`messages.*.json` + `MessagesService`)
+- **Tres archivos por idioma:** `messages.en.json` (base), `messages.es.json`, `messages.pt.json` — misma clave en los tres. `MessagesService.Get(guildId, "Clave", placeholders)` resuelve el idioma del servidor (caché) con fallback a inglés; `Get(locale, ...)` para idioma explícito; `Locale(guildId)` devuelve "en"/"es"/"pt".
+- Estructura de secciones: `Ping`, `Errores`, `Presentacion`, `Moderacion`, `Descargas`, `Bienvenida`, `Musica`, `Colores`, `Voces`, `Config`, `Chat`, `Conteo`, `YouTube`, `Limpiar`, `Bloqueo`.
 - Se accede por clave con `:` separando niveles: `msg.Get("Musica:NoEncontrado")`, con placeholders: `msg.Get("Bienvenida:MensajePorDefecto", ("usuario", mention), ("servidor", nombre))`.
 - Placeholders en el archivo van entre llaves: `{usuario}`, `{servidor}`, `{motivo}`, `{titulo}`, `{duracion}`, `{nivel}`, etc.
-- `reloadOnChange: true` → editar el JSON en caliente cambia los textos al instante, sin reiniciar (los nombres/descripciones de comandos SÍ están en código).
+- `reloadOnChange: true` → editar los JSON en caliente cambia los textos al instante, sin reiniciar. Los comandos slash se localizan en código con `[NameLocalization]`/`[DescriptionLocalization]` (Discord muestra la versión según el idioma del CLIENTE del usuario).
 - Si una clave no existe devuelve `⚠️ Mensaje no encontrado: \`clave\``.
 
 ## 7. Comandos slash (todos registrados en el guild de pruebas)
@@ -128,7 +131,8 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 | `/canal hub` `{canal}` | ManageGuild | Activa join-to-create en ese canal de voz |
 | `/canal hub-quitar` | ManageGuild | Lo desactiva |
 | `/canal plantilla` `{plantilla?}` | ManageGuild | Nombre de canales temporales (`{usuario}`; vacío = por defecto) |
-| `/config ver` | todos (efímero) | Resumen de TODOS los ajustes del servidor (mini-panel) |
+| `/config show` | todos (efímero) | Resumen de TODOS los ajustes del servidor (mini-panel) |
+| `/lang` `{language?}` | ManageGuild | Idioma del bot en el servidor (English/Español/Português; vacío = mostrar actual) |
 | `/clear` `{cantidad 1-100, canal?}` | ManageMessages (usuario y bot, verificado en el canal destino) | Borrado masivo <14 días + individual con pausa para viejos |
 | `/bloquear` `{canal?, motivo?}` | ManageChannels (verificado en el canal destino) + bot ManageRoles | Lockdown: niega a @everyone enviar mensajes (texto) o conectarse (voz); guarda el overwrite original en `ChannelLocks` |
 | `/desbloquear` `{canal?, motivo?}` | igual que /bloquear | Restaura EXACTAMENTE el overwrite que había antes del bloqueo |
@@ -142,10 +146,11 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 | `/m cola` | todos | Embed: sonando ahora + siguientes + duración total |
 | `/m pausa` `/m reanuda` `/m stop` | control | Control (mismo canal de voz / rol DJ / ManageGuild) |
 | `/m volumen {nivel}` | todos | Volumen persistente por server (acotado por MusicOptions) |
-| `/charlar` `{texto}` | todos (si `GeminiChatEnabled`) | Habla con Gemini (conversación compartida por server) |
-| `/charlar-limpiar` | ManageGuild | Reinicia la conversación compartida |
-| `/gemini-menciones` `{estado on/off?}` | ManageGuild | Toggle: ¿responder al ser mencionado con @? |
-| `/gemini-espontaneo` `{estado on/off?}` | ManageGuild | Toggle: ¿intervenir solo en el chat cada ~100+rand(1..50) mensajes? |
+| `/talk` `{text}` | todos (si `GeminiChatEnabled`) | Habla con DeepSeek (conversación compartida por server) |
+| `/talk-clear` | ManageGuild | Reinicia la conversación compartida |
+| `/ai-mentions` `{state on/off?}` | ManageGuild | Toggle: ¿responder al ser mencionado con @? |
+| `/ai-spontaneous` `{state on/off?}` | ManageGuild | Toggle: ¿intervenir solo en el chat cada ~100+rand(1..50) mensajes? |
+| `/ai-search` `{state on/off?}` | ManageGuild | Toggle: búsqueda en internet de la IA (web_search de DeepSeek; el modelo decide cuándo usarla) |
 | `/counting canal` `{canal}` | ManageGuild | Enlaza el canal de conteo (1 canal por server) |
 | `/counting desactivar` | ManageGuild | Desenlaza el canal (deja de leer) |
 | `/counting base` `{decimal/binario/octal/hexadecimal}` | ManageGuild | Modo de juego (base numérica) |
@@ -162,7 +167,7 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 | `/youtube canal` `{canal}` | ManageGuild | Cambia canal de Discord donde avisar |
 | `/youtube mensaje` `{mensaje?}` | ManageGuild | Personaliza texto previo al enlace (placeholders `{canal}` `{titulo}` `{autor}` `{url}` `{videoId}` `{subido}` `{subidoREL}`; vacío = por defecto) |
 
-**Toggles de Gemini:** requieren `GEMINI_API_KEY` en `.env`. Si falta, no deja activar.
+**Toggles de IA:** requieren `DEEPSEEK_API_KEY` en `.env`. Si falta, no deja activar.
 
 **Reglas de moderación (importantes):** no auto-acciones, no al bot, no al owner, jerarquía de roles (`miembro.Hierarchy >= bot.Hierarchy` → error), DM de aviso best-effort (si tiene MD cerrados sigue), cada acción crea un `Incident` y se anuncia en el canal de logs con embed de color por tipo + número de caso + timestamp.
 
@@ -188,7 +193,7 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 
 **`CountingService`** (juego de conteo): parsee en base configurada (`IntentarParsear`/`Formatear` con `Convert.ToString(value, radix)`), semáforo por guild contra carreras, persistencia de config/stats. Detecta: correcto (reacciona ✅/🎉 y actualiza récord), incorrecto normal (❌ + reset), **primera vez perdonada** (🛡️ + DM hint privado con el número correcto, fallback a reply si MD cerrados), oportunidades extra diarias (🛡️, reset diario UTC), mismo usuario dos veces (reset). Construye embeds de leaderboard (top 10 con medallas) y stats (totales, precisión, mejor aporte en la base activa).
 
-**`GeminiService`** (chatbot): API gratuita de Google Gemini (`v1beta/models/{model}:generateContent`). Conversación compartida por servidor (histórico acotado por `MaxHistoryTurns`), serialización por `SemaphoreSlim` + límite de solicitudes simultáneas por guild (`MaxConcurrentPerGuild`, default 2). `_mensajesGenerados` (messageId→guildId) para detectar respuestas a mensajes del bot. `Limpiar` reinicia. **Modo espontáneo:** `EstadoEspontaneo` por guild con umbral `SpontaneousBaseMessages + jitter(min..max)` (defaults 100 y 1..50) y cola de últimos `SpontaneousRecentBuffer` (default 15) mensajes ambientales; `GenerarComentarioEspontaneoAsync` llama a Gemini con un prompt casual sin tocar la conversación de `/charlar`. Refactor `LlamarAGeminiAsync` compartido por `PreguntarAsync` y el espontáneo. Errores `GeminiException`/`GeminiBusyException`.
+**`DeepSeekService`** (chatbot): Responses API de DeepSeek (`POST https://api.deepseek.com/responses`; modelo por defecto `deepseek-v4-flash`, configurable con `DEEPSEEK_MODEL`). **Búsqueda web nativa:** envía `tools: [{type:"web_search"}]` con `tool_choice:"auto"` (el modelo decide cuándo buscar; la ejecuta el servidor de DeepSeek) si el servidor tiene `AiWebSearchEnabled`; los items de salida (`message` + `web_search_call`) se guardan en el historial compartido y se devuelven tal cual en el siguiente turno (la API restaura los resultados automáticamente). El modo espontáneo es una llamada puntual SIN búsqueda. Conversación compartida por servidor (histórico acotado por `MaxHistoryTurns`), serialización por `SemaphoreSlim` + límite de solicitudes simultáneas por guild (`MaxConcurrentPerGuild`, default 2). `_mensajesGenerados` (messageId→guildId) para detectar respuestas a mensajes del bot. `Limpiar` reinicia. **Modo espontáneo:** `EstadoEspontaneo` por guild con umbral `SpontaneousBaseMessages + jitter(min..max)` (defaults 100 y 1..50) y cola de últimos `SpontaneousRecentBuffer` (default 15) mensajes ambientales; `GenerarComentarioEspontaneoAsync` llama a Gemini con un prompt casual sin tocar la conversación de `/charlar`. Refactor `LlamarAGeminiAsync` compartido por `PreguntarAsync` y el espontáneo. Errores `GeminiException`/`GeminiBusyException`.
 
 **`YouTubeNotifyService`** (BackgroundService): polling del feed RSS público `https://www.youtube.com/feeds/videos.xml?channel_id={UC}` (intervalo y retardos en `YouTubeOptions`; default 5 min; sin API key). Agrupa suscripciones por `YTChannelId` (un fetch por canal), parsea XML con `XDocument`, compara `LastVideoId`. **Backfill silencioso** al crear suscripción (marca el último vídeo como visto, no notifica antiguos). Resolución de URL/`@handle` a `channel_id` con `yt-dlp --print channel_id` (+`channel` para el nombre; timeouts en options). Notificación: texto (personalizado o por defecto) + embed con título, autor, miniatura `i.ytimg.com/vi/{id}/hqdefault.jpg`, timestamp, y mención de rol opcional (`RoleMention` para que el ping funcione). Errores por canal aislados (un feed caído no aborta el resto).
 
@@ -235,7 +240,7 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 ## 11. Estado actual (agosto 2026)
 **En producción (Fly.io):** el bot corre en la app `snowflake-discord-bot-floral-river-8992` (máquina `e822700fd17278`) con su BD en el volumen `/app/data/snowflake.db`; Lavalink en la app auxiliar `lavalink-silent-snowflake-2883` (hostname interno `lavalink-silent-snowflake-2883.internal:2333`). La API del panel responde en `https://snowflake-discord-bot-floral-river-8992.fly.dev/api/...`. **No debe haber otra instancia del bot con el mismo token** (local quedó detenido).
 
-**Funcionando:** moderación, bienvenidas, descargas, colores, canales, join-to-create, música (volumen persistente + fallback Spotify oEmbed), juego de conteo, chat Gemini (menciones + espontáneo), notificaciones de YouTube, `/config ver` y la API REST del panel (snapshot + patches + servidores compartidos). Frontend del panel: **en desarrollo por un colaborador** (ya conectado el contrato de `/api/bot/shared-guilds`).
+**Funcionando:** moderación, bienvenidas, descargas, colores, canales, join-to-create, música (volumen persistente + fallback Spotify oEmbed), juego de conteo, chat IA DeepSeek (menciones + espontáneo), notificaciones de YouTube, `/config ver` y la API REST del panel (snapshot + patches + servidores compartidos). Frontend del panel: **en desarrollo por un colaborador** (ya conectado el contrato de `/api/bot/shared-guilds`).
 
 **Sesiones previas — resumen de lo estable:**
 1. Añadido `Volume int?` a `GuildConfig`, migración `20260804062107_InitialCreate` y paso `EnsureCreatedAsync()` → `MigrateAsync()`.
@@ -250,7 +255,7 @@ Tablas (migraciones aplicadas en orden: `InitialCreate`, `AddCounting`, `AddGemi
 ## 12. Pendientes / roadmap
 - [x] Probar en Discord el volumen persistente y la reproducción de enlaces de canciones de Spotify.
 - [x] Implementar el juego de conteo (bot de counting) completo.
-- [x] IA: respuestas a menciones `@` y modo espontáneo con toggle por servidor.
+- [x] IA: respuestas a menciones `@` y modo espontáneo con toggle por servidor (ahora con DeepSeek).
 - [x] Primera equivocación perdonada con pista privada por DM.
 - [x] Notificaciones de YouTube vía feed RSS público (sin API key).
 - [x] Refactorización: modularizar, quitar hardcodes, auditoría de comandos peligrosos y preparar configs para portal web (sección 16).
@@ -615,3 +620,110 @@ Comandos `/bloquear` (canal específico o el actual) y `/desbloquear` para imped
 - Compilación limpia y desplegado en Fly.io; migración `AddChannelLocks` aplicada automáticamente al arrancar (verificada en `/app/data/snowflake.db`).
 - Bot conectado (gateway + Lavalink) y API respondiendo tras el deploy.
 - Pendiente de probar en Discord: bloquear/desbloquear un canal real y comprobar que un usuario sin roles no puede hablar.
+
+---
+
+## 20. Registro de cambios — 2026-08-13 (i18n: bot trilingüe en/es/pt)
+
+### Solicitud
+Traducir todos los mensajes y comandos al inglés, crear opción de idioma por servidor (cambiable con `/lang` o desde el portal web), 3 idiomas (inglés, español, portugués), inglés por defecto, y que toda feature futura tenga sus 3 versiones.
+
+### Cambios realizados
+- **Idioma por servidor:** `GuildConfig.Language` (default "en") + migración `AddGuildLanguage`. `/lang` (ManageGuild) con choices English/Español/Português; muestra el actual sin argumento. El panel web: `language` en el snapshot y en el `GuildConfigPatch` (validado con `Languages.Normalizar`). `/config show` muestra el idioma.
+- **Mensajes:** `messages.json` dividido en **3 archivos** (`messages.en.json` base, `messages.es.json`, `messages.pt.json`, 194 claves cada uno; copiados junto al ejecutable y con recarga en caliente). `MessagesService` reescrito: `Get(guildId, clave, ph)` (idioma del servidor desde la caché de `GuildSettingsService.Locale`, fallback a inglés), `Get(locale, ...)`, `En(...)` y `Locale(guildId)`.
+- **Comandos slash en inglés** (nombres canónicos) + localizaciones es/pt vía `[NameLocalization(Localization.Spanish|Portuguese, "…")]` y `[DescriptionLocalization(...)]` en comandos, grupos Y opciones (DSharpPlus 5 admite target `Parameter`). Renombres: `/kick /ban /timeout /untimeout /warn /history /welcome /download /channel /colors /m queue|pause|resume|volume /talk /talk-clear /gemini-spontaneous /counting channel|chances|goal|icons|lose-message|stats /youtube follow|unfollow|show|role|channel|message /lock /unlock /config show|log-channel /lang` (los usuarios con cliente en español/portugués ven los nombres traducidos automáticamente).
+- **Deshardcodeo de idioma en código:** `DurationParser.Format(ts, locale)` (unidades localizadas), `YouTubeNotifyService.ConstruirRelativo` ahora usa claves `YouTube:Hace*`, "🔴 LIVE" → `Musica:EnVivo`, nota de truncado → `Chat:Truncada`, errores de Gemini en inglés (ChatModule comprueba el nuevo mensaje "GEMINI_API_KEY environment variable is missing."), prompt espontáneo pide el idioma del servidor (`Languages.Nombre(locale)`), `SystemPrompt` por defecto en inglés (responde en el idioma del usuario).
+- **Todos los call sites** de `_msg.Get`/`msg.Get` pasan ahora el guildId (o locale).
+- **`AGENTS.md` nuevo** con la regla i18n permanente y convenciones del proyecto.
+
+### Notas técnicas
+- Los nombres de comando localizados los muestra Discord según el idioma del CLIENTE de cada usuario (no por servidor): es la forma correcta de "3 versiones del comando". El idioma de los MENSAJES sí es por servidor.
+- `GuildSettingsService.Locale(guildId)` es síncrono (lee la caché precargada en `GuildDownloadCompleted`); si la caché está fría devuelve inglés (el default).
+- La clave `DEEPSEEK_API_KEY` ausente se detecta comparando el mensaje exacto en inglés; si se cambia el texto hay que actualizar el chequeo en `ChatModule`.
+
+### Validación
+- Compilación limpia, migración `AddGuildLanguage` aplicada automáticamente en Fly.io, snapshot con `language`, ciclo de idioma probado en producción vía API (es → en).
+- Desplegado en Fly.io con el bot conectado (gateway + Lavalink). Pendiente de probar en Discord: `/lang` y ver los nombres localizados en clientes con idioma español/portugués.
+
+---
+
+## 21. Registro de cambios — 2026-08-13 (IA: DeepSeek sustituye a Gemini)
+
+### Solicitud
+Cambiar por completo el módulo de IA para usar el modelo **DeepSeek v4 flash**, y dejar el system prompt **siempre en inglés** (nunca traducido) para evitar inconsistencias del modelo.
+
+### Cambios realizados
+- **`Services/DeepSeekService.cs` (nuevo, sustituye a GeminiService):** API de DeepSeek (`POST https://api.deepseek.com/chat/completions`, formato OpenAI-compatible: `Authorization: Bearer`, body `{model, messages, temperature, max_tokens, stream:false}`). Se conserva toda la lógica: conversación compartida por server, semáforo + límite de concurrencia por guild, historial recortado, modo espontáneo con umbral, `_mensajesGenerados`. Errores `DeepSeekException`/`DeepSeekBusyException`.
+- **`Configuration/DeepSeekOptions.cs` (nuevo):** `Model` por defecto **`deepseek-v4-flash`** (sobrescribible con `DEEPSEEK_MODEL`); `SystemPrompt` SIEMPRE en inglés (comentado en código como excepción intencionada a la regla i18n). Se elimina la mención a Google Search (DeepSeek no tiene esa tool). Sección `DeepSeek` en appsettings.json.
+- **Variables de entorno:** `DEEPSEEK_API_KEY` (obligatoria; se eliminó la dependencia de `GEMINI_API_KEY`) y `DEEPSEEK_MODEL` (opcional). `.env.example` actualizado. Secreto configurado en Fly.io.
+- **Referencias actualizadas:** `DiscordBotService`, `ChatModule`, `Program.cs` (HttpClient "DeepSeek", singleton, options), `appsettings.json`.
+- **Comandos renombrados:** `/gemini-menciones` → `/ai-mentions` (es: `/ia-menciones`, pt: `/ia-mencoes`) y `/gemini-espontaneo` → `/ai-spontaneous` (es/pt: `/ia-espontaneo`).
+- **Mensajes (3 idiomas):** `Chat:SinApiKey/MencionesFaltaApiKey/EspontaneoFaltaApiKey` ahora citan `DEEPSEEK_API_KEY`; `Config:VerAi` → "IA (DeepSeek)"; `Chat:ErrorDebug` → "DeepSeek error".
+
+### Regla nueva (documentada en AGENTS.md)
+- El **system prompt** (DeepSeekOptions.SystemPrompt + appsettings.json) se mantiene SIEMPRE en inglés: no se localiza ni se traduce, para evitar incongruencias del modelo. La excepción a la regla i18n es deliberada.
+
+### Validación
+- Compilación limpia, desplegado en Fly.io con el secreto `DEEPSEEK_API_KEY` activo (estado "Deployed"), bot conectado (gateway + Lavalink), API online.
+- Pendiente de probar en Discord: `/talk`, `/ai-mentions` y `/ai-spontaneous` con una clave de DeepSeek válida.
+
+---
+
+## 22. Registro de cambios — 2026-08-13 (búsqueda en internet para la IA)
+
+### Solicitud
+Integrar búsqueda web al modelo de forma automática pero no siempre (a criterio del modelo), con opción de desactivarla por servidor si los administradores lo quieren.
+
+### Cambios realizados
+- **Migración a la Responses API:** `DeepSeekService` ahora usa `POST https://api.deepseek.com/responses` (formato OpenAI). Request: `{model, instructions (system prompt), input, tools, tool_choice, temperature, max_output_tokens, stream}`.
+- **Búsqueda web nativa (`web_search`):** cuando el servidor tiene `AiWebSearchEnabled`, se envía `tools: [{"type": "web_search"}]` con **`tool_choice: "auto"`** — el modelo decide cuándo buscar (la búsqueda la ejecuta el servidor de DeepSeek, como el antiguo googleSearch de Gemini). Desactivado → sin tools.
+- **Historial compartido rediseñado:** de tuplas `(role, texto)` a items JSON de la Responses API (`message` + `web_search_call`); los items de salida se devuelven tal cual en el siguiente turno (la API restaura los resultados de la búsqueda automáticamente). Recorte del historial por número de mensajes de usuario.
+- **Toggle por servidor:** `GuildConfig.AiWebSearchEnabled` (default true) + migración `AddGuildAiWebSearch`. Comando `/ai-search` (ManageGuild; es: `/ia-busqueda`, pt: `/ia-busca`), campo `ai.webSearchEnabled` en el snapshot y en el `GuildConfigPatch` del panel, y `/config show` lo muestra (línea "Búsqueda").
+- **System prompt (inglés, sin traducir):** añadida la instrucción "usa la búsqueda web cuando la pregunta necesite información actual; si no, responde con tu conocimiento".
+- **Modo espontáneo:** llamada puntual SIN búsqueda (un comentario casual no la necesita).
+- **Mensajes nuevos (3 idiomas):** `Chat:BusquedaActivada/BusquedaDesactivada`; `Config:VerAiDetalle` actualizado con `{busqueda}`.
+
+### Validación
+- Compilación limpia, migración aplicada automáticamente en Fly.io, snapshot con `webSearchEnabled`, toggle probado vía API (off→on).
+- Pendiente de probar en Discord: `/talk` con una pregunta de actualidad (debería disparar web_search solo cuando el modelo lo juzgue) y `/ai-search off`.
+
+---
+
+## 23. Registro de cambios — 2026-08-13 (IA: sin idioma forzado)
+
+### Solicitud
+Aclaración y ajuste: el usuario preguntó si los mensajes del chat IA se traducían automáticamente. No hay capa de traducción (el modelo genera directamente), pero había dos instrucciones que forzaban idioma; se pidió eliminarlas para que el modelo hable en el idioma que crea conveniente.
+
+### Cambios realizados
+- **Prompt espontáneo:** eliminada la instrucción `"Reply ... in {idioma del servidor}"` y el parámetro `locale` de `GenerarComentarioEspontaneoAsync` (y su call site en DiscordBotService). El modelo elige el idioma del comentario por sí mismo.
+- **System prompt** (`DeepSeekOptions` + `appsettings.json`): eliminada la instrucción "Reply in the language the user writes in (default to English)"; ahora solo describe tono/estilo sin condicionar idioma.
+- Actualizado `AGENTS.md`: el idioma de SALIDA de la IA no se fuerza de ninguna manera.
+
+---
+
+## 24. Registro de cambios — 2026-08-14 (la IA ejecuta comandos del bot + volumen matemático)
+
+### Solicitud
+1. Que la IA entienda instrucciones en el chat y las interprete como comandos del bot (todos), con permisos reales y output en embed.
+2. Flujo conversacional: petición indirecta ("se escucha muy alto") → la IA pregunta y actúa al confirmar; petición directa ("bájale 10pts") → ejecuta de una; comandos destructivos → confirmación con botones [Aceptar]/[Rechazar], efímera (solo quien la pidió), rechazo automático a los 15 s.
+3. `/m volume` con matemáticas simples (absoluto, relativo `-10`/`+5`, expresiones `30+20`, `100/2`).
+4. Toggle por servidor para los comandos por IA (ON por defecto). UX: texto plano del modelo + embed solo con el output del comando.
+
+### Cambios realizados
+- **`Services/AiCommands/AiCommandExecutor.cs` (+ `.Otros.cs`) (nuevo):** catálogo declarativo de tools — moderación (`ban_user`, `kick_user`, `timeout_user`, `untimeout_user`, `warn_user`, `get_user_history`), canales (`lock_channel`, `unlock_channel`, `clear_messages`), música (`music_play/skip/pause/resume/stop/volume`), config (`welcome_*`, `counting_*`, `youtube_follow/unfollow`, `colors_install/uninstall`, `channel_create`, `logchannel_set`) y `get_server_state` (solo lectura). Cada tool replica las auditorías del slash command (permisos guild y de canal destino, jerarquía, mismo canal/DJ, no al bot/owner) y reutiliza las claves de mensajes (i18n automática). Destructivos: ban/kick/timeout/warn/clear.
+- **`Services/AiCommandConfirmation.cs` (nuevo):** confirmación con botones (custom_id `snowflake_ai_confirm_{token}_ok|_no`); efímera vía followup en `/talk`, mensaje normal en menciones; solo el usuario solicitante puede pulsar; timeout 15 s con rechazo automático; al resolver, deshabilita botones y reanuda al modelo.
+- **`DeepSeekService`:** bucle tool-call (máx. 5 iteraciones por turno, p. ej. `get_server_state` → `music_volume` → texto); `PreguntarAsync(AiCommandContext, …)` devuelve `AiChatOutcome { Texto, Comandos[], Pendiente? }`; `ReanudarToolAsync` para aceptar/rechazar; `DeepSeekConfirmationPendingException`; el historial guarda `function_call`/`function_call_output`; modo espontáneo sigue sin tools.
+- **ChatModule/DiscordBotService:** publicación texto + embeds (`ChatModule.ConstruirEmbedComando`: título = comando, descripción = output, verde/rojo); pendientes: pre-texto + confirmación; registro del mensaje final como generado (respondible).
+- **`/m volume` matemático:** opción pasa a string; `MusicService.TryParseVolumen` (relativo siempre si empieza por +/-; expresiones de un operador; sin eval) + `ObtenerVolumenActualAsync` (persistido ?? 100); error `Musica:VolumenInvalido`.
+- **Toggle:** `GuildConfig.AiCommandsEnabled` (default true) + migración `AddGuildAiCommands` + `/ai-commands` (es/pt `ia-comandos`) + `ai.commandsEnabled` en snapshot/patch del panel + línea en `/config show`.
+- **System prompt (inglés):** guía de cuándo ejecutar directo, cuándo preguntar y cuándo llamar a tools destructivas (la autorización la gestiona el bot).
+- **Refactor compartido:** `ModerationLogService.AvisarPrivadoAsync` y `RegistrarAsync(con id+tag)`; `MusicService.ValidarControlAsync` (DJ/mismo canal) usado también por `MusicModule`.
+- **Mensajes nuevos (3 idiomas):** `Chat:ComandoCancelado/ComandoExpirado/Confirmacion* (6)/ComandosActivados/Desactivados/ErrorEjecucion`, `Musica:VolumenInvalido`, `Config:VerAiDetalle` con `{comandos}`.
+
+### Notas
+- Descarga (`/download`) queda FUERA del catálogo de IA (produce archivos y es pesada); se puede añadir luego. Los comandos meta (`/lang`, `/ai-*`, `/config`) tampoco.
+- Los IDs que el modelo pasa se sanitizan: usuarios por mención/ID/nombre, canales por mención/ID/"current"/nombre.
+
+### Validación
+- Compilación limpia; migración aplicada automáticamente en Fly.io; snapshot con `commandsEnabled: true`; bot online sin errores en el log.
+- Pendiente de probar en Discord: petición directa ("bájale 10pts a la música" → ejecuta), indirecta (pregunta y confirma), destructiva (botones + timeout) y `/m volume nivel:-10`.

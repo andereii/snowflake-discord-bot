@@ -186,7 +186,7 @@ public sealed partial class CountingService(
         await ReaccionarAsync(message, emoji);
 
         if (cfg.Goal is { } meta && valor == meta)
-            await EnviarAsync(message.Channel, msg.Get("Conteo:ObjetivoAlcanzado", ("objetivo", Formatear(meta, cfg.Base))));
+            await EnviarAsync(message.Channel, msg.Get(cfg.GuildId, "Conteo:ObjetivoAlcanzado", ("objetivo", Formatear(meta, cfg.Base))));
     }
 
     private async Task IncorrectoAsync(
@@ -202,7 +202,7 @@ public sealed partial class CountingService(
         {
             await ReaccionarAsync(message, DiscordEmoji.FromUnicode(client, EmojiPerdonPorDefecto));
             var siguienteHint = Formatear(cfg.CurrentValue + 1, cfg.Base);
-            await EnviarHintPrivadoAsync(message, siguienteHint);
+            await EnviarHintPrivadoAsync(message, cfg.GuildId, siguienteHint);
             return; // se perdona: la cadena sigue, el siguiente esperado no cambia
         }
 
@@ -224,10 +224,10 @@ public sealed partial class CountingService(
         var siguiente = Formatear(1, cfg.Base);
 
         var texto = mismoUsuario
-            ? msg.Get("Conteo:MismoUsuario",
+            ? msg.Get(cfg.GuildId, "Conteo:MismoUsuario",
                 ("usuario", message.Author.Mention), ("siguiente", siguiente))
             : (string.IsNullOrWhiteSpace(cfg.LoseMessage)
-                ? msg.Get("Conteo:Perdiste",
+                ? msg.Get(cfg.GuildId, "Conteo:Perdiste",
                     ("cuenta", cuentaFormateada),
                     ("usuario", message.Author.Mention),
                     ("siguiente", siguiente))
@@ -265,9 +265,9 @@ public sealed partial class CountingService(
     /// directo (solo lo ve él). Si no tiene los MD abiertos, hace fallback a
     /// una respuesta en el canal mencionándolo.
     /// </summary>
-    private async Task EnviarHintPrivadoAsync(DiscordMessage message, string siguiente)
+    private async Task EnviarHintPrivadoAsync(DiscordMessage message, ulong guildId, string siguiente)
     {
-        var texto = msg.Get("Conteo:PrimeraVezHint", ("siguiente", siguiente));
+        var texto = msg.Get(guildId, "Conteo:PrimeraVezHint", ("siguiente", siguiente));
         try
         {
             DiscordMember miembro;
@@ -305,7 +305,7 @@ public sealed partial class CountingService(
         if (top.Count == 0) return null;
 
         var embed = new DiscordEmbedBuilder()
-            .WithTitle(msg.Get("Conteo:LeaderboardTitulo"))
+            .WithTitle(msg.Get(guild.Id, "Conteo:LeaderboardTitulo"))
             .WithColor(DiscordColor.Blurple);
 
         var sb = new StringBuilder();
@@ -332,8 +332,8 @@ public sealed partial class CountingService(
         {
             // Embed vacío con aviso.
             return new DiscordEmbedBuilder()
-                .WithTitle(msg.Get("Conteo:StatsTitulo", ("usuario", nombre)))
-                .WithDescription(msg.Get("Conteo:StatsSinDatos"))
+                .WithTitle(msg.Get(guild.Id, "Conteo:StatsTitulo", ("usuario", nombre)))
+                .WithDescription(msg.Get(guild.Id, "Conteo:StatsSinDatos"))
                 .WithColor(DiscordColor.Blurple);
         }
 
@@ -341,12 +341,12 @@ public sealed partial class CountingService(
         var precision = total == 0 ? 100.0 : s.TotalCounts * 100.0 / total;
 
         return new DiscordEmbedBuilder()
-            .WithTitle(msg.Get("Conteo:StatsTitulo", ("usuario", nombre)))
+            .WithTitle(msg.Get(guild.Id, "Conteo:StatsTitulo", ("usuario", nombre)))
             .WithColor(DiscordColor.Blurple)
-            .AddField(msg.Get("Conteo:StatsTotal"), s.TotalCounts.ToString("N0", CultureInfo.InvariantCulture), true)
-            .AddField(msg.Get("Conteo:StatsIncorrectos"), s.IncorrectCounts.ToString("N0", CultureInfo.InvariantCulture), true)
-            .AddField(msg.Get("Conteo:StatsPrecision"), $"{precision:0.#}%", true)
-            .AddField(msg.Get("Conteo:StatsMejor"), Formatear(s.BestContribution, base_), true);
+            .AddField(msg.Get(guild.Id, "Conteo:StatsTotal"), s.TotalCounts.ToString("N0", CultureInfo.InvariantCulture), true)
+            .AddField(msg.Get(guild.Id, "Conteo:StatsIncorrectos"), s.IncorrectCounts.ToString("N0", CultureInfo.InvariantCulture), true)
+            .AddField(msg.Get(guild.Id, "Conteo:StatsPrecision"), $"{precision:0.#}%", true)
+            .AddField(msg.Get(guild.Id, "Conteo:StatsMejor"), Formatear(s.BestContribution, base_), true);
     }
 
     private async Task<string> NombreAsync(DiscordGuild g, ulong uid)

@@ -38,18 +38,30 @@ public sealed class DownloadModule : SnowflakeModuleBase
         _config = config;
     }
 
-    [SlashCommand("descargar", "Descarga un vídeo (o solo audio) de Internet con yt-dlp")]
+    [SlashCommand("download", "Download a video (or audio only) from the internet with yt-dlp")]
+    [NameLocalization(Localization.Spanish, "descargar")]
+    [NameLocalization(Localization.Portuguese, "baixar")]
+    [DescriptionLocalization(Localization.Spanish, "Descarga un vídeo (o solo audio) de Internet con yt-dlp")]
+    [DescriptionLocalization(Localization.Portuguese, "Baixa um vídeo (ou só o áudio) da internet com yt-dlp")]
     public async Task DescargarAsync(
         InteractionContext ctx,
-        [Option("url", "URL del contenido a descargar")] string url,
-        [Option("formato", "Qué descargar: el vídeo o solo el audio")]
-        [Choice("Vídeo", "video"), Choice("Solo audio", "audio")]
+        [Option("url", "URL of the content to download")]
+        [NameLocalization(Localization.Spanish, "url")]
+        [NameLocalization(Localization.Portuguese, "url")]
+        [DescriptionLocalization(Localization.Spanish, "URL del contenido a descargar")]
+        [DescriptionLocalization(Localization.Portuguese, "URL do conteúdo a baixar")] string url,
+        [Option("format", "What to download: the video or audio only")]
+        [NameLocalization(Localization.Spanish, "formato")]
+        [NameLocalization(Localization.Portuguese, "formato")]
+        [DescriptionLocalization(Localization.Spanish, "Qué descargar: el vídeo o solo el audio")]
+        [DescriptionLocalization(Localization.Portuguese, "O que baixar: o vídeo ou só o áudio")]
+        [Choice("Video", "video"), Choice("Audio only", "audio")]
         string formato = "video")
     {
         // Interruptor por servidor (desactivable desde el panel de configuración).
         if (!(await _settings.GetAsync(ctx.Guild.Id)).DownloadsEnabled)
         {
-            await ResponderAsync(ctx, _msg.Get("Descargas:Desactivado"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Descargas:Desactivado"), ephemeral: true);
             return;
         }
 
@@ -58,7 +70,7 @@ public sealed class DownloadModule : SnowflakeModuleBase
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
             || (uri.Scheme is not "http" and not "https"))
         {
-            await ResponderAsync(ctx, _msg.Get("Descargas:UrlInvalida"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Descargas:UrlInvalida"), ephemeral: true);
             return;
         }
 
@@ -81,7 +93,7 @@ public sealed class DownloadModule : SnowflakeModuleBase
                 // Adjuntar directamente al canal.
                 await using var fs = File.OpenRead(res.FilePath);
                 var builder = new DiscordWebhookBuilder()
-                    .WithContent(_msg.Get("Descargas:Exito", ("titulo", res.Title)));
+                    .WithContent(_msg.Get(ctx.Guild.Id, "Descargas:Exito", ("titulo", res.Title)));
                 builder.AddFile(Path.GetFileName(res.FilePath), fs);
                 await ctx.EditResponseAsync(builder);
             }
@@ -94,12 +106,12 @@ public sealed class DownloadModule : SnowflakeModuleBase
                 var sizeMB = size / (1024.0 * 1024.0);
                 var embed = new DiscordEmbedBuilder()
                     .WithTitle(res.Title)
-                    .WithDescription(_msg.Get("Descargas:DemasiadoGrandeEmbed",
+                    .WithDescription(_msg.Get(ctx.Guild.Id, "Descargas:DemasiadoGrandeEmbed",
                         ("tamano", sizeMB.ToString("0.#")),
                         ("enlace", enlace)))
                     .WithUrl(enlace)
                     .WithColor(DiscordColor.Azure)
-                    .WithFooter(_msg.Get("Descargas:PieLitterbox"));
+                    .WithFooter(_msg.Get(ctx.Guild.Id, "Descargas:PieLitterbox"));
 
                 await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(embed));
             }
@@ -108,16 +120,16 @@ public sealed class DownloadModule : SnowflakeModuleBase
         {
             var debug = _config.CurrentValue.Debug;
             var texto = debug
-                ? _msg.Get("Descargas:Error", ("detalles", ex.Message))
-                : _msg.Get("Descargas:ErrorGenerico");
+                ? _msg.Get(ctx.Guild.Id, "Descargas:Error", ("detalles", ex.Message))
+                : _msg.Get(ctx.Guild.Id, "Descargas:ErrorGenerico");
             await SafeEditAsync(ctx, texto);
         }
         catch (Exception ex)
         {
             var debug = _config.CurrentValue.Debug;
             var texto = debug
-                ? _msg.Get("Descargas:ErrorInterno", ("tipo", ex.GetType().Name), ("mensaje", ex.Message))
-                : _msg.Get("Descargas:ErrorGenerico");
+                ? _msg.Get(ctx.Guild.Id, "Descargas:ErrorInterno", ("tipo", ex.GetType().Name), ("mensaje", ex.Message))
+                : _msg.Get(ctx.Guild.Id, "Descargas:ErrorGenerico");
             await SafeEditAsync(ctx, texto);
         }
         finally

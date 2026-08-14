@@ -7,6 +7,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
+using Snowflake.Bot.Modules;
+using Snowflake.Bot.Services.AiCommands;
 using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
@@ -25,7 +27,8 @@ public sealed class DiscordBotService : BackgroundService
     private readonly ColorService _color;
     private readonly VoiceHubService _voces;
     private readonly MusicWidgetService _musicWidget;
-    private readonly GeminiService _gemini;
+    private readonly DeepSeekService _ia;
+    private readonly AiCommandConfirmation _confirmaciones;
     private readonly CountingService _counting;
     private readonly ILogger<DiscordBotService> _logger;
 
@@ -38,7 +41,8 @@ public sealed class DiscordBotService : BackgroundService
         ColorService color,
         VoiceHubService voces,
         MusicWidgetService musicWidget,
-        GeminiService gemini,
+        DeepSeekService ia,
+        AiCommandConfirmation confirmaciones,
         CountingService counting,
         ILogger<DiscordBotService> logger)
     {
@@ -49,7 +53,8 @@ public sealed class DiscordBotService : BackgroundService
         _color = color;
         _voces = voces;
         _musicWidget = musicWidget;
-        _gemini = gemini;
+        _ia = ia;
+        _confirmaciones = confirmaciones;
         _counting = counting;
         _logger = logger;
 
@@ -112,7 +117,7 @@ public sealed class DiscordBotService : BackgroundService
             foreach (var guildId in sender.Guilds.Keys)
             {
                 var cfg = await _settings.GetAsync(guildId);
-                _gemini.EstablecerEspontaneo(guildId, cfg.GeminiSpontaneousEnabled);
+                _ia.EstablecerEspontaneo(guildId, cfg.GeminiSpontaneousEnabled);
             }
         }
         catch (Exception ex)
@@ -132,11 +137,13 @@ public sealed class DiscordBotService : BackgroundService
             await _color.HandleSelectAsync(e);
         else if (MusicWidgetService.EsInteraccionMusica(e.Id))
             await _musicWidget.HandleButtonAsync(e);
+        else if (AiCommandConfirmation.EsInteraccionConfirmacion(e.Id))
+            await _confirmaciones.ManejarBotonAsync(e);
     }
 
     /// <summary>
     /// Responde automáticamente cuando un usuario responde a un mensaje que
-    /// Gemini generó con /charlar, o cuando lo menciona con @ (si el servidor
+    /// DeepSeek generó con /talk, o cuando lo menciona con @ (si el servidor
     /// activó las menciones). Los mensajes del propio bot se ignoran para
     /// evitar bucles de respuestas.
     /// </summary>
@@ -152,7 +159,7 @@ public sealed class DiscordBotService : BackgroundService
         // Camino 1: respuesta a un mensaje del chatbot (ya existente).
         var mensajeReferenciado = e.Message.ReferencedMessage;
         if (mensajeReferenciado is not null
-            && _gemini.TryObtenerGuildDeMensajeGenerado(mensajeReferenciado.Id, out var guildId)
+            && _ia.TryObtenerGuildDeMensajeGenerado(mensajeReferenciado.Id, out var guildId)
             && guildId == e.Guild.Id)
         {
             await ResponderChatAsync(e, texto, guildId);
@@ -165,7 +172,7 @@ public sealed class DiscordBotService : BackgroundService
             var cfg = await _settings.GetAsync(e.Guild.Id);
             if (!cfg.GeminiMentionsEnabled) return;
 
-            // Quitamos la mención del texto antes de enviar a Gemini.
+            // Quitamos la mención del texto antes de enviar a DeepSeek.
             var limpio = LimpiarMencion(sender, texto);
             if (string.IsNullOrWhiteSpace(limpio)) return;
 
@@ -176,12 +183,12 @@ public sealed class DiscordBotService : BackgroundService
         // Camino 3: chismorreo espontáneo. Solo en mensajes ambientales (no
         // son respuesta al bot ni mención). Se cuentan para el umbral del
         // servidor; si toca, se dispara un comentario en background.
-        if (_gemini.EspontaneoHabilitado(e.Guild.Id))
+        if (_ia.EspontaneoHabilitado(e.Guild.Id))
         {
             // Ignoramos comandos (no aportan contexto de charla).
             if (texto.StartsWith('/')) return;
 
-            var dispara = _gemini.RegistrarMensajeParaEspontaneo(e.Guild.Id, e.Author.Username, texto);
+            var dispara = _ia.RegistrarMensajeParaEspontaneo(e.Guild.Id, e.Author.Username, texto);
             if (dispara)
             {
                 _ = DispararComentarioEspontaneoAsync(e.Guild.Id, e.Channel);
@@ -190,7 +197,7 @@ public sealed class DiscordBotService : BackgroundService
     }
 
     /// <summary>
-    /// Pide a Gemini un comentario espontáneo a partir de la conversación
+    /// Pide a DeepSeek un comentario espontáneo a partir de la conversación
     /// reciente del canal y lo envía a dicho canal. Se ejecuta en background
     /// (fire-and-forget) para no frenar el procesamiento de mensajes.
     /// </summary>
@@ -198,14 +205,14 @@ public sealed class DiscordBotService : BackgroundService
     {
         try
         {
-            var recientes = _gemini.ObtenerRecientes(guildId);
+            var recientes = _ia.ObtenerRecientes(guildId);
             if (recientes.Count == 0) return;
 
-            var respuesta = await _gemini.GenerarComentarioEspontaneoAsync(guildId, recientes);
-            var contenido = ChatResponseFormatter.Formatear(respuesta);
+            var respuesta = await _ia.GenerarComentarioEspontaneoAsync(guildId, recientes);
+            var contenido = ChatResponseFormatter.Formatear(respuesta, _msg.Get(guildId, "Chat:Truncada"));
             await canal.SendMessageAsync(contenido);
         }
-        catch (GeminiException ex)
+        catch (DeepSeekException ex)
         {
             _logger.LogInformation(
                 ex, "No se pudo generar comentario espontáneo en {Guild}", guildId);
@@ -217,55 +224,74 @@ public sealed class DiscordBotService : BackgroundService
         }
     }
 
-    /// <summary>Genera la respuesta de Gemini como reply a <paramref name="e"/>.</summary>
+    /// <summary>Genera la respuesta de DeepSeek como reply a <paramref name="e"/>.</summary>
     private async Task ResponderChatAsync(MessageCreateEventArgs e, string texto, ulong guildId)
     {
         DiscordMessage? mensajeBot = null;
         try
         {
             // Enviamos algo inmediatamente para que el usuario vea que la
-            // solicitud fue recibida mientras Gemini genera la respuesta.
+            // solicitud fue recibida mientras el modelo genera la respuesta.
             mensajeBot = await e.Message.RespondAsync(
-                new DiscordMessageBuilder().WithContent(_msg.Get("Chat:Pensando")));
+                new DiscordMessageBuilder().WithContent(_msg.Get(guildId, "Chat:Pensando")));
 
-            var respuesta = await _gemini.PreguntarAsync(
-                guildId,
-                e.Author.Username,
-                texto);
+            var miembro = e.Message.Author as DiscordMember
+                ?? await e.Guild!.GetMemberAsync(e.Author.Id);
+            var aiCtx = new AiCommandContext(_client, e.Guild!, e.Channel, miembro);
 
-            var contenido = ChatResponseFormatter.Formatear(respuesta);
+            var outcome = await _ia.PreguntarAsync(aiCtx, e.Author.Username, texto);
 
-            await mensajeBot.ModifyAsync(new DiscordMessageBuilder().WithContent(contenido));
-            _gemini.RegistrarMensajeGenerado(mensajeBot.Id, guildId);
+            if (outcome.HayPendiente)
+            {
+                // Comando destructivo: pre-texto público + confirmación con botones (mensaje normal).
+                var pre = _msg.Get(guildId, "Chat:ConfirmacionPendiente")
+                    + "\n" + outcome.Pendiente!.DescripcionComando;
+                await mensajeBot.ModifyAsync(new DiscordMessageBuilder().WithContent(pre));
+                await _confirmaciones.EnviarNormalAsync(e.Channel, outcome.Pendiente, aiCtx, outcome.Pendiente.DescripcionComando);
+                return;
+            }
+
+            var contenido = ChatResponseFormatter.Formatear(outcome.Texto ?? "", _msg.Get(guildId, "Chat:Truncada"));
+
+            var builder = new DiscordMessageBuilder().WithContent(contenido);
+            foreach (var comando in outcome.Comandos)
+                builder.AddEmbed(ChatModule.ConstruirEmbedComando(comando));
+
+            await mensajeBot.ModifyAsync(builder);
+            _ia.RegistrarMensajeGenerado(mensajeBot.Id, guildId);
         }
-        catch (GeminiBusyException ex)
+        catch (DeepSeekBusyException ex)
         {
             _logger.LogInformation(
                 ex,
                 "Se rechazó una solicitud de chat por límite de concurrencia en {Guild}/{Channel}",
-                e.Guild.Id,
+                e.Guild!.Id,
                 e.Channel.Id);
-            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get("Chat:Ocupado"));
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get(guildId, "Chat:Ocupado"));
         }
-        catch (GeminiException ex)
+        catch (DeepSeekConfirmationPendingException)
+        {
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get(guildId, "Chat:ConfirmacionEnCurso"));
+        }
+        catch (DeepSeekException ex)
         {
             _logger.LogWarning(
                 ex,
                 "No se pudo responder automáticamente en {Guild}/{Channel}",
-                e.Guild.Id,
+                e.Guild!.Id,
                 e.Channel.Id);
 
-            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get("Chat:Error"));
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get(guildId, "Chat:Error"));
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
                 "Error procesando una respuesta automática en {Guild}/{Channel}",
-                e.Guild.Id,
+                e.Guild!.Id,
                 e.Channel.Id);
 
-            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get("Chat:Error"));
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get(guildId, "Chat:Error"));
         }
     }
 
@@ -331,13 +357,13 @@ public sealed class DiscordBotService : BackgroundService
             }
 
             var embed = new DiscordEmbedBuilder()
-                .WithTitle(_msg.Get("Presentacion:Titulo", ("bot", sender.CurrentUser.Username)))
-                .WithDescription(_msg.Get("Presentacion:Descripcion", ("servidor", e.Guild.Name)))
+                .WithTitle(_msg.Get(e.Guild.Id, "Presentacion:Titulo", ("bot", sender.CurrentUser.Username)))
+                .WithDescription(_msg.Get(e.Guild.Id, "Presentacion:Descripcion", ("servidor", e.Guild.Name)))
                 .WithColor(DiscordColor.Azure)
                 .AddField(
-                    _msg.Get("Presentacion:RecomendacionesTitulo"),
-                    _msg.Get("Presentacion:RecomendacionesTexto"))
-                .WithFooter(_msg.Get("Presentacion:Pie"));
+                    _msg.Get(e.Guild.Id, "Presentacion:RecomendacionesTitulo"),
+                    _msg.Get(e.Guild.Id, "Presentacion:RecomendacionesTexto"))
+                .WithFooter(_msg.Get(e.Guild.Id, "Presentacion:Pie"));
 
             await canal.SendMessageAsync(embed.Build());
             _logger.LogInformation(
@@ -370,18 +396,18 @@ public sealed class DiscordBotService : BackgroundService
 
             // Mensaje personalizado guardado por el servidor, o el por defecto del bot.
             var texto = string.IsNullOrWhiteSpace(config.WelcomeMessage)
-                ? _msg.Get("Bienvenida:MensajePorDefecto",
+                ? _msg.Get(e.Guild.Id, "Bienvenida:MensajePorDefecto",
                     ("usuario", e.Member.Mention), ("servidor", e.Guild.Name))
                 : config.WelcomeMessage!
                     .Replace("{usuario}", e.Member.Mention)
                     .Replace("{servidor}", e.Guild.Name);
 
             var embed = new DiscordEmbedBuilder()
-                .WithTitle(_msg.Get("Bienvenida:Titulo"))
+                .WithTitle(_msg.Get(e.Guild.Id, "Bienvenida:Titulo"))
                 .WithDescription(texto)
                 .WithColor(DiscordColor.Azure)
                 .WithThumbnail(e.Member.AvatarUrl ?? e.Member.DefaultAvatarUrl)
-                .WithFooter(_msg.Get("Bienvenida:Pie", ("servidor", e.Guild.Name)))
+                .WithFooter(_msg.Get(e.Guild.Id, "Bienvenida:Pie", ("servidor", e.Guild.Name)))
                 .WithTimestamp(DateTimeOffset.UtcNow);
 
             await canal.SendMessageAsync(embed.Build());
@@ -424,10 +450,10 @@ public sealed class DiscordBotService : BackgroundService
         // en producción se responde de forma genérica para no filtrar detalles.
         var debug = _config.CurrentValue.Debug;
         var mensaje = e.Exception is SlashExecutionChecksFailedException
-            ? _msg.Get("Errores:SinPermisos")
+            ? _msg.Get(e.Context.Guild?.Id ?? 0, "Errores:SinPermisos")
             : debug
-                ? _msg.Get("Errores:InternoDebug", ("mensaje", e.Exception.Message))
-                : _msg.Get("Errores:Interno");
+                ? _msg.Get(e.Context.Guild?.Id ?? 0, "Errores:InternoDebug", ("mensaje", e.Exception.Message))
+                : _msg.Get(e.Context.Guild?.Id ?? 0, "Errores:Interno");
 
         try
         {

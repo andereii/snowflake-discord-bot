@@ -7,14 +7,16 @@ public static class ChatResponseFormatter
 {
     private const int MaxDiscordMessageLength = 2000;
 
-    /// <summary>Devuelve únicamente la respuesta de Gemini, recortada si es necesario.</summary>
-    public static string Formatear(string respuesta)
+    /// <summary>
+    /// Devuelve únicamente la respuesta de Gemini, recortada si es necesario.
+    /// La nota de truncado se localiza con la clave "Chat:Truncada".
+    /// </summary>
+    public static string Formatear(string respuesta, string notaTruncada = "\n\n*(response truncated)*")
     {
         if (respuesta.Length <= MaxDiscordMessageLength)
             return respuesta;
 
-        const string nota = "\n\n*(respuesta truncada)*";
-        return Truncar(respuesta, MaxDiscordMessageLength - nota.Length) + nota;
+        return Truncar(respuesta, MaxDiscordMessageLength - notaTruncada.Length) + notaTruncada;
     }
 
     private static string Truncar(string texto, int max)

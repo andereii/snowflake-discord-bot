@@ -50,14 +50,14 @@ public sealed class GuildConfig
     /// </summary>
     public ulong? DjRoleId { get; set; }
 
-    // ------------------------- IA (Gemini) -------------------------
+    // ------------------------- IA (DeepSeek) -------------------------
 
     /// <summary>Si /charlar está habilitado en el servidor (interruptor general).</summary>
     public bool GeminiChatEnabled { get; set; } = true;
 
     /// <summary>
-    /// Si el bot debe responder con Gemini cuando lo mencionan con @.
-    /// Desactivado por defecto; se activa con /gemini-menciones.
+    /// Si el bot debe responder con la IA cuando lo mencionan con @.
+    /// Desactivado por defecto; se activa con /ai-mentions.
     /// </summary>
     public bool GeminiMentionsEnabled { get; set; }
 
@@ -67,8 +67,31 @@ public sealed class GuildConfig
     /// </summary>
     public bool GeminiSpontaneousEnabled { get; set; }
 
+    /// <summary>
+    /// Si la IA puede buscar en internet (web_search de DeepSeek) cuando el
+    /// modelo lo considere necesario. Activado por defecto; los administradores
+    /// pueden desactivarlo con /ai-search o desde el panel web.
+    /// </summary>
+    public bool AiWebSearchEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Si la IA puede interpretar instrucciones del chat como comandos del bot
+    /// y ejecutarlos (con los mismos permisos que los slash commands; los
+    /// destructivos piden confirmación con botones). Activado por defecto;
+    /// se desactiva con /ai-commands o desde el panel web.
+    /// </summary>
+    public bool AiCommandsEnabled { get; set; } = true;
+
     // ------------------------- Descargas -------------------------
 
-    /// <summary>Si /descargar está habilitado en el servidor.</summary>
+    /// <summary>Si /download está habilitado en el servidor.</summary>
     public bool DownloadsEnabled { get; set; } = true;
+
+    // ------------------------- Idioma -------------------------
+
+    /// <summary>
+    /// Idioma de los mensajes del bot en este servidor: "en", "es" o "pt".
+    /// Por defecto inglés. Se cambia con /lang o desde el panel web.
+    /// </summary>
+    public string Language { get; set; } = "en";
 }

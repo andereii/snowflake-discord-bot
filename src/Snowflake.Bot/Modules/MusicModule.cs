@@ -16,7 +16,9 @@ namespace Snowflake.Bot.Modules;
 /// voz que el bot, tener el rol DJ del servidor (si está configurado) o
 /// permisos ManageGuild. Así nadie desde otro canal puede reventar la música.
 /// </summary>
-[SlashCommandGroup("m", "Música en canales de voz")]
+[SlashCommandGroup("m", "Music in voice channels")]
+[DescriptionLocalization(Localization.Spanish, "Música en canales de voz")]
+[DescriptionLocalization(Localization.Portuguese, "Música nos canais de voz")]
 public sealed class MusicModule : SnowflakeModuleBase
 {
     private readonly MusicService _music;
@@ -36,15 +38,23 @@ public sealed class MusicModule : SnowflakeModuleBase
         _msg = msg;
     }
 
-    [SlashCommand("play", "Reproduce una canción o playlist (URL o búsqueda)")]
+    [SlashCommand("play", "Play a song or playlist (URL or search)")]
+    [NameLocalization(Localization.Spanish, "play")]
+    [NameLocalization(Localization.Portuguese, "play")]
+    [DescriptionLocalization(Localization.Spanish, "Reproduce una canción o playlist (URL o búsqueda)")]
+    [DescriptionLocalization(Localization.Portuguese, "Toca uma música ou playlist (URL ou busca)")]
     public async Task PlayAsync(
         InteractionContext ctx,
-        [Option("consulta", "URL de YouTube/Spotify o términos de búsqueda")] string consulta)
+        [Option("query", "YouTube/Spotify URL or search terms")]
+        [NameLocalization(Localization.Spanish, "consulta")]
+        [NameLocalization(Localization.Portuguese, "consulta")]
+        [DescriptionLocalization(Localization.Spanish, "URL de YouTube/Spotify o términos de búsqueda")]
+        [DescriptionLocalization(Localization.Portuguese, "URL do YouTube/Spotify ou termos de busca")] string consulta)
     {
         var voz = ctx.Member?.VoiceState?.Channel;
         if (voz is null)
         {
-            await ResponderAsync(ctx, _msg.Get("Musica:NoEnCanal"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoEnCanal"), ephemeral: true);
             return;
         }
 
@@ -56,14 +66,14 @@ public sealed class MusicModule : SnowflakeModuleBase
 
             if (!resultado.IsSuccess)
             {
-                await SafeEditAsync(ctx, _msg.Get("Musica:NoEncontrado"));
+                await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoEncontrado"));
                 return;
             }
 
             // Playlist: mensaje genérico de "playlist añadida".
             if (resultado.IsPlaylist)
             {
-                await SafeEditAsync(ctx, _msg.Get("Musica:PlaylistAnadida",
+                await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:PlaylistAnadida",
                     ("titulo", resultado.Playlist?.Name ?? "Playlist"),
                     ("n", resultado.Count)));
             }
@@ -72,7 +82,7 @@ public sealed class MusicModule : SnowflakeModuleBase
                 // Ya había algo sonando: la pista fue a la cola. Lo decimos con su portada.
                 var track = resultado.Track!;
                 var embed = new DiscordEmbedBuilder()
-                    .WithDescription(_msg.Get("Musica:PuestaEnCola",
+                    .WithDescription(_msg.Get(ctx.Guild.Id, "Musica:PuestaEnCola",
                         ("titulo", track.Title), ("autor", track.Author)))
                     .WithColor(DiscordColor.Blurple);
 
@@ -86,34 +96,38 @@ public sealed class MusicModule : SnowflakeModuleBase
             {
                 // Empezando a sonar ahora: mensaje + widget.
                 var track = resultado.Track!;
-                await SafeEditAsync(ctx, _msg.Get("Musica:Tocando",
+                await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Tocando",
                     ("titulo", track.Title),
                     ("autor", track.Author),
-                    ("duracion", MusicService.FormatearDuracion(track.Duration, track.IsLiveStream))));
+                    ("duracion", MusicService.FormatearDuracion(track.Duration, track.IsLiveStream, _msg.Get(ctx.Guild.Id, "Musica:EnVivo")))));
 
                 await _widget.EnviarOActualizarAsync(ctx.Channel, ctx.Guild.Id);
             }
         }
         catch (Exception)
         {
-            await SafeEditAsync(ctx, _msg.Get("Musica:ErrorLavalink"));
+            await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:ErrorLavalink"));
         }
     }
 
-    [SlashCommand("skip", "Salta a la siguiente canción")]
+    [SlashCommand("skip", "Skip to the next song")]
+    [NameLocalization(Localization.Spanish, "skip")]
+    [NameLocalization(Localization.Portuguese, "skip")]
+    [DescriptionLocalization(Localization.Spanish, "Salta a la siguiente canción")]
+    [DescriptionLocalization(Localization.Portuguese, "Pula para a próxima música")]
     public async Task SkipAsync(InteractionContext ctx)
     {
         if (_music.Obtener(ctx.Guild.Id) is null)
         {
-            await ResponderAsync(ctx, _msg.Get("Musica:NoActivo"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoActivo"), ephemeral: true);
             return;
         }
         if (!await PuedeControlarAsync(ctx)) return;
 
         var siguiente = await _music.SaltarAsync(ctx.Guild.Id);
         var texto = siguiente is null
-            ? _msg.Get("Musica:SaltadoVacio")
-            : _msg.Get("Musica:SaltadoProxima",
+            ? _msg.Get(ctx.Guild.Id, "Musica:SaltadoVacio")
+            : _msg.Get(ctx.Guild.Id, "Musica:SaltadoProxima",
                 ("titulo", siguiente.Title),
                 ("autor", siguiente.Author));
 
@@ -121,65 +135,89 @@ public sealed class MusicModule : SnowflakeModuleBase
         await _widget.RefrescarSiExisteAsync(ctx.Guild.Id, ctx.Channel);
     }
 
-    [SlashCommand("cola", "Muestra la canción actual y la cola")]
+    [SlashCommand("queue", "Show the current song and the queue")]
+    [NameLocalization(Localization.Spanish, "cola")]
+    [NameLocalization(Localization.Portuguese, "fila")]
+    [DescriptionLocalization(Localization.Spanish, "Muestra la canción actual y la cola")]
+    [DescriptionLocalization(Localization.Portuguese, "Mostra a música atual e a fila")]
     public async Task ColaAsync(InteractionContext ctx)
     {
         var embed = _music.ConstruirEmbedCola(ctx.Guild.Id, _msg);
         if (embed is null)
         {
-            await ResponderAsync(ctx, _msg.Get("Musica:ColaVacia"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:ColaVacia"), ephemeral: true);
             return;
         }
         await ResponderAsync(ctx, embed);
     }
 
-    [SlashCommand("pausa", "Pausa la canción actual")]
+    [SlashCommand("pause", "Pause the current song")]
+    [NameLocalization(Localization.Spanish, "pausa")]
+    [NameLocalization(Localization.Portuguese, "pausar")]
+    [DescriptionLocalization(Localization.Spanish, "Pausa la canción actual")]
+    [DescriptionLocalization(Localization.Portuguese, "Pausa a música atual")]
     public async Task PausaAsync(InteractionContext ctx)
     {
         if (_music.Obtener(ctx.Guild.Id) is null)
         {
-            await ResponderAsync(ctx, _msg.Get("Musica:NoActivo"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoActivo"), ephemeral: true);
             return;
         }
         if (!await PuedeControlarAsync(ctx)) return;
 
         await _music.PausarAsync(ctx.Guild.Id);
-        await ResponderAsync(ctx, _msg.Get("Musica:Pausado"));
+        await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Pausado"));
         await _widget.RefrescarSiExisteAsync(ctx.Guild.Id, ctx.Channel);
     }
 
-    [SlashCommand("reanuda", "Reanuda la reproducción pausada")]
+    [SlashCommand("resume", "Resume the paused playback")]
+    [NameLocalization(Localization.Spanish, "reanuda")]
+    [NameLocalization(Localization.Portuguese, "retomar")]
+    [DescriptionLocalization(Localization.Spanish, "Reanuda la reproducción pausada")]
+    [DescriptionLocalization(Localization.Portuguese, "Retoma a reprodução pausada")]
     public async Task ReanudaAsync(InteractionContext ctx)
     {
         if (_music.Obtener(ctx.Guild.Id) is null)
         {
-            await ResponderAsync(ctx, _msg.Get("Musica:NoActivo"), ephemeral: true);
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoActivo"), ephemeral: true);
             return;
         }
         if (!await PuedeControlarAsync(ctx)) return;
 
         await _music.ReanudarAsync(ctx.Guild.Id);
-        await ResponderAsync(ctx, _msg.Get("Musica:Reanudado"));
+        await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Reanudado"));
         await _widget.RefrescarSiExisteAsync(ctx.Guild.Id, ctx.Channel);
     }
 
-    [SlashCommand("stop", "Detiene la música y desconecta al bot")]
+    [SlashCommand("stop", "Stop the music and disconnect the bot")]
+    [NameLocalization(Localization.Spanish, "stop")]
+    [NameLocalization(Localization.Portuguese, "stop")]
+    [DescriptionLocalization(Localization.Spanish, "Detiene la música y desconecta al bot")]
+    [DescriptionLocalization(Localization.Portuguese, "Para a música e desconecta o bot")]
     public async Task StopAsync(InteractionContext ctx)
     {
         if (!await PuedeControlarAsync(ctx)) return;
 
         await _music.DetenerAsync(ctx.Guild.Id);
         await _widget.DetenerAsync(ctx.Guild.Id);
-        await ResponderAsync(ctx, _msg.Get("Musica:Detenido"));
+        await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Detenido"));
     }
 
-    [SlashCommand("volumen", "Cambia el volumen (0-100)")]
+    [SlashCommand("volume", "Change the volume (0-100)")]
+    [NameLocalization(Localization.Spanish, "volumen")]
+    [NameLocalization(Localization.Portuguese, "volume")]
+    [DescriptionLocalization(Localization.Spanish, "Cambia el volumen (0-100)")]
+    [DescriptionLocalization(Localization.Portuguese, "Muda o volume (0-100)")]
     public async Task VolumenAsync(
         InteractionContext ctx,
-        [Option("nivel", "Nivel de volumen de 0 a 100")] long nivel)
+        [Option("level", "Volume level from 0 to 100")]
+        [NameLocalization(Localization.Spanish, "nivel")]
+        [NameLocalization(Localization.Portuguese, "nível")]
+        [DescriptionLocalization(Localization.Spanish, "Nivel de volumen de 0 a 100")]
+        [DescriptionLocalization(Localization.Portuguese, "Nível de volume de 0 a 100")] long nivel)
     {
         var aplicado = await _music.VolumenAsync(ctx.Guild.Id, (int)nivel);
-        await ResponderAsync(ctx, _msg.Get("Musica:Volumen", ("nivel", aplicado)));
+        await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Volumen", ("nivel", aplicado)));
     }
 
     // ------ auditoría de control de la reproducción ------
@@ -191,34 +229,12 @@ public sealed class MusicModule : SnowflakeModuleBase
     /// </summary>
     private async Task<bool> PuedeControlarAsync(InteractionContext ctx)
     {
-        // ManageGuild (administradores) siempre pueden.
-        if (ctx.Member is not null
-            && ctx.Member.Permissions.HasPermission(Permissions.ManageGuild))
+        var (puede, mensaje) = await _music.ValidarControlAsync(ctx.Guild, ctx.Member, _msg);
+        if (!puede)
         {
-            return true;
+            await ResponderErrorAsync(ctx, mensaje!);
+            return false;
         }
-
-        var djRoleId = (await _settings.GetAsync(ctx.Guild.Id)).DjRoleId;
-
-        // Rol DJ del servidor, si está configurado.
-        if (djRoleId is { } dj && ctx.Member is not null
-            && ctx.Member.Roles.Any(r => r.Id == dj))
-        {
-            return true;
-        }
-
-        // Mismo canal de voz que el bot.
-        var canalBot = ctx.Guild.CurrentMember?.VoiceState?.Channel;
-        var canalUsuario = ctx.Member?.VoiceState?.Channel;
-        if (canalBot is not null && canalUsuario is not null && canalBot.Id == canalUsuario.Id)
-        {
-            return true;
-        }
-
-        var mensaje = djRoleId is not null
-            ? _msg.Get("Musica:RequiereDj", ("rol", $"<@&{djRoleId}>"))
-            : _msg.Get("Musica:MismoCanal");
-        await ResponderErrorAsync(ctx, mensaje);
-        return false;
+        return true;
     }
 }

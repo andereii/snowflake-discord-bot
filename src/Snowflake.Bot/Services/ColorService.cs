@@ -161,8 +161,8 @@ public sealed class ColorService(
         var select = new DiscordSelectComponent(CustomId, "Elige tu color…", opciones);
 
         var embed = new DiscordEmbedBuilder()
-            .WithTitle(msg.Get("Colores:Titulo"))
-            .WithDescription(msg.Get("Colores:Descripcion"))
+            .WithTitle(msg.Get(guild.Id, "Colores:Titulo"))
+            .WithDescription(msg.Get(guild.Id, "Colores:Descripcion"))
             .WithColor(DiscordColor.Azure);
 
         return (embed, select);
@@ -192,8 +192,8 @@ public sealed class ColorService(
             var nombreColor = await AplicarAsync(miembro, instalados, e.Guild, roleId);
 
             var texto = roleId == 0
-                ? msg.Get("Colores:Quitado")
-                : msg.Get("Colores:Aplicado", ("color", nombreColor));
+                ? msg.Get(e.Guild.Id, "Colores:Quitado")
+                : msg.Get(e.Guild.Id, "Colores:Aplicado", ("color", nombreColor));
 
             await e.Interaction.CreateResponseAsync(
                 InteractionResponseType.UpdateMessage,
@@ -206,7 +206,7 @@ public sealed class ColorService(
             {
                 await e.Interaction.CreateResponseAsync(
                     InteractionResponseType.UpdateMessage,
-                    new DiscordInteractionResponseBuilder().WithContent(msg.Get("Colores:Error")));
+                    new DiscordInteractionResponseBuilder().WithContent(msg.Get(e.Guild.Id, "Colores:Error")));
             }
             catch { /* no se pudo notificar */ }
         }

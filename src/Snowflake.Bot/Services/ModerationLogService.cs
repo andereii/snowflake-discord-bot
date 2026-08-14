@@ -26,14 +26,30 @@ public sealed class ModerationLogService(
         IncidentType tipo,
         string motivo,
         TimeSpan? duracion = null)
+        => await RegistrarAsync(guildId, objetivo.Id, objetivo.Username, moderador, tipo, motivo, duracion)
+            .ConfigureAwait(false);
+
+    /// <summary>
+    /// Igual que <see cref="RegistrarAsync(ulong, DiscordUser, DiscordUser, IncidentType, string, TimeSpan?)"/>
+    /// pero con el objetivo identificado por ID/nombre (para vetos a usuarios
+    /// que ya no están en el servidor).
+    /// </summary>
+    public async Task<Incident> RegistrarAsync(
+        ulong guildId,
+        ulong targetId,
+        string targetTag,
+        DiscordUser moderador,
+        IncidentType tipo,
+        string motivo,
+        TimeSpan? duracion = null)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var incidente = new Incident
         {
             GuildId = guildId,
-            TargetUserId = objetivo.Id,
-            TargetTag = objetivo.Username,
+            TargetUserId = targetId,
+            TargetTag = targetTag,
             ModeratorId = moderador.Id,
             ModeratorTag = moderador.Username,
             Type = tipo,
@@ -47,7 +63,7 @@ public sealed class ModerationLogService(
 
         logger.LogInformation(
             "Incidente #{Id} ({Tipo}): {Objetivo} sancionado por {Moderador} en {Guild}",
-            incidente.Id, tipo, objetivo.Id, moderador.Id, guildId);
+            incidente.Id, tipo, targetId, moderador.Id, guildId);
 
         return incidente;
     }
@@ -68,6 +84,29 @@ public sealed class ModerationLogService(
         await canal.SendMessageAsync(CrearEmbedIncidente(incidente));
     }
 
+    /// <summary>
+    /// Intenta avisar al usuario por MD antes de una acción (si tiene los MD
+    /// abiertos). Compartido por los comandos slash y el ejecutor de comandos
+    /// por IA para que ambos actúen igual.
+    /// </summary>
+    public async Task AvisarPrivadoAsync(DiscordMember miembro, string servidor, string accion, string motivo)
+    {
+        try
+        {
+            var dm = await miembro.CreateDmChannelAsync();
+            var embed = new DiscordEmbedBuilder()
+                .WithTitle(msg.Get(miembro.Guild.Id, "Moderacion:Dm:Titulo",
+                    ("accion", accion), ("servidor", servidor)))
+                .WithColor(DiscordColor.Red)
+                .AddField(msg.Get(miembro.Guild.Id, "Moderacion:Dm:CampoMotivo"), motivo);
+            await dm.SendMessageAsync(embed);
+        }
+        catch
+        {
+            // Tiene los mensajes directos cerrados: se continúa sin avisar.
+        }
+    }
+
     /// <summary>Construye el embed estándar de un incidente.</summary>
     public DiscordEmbed CrearEmbedIncidente(Incident i)
     {
@@ -82,16 +121,16 @@ public sealed class ModerationLogService(
         };
 
         var embed = new DiscordEmbedBuilder()
-            .WithTitle($"{msg.Get($"Moderacion:Tipos:{i.Type}")} · {msg.Get("Moderacion:Caso", ("caso", i.Id))}")
+            .WithTitle($"{msg.Get(i.GuildId, $"Moderacion:Tipos:{i.Type}")} · {msg.Get(i.GuildId, "Moderacion:Caso", ("caso", i.Id))}")
             .WithColor(color)
-            .AddField(msg.Get("Moderacion:Campos:Usuario"), $"<@{i.TargetUserId}> ({i.TargetTag})", true)
-            .AddField(msg.Get("Moderacion:Campos:Moderador"), $"<@{i.ModeratorId}> ({i.ModeratorTag})", true);
+            .AddField(msg.Get(i.GuildId, "Moderacion:Campos:Usuario"), $"<@{i.TargetUserId}> ({i.TargetTag})", true)
+            .AddField(msg.Get(i.GuildId, "Moderacion:Campos:Moderador"), $"<@{i.ModeratorId}> ({i.ModeratorTag})", true);
 
         if (i.Duration is { } d)
-            embed.AddField(msg.Get("Moderacion:Campos:Duracion"), DurationParser.Format(d), true);
+            embed.AddField(msg.Get(i.GuildId, "Moderacion:Campos:Duracion"), DurationParser.Format(d, msg.Locale(i.GuildId)), true);
 
         return embed
-            .AddField(msg.Get("Moderacion:Campos:Motivo"), i.Reason)
+            .AddField(msg.Get(i.GuildId, "Moderacion:Campos:Motivo"), i.Reason)
             .WithTimestamp(i.CreatedAt)
             .Build();
     }

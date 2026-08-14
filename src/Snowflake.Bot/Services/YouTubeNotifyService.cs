@@ -202,7 +202,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
     private async Task EnviarNotificacionAsync(
         DiscordChannel canal, Data.Entities.YouTubeSubscription sub, FeedVideo v)
     {
-        var subidoRel = ConstruirRelativo(v.Published);
+        var subidoRel = ConstruirRelativo(v.Published, sub.GuildId);
 
         // Texto previo (mensaje personalizado o por defecto).
         var texto = ConstruirTextoNotificacion(sub, v, subidoRel);
@@ -244,7 +244,7 @@ public sealed partial class YouTubeNotifyService : BackgroundService
     {
         // Plantilla personalizada o por defecto.
         var base_ = string.IsNullOrWhiteSpace(sub.CustomMessage)
-            ? _msg.Get("YouTube:NotiPorDefecto")
+            ? _msg.Get(sub.GuildId, "YouTube:NotiPorDefecto")
             : sub.CustomMessage;
 
         var texto = base_
@@ -265,13 +265,13 @@ public sealed partial class YouTubeNotifyService : BackgroundService
         return texto.Length > 1900 ? texto[..1899] + "…" : texto;
     }
 
-    internal static string ConstruirRelativo(DateTimeOffset dt)
+    internal string ConstruirRelativo(DateTimeOffset dt, ulong guildId)
     {
         var delta = DateTimeOffset.UtcNow - dt;
-        if (delta < TimeSpan.FromMinutes(1)) return "hace un momento";
-        if (delta < TimeSpan.FromHours(1)) return $"hace {(int)delta.TotalMinutes} minuto(s)";
-        if (delta < TimeSpan.FromDays(1)) return $"hace {(int)delta.TotalHours} hora(s)";
-        if (delta < TimeSpan.FromDays(30)) return $"hace {(int)delta.TotalDays} día(s)";
+        if (delta < TimeSpan.FromMinutes(1)) return _msg.Get(guildId, "YouTube:HaceUnMomento");
+        if (delta < TimeSpan.FromHours(1)) return _msg.Get(guildId, "YouTube:HaceMinutos", ("n", (int)delta.TotalMinutes));
+        if (delta < TimeSpan.FromDays(1)) return _msg.Get(guildId, "YouTube:HaceHoras", ("n", (int)delta.TotalHours));
+        if (delta < TimeSpan.FromDays(30)) return _msg.Get(guildId, "YouTube:HaceDias", ("n", (int)delta.TotalDays));
         return dt.ToString("d", CultureInfo.InvariantCulture);
     }
 

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using DSharpPlus;
 using DSharpPlus.Entities;
 using Lavalink4NET;
 using Lavalink4NET.Extensions;
@@ -114,6 +115,13 @@ public sealed class MusicService(
         return porcentaje;
     }
 
+    /// <summary>Volumen actual del servidor: el persistido o 100 si nunca se configuró.</summary>
+    public async Task<int> ObtenerVolumenActualAsync(ulong guildId)
+    {
+        var guardado = await LeerVolumenAsync(guildId).ConfigureAwait(false);
+        return guardado ?? 100;
+    }
+
     private async Task<int?> LeerVolumenAsync(ulong guildId)
     {
         var cfg = await settings.GetAsync(guildId).ConfigureAwait(false);
@@ -208,6 +216,33 @@ public sealed class MusicService(
         return true;
     }
 
+    /// <summary>
+    /// ¿Puede este usuario controlar la música (pausar, saltar, detener)?
+    /// Requisitos (cualquiera): ManageGuild, rol DJ configurado o estar en el
+    /// MISMO canal de voz que el bot. Devuelve el mensaje de error localizado
+    /// cuando no puede. Compartido por /m y el ejecutor de comandos por IA.
+    /// </summary>
+    public async Task<(bool Puede, string? MensajeError)> ValidarControlAsync(
+        DiscordGuild guild, DiscordMember miembro, MessagesService msg)
+    {
+        if (miembro.Permissions.HasPermission(Permissions.ManageGuild))
+            return (true, null);
+
+        var dj = (await settings.GetAsync(guild.Id)).DjRoleId;
+        if (dj is { } djId && miembro.Roles.Any(r => r.Id == djId))
+            return (true, null);
+
+        var canalBot = guild.CurrentMember?.VoiceState?.Channel;
+        var canalUsuario = miembro.VoiceState?.Channel;
+        if (canalBot is not null && canalUsuario is not null && canalBot.Id == canalUsuario.Id)
+            return (true, null);
+
+        var mensaje = dj is not null
+            ? msg.Get(guild.Id, "Musica:RequiereDj", ("rol", $"<@&{dj}>"))
+            : msg.Get(guild.Id, "Musica:MismoCanal");
+        return (false, mensaje);
+    }
+
     /// <summary>Lista de items en cola (sin contar el que suena ahora).</summary>
     public IEnumerable<ITrackQueueItem> Cola(ulong guildId)
     {
@@ -225,11 +260,11 @@ public sealed class MusicService(
         if (actual is null && cola.Count == 0) return null;
 
         var embed = new DiscordEmbedBuilder()
-            .WithTitle(msg.Get("Musica:ColaTitulo"))
+            .WithTitle(msg.Get(guildId, "Musica:ColaTitulo"))
             .WithColor(DiscordColor.Blurple);
 
         if (actual is { } ahora)
-            embed.AddField(msg.Get("Musica:SonandoAhora"),
+            embed.AddField(msg.Get(guildId, "Musica:SonandoAhora"),
                 $"**[{ahora.Title}]({ahora.Uri})** — {ahora.Author}");
 
         if (cola.Count > 0)
@@ -243,11 +278,11 @@ public sealed class MusicService(
                 lineas.Add($"`{i + 1,2}.` **{t.Title}** — {t.Author}");
             }
 
-            embed.AddField(msg.Get("Musica:ColaSiguiente"),
+            embed.AddField(msg.Get(guildId, "Musica:ColaSiguiente"),
                 string.Join("\n", lineas).Truncate(1900));
 
             if (!total.Equals(TimeSpan.Zero))
-                embed.AddField(msg.Get("Musica:ColaTotal"), FormatearDuracion(total, false), true);
+                embed.AddField(msg.Get(guildId, "Musica:ColaTotal"), FormatearDuracion(total, false), true);
         }
 
         return embed;
@@ -262,8 +297,56 @@ public sealed class MusicService(
         return null;
     }
 
-    public static string FormatearDuracion(TimeSpan d, bool enVivo)
-        => enVivo ? "🔴 EN VIVO" : d.TotalHours >= 1 ? d.ToString(@"h\:mm\:ss") : d.ToString(@"m\:ss");
+    /// <summary>
+    /// Interpreta el nivel de volumen: número absoluto (50), ajuste relativo
+    /// (-10, +5 → sobre el volumen actual) o expresión simple de un operador
+    /// (30+20, 100/2, 10*3). Devuelve false si no se entiende.
+    /// </summary>
+    public static bool TryParseVolumen(string entrada, int volumenActual, out int resultado)
+    {
+        resultado = 0;
+        entrada = entrada.Trim();
+        if (entrada.Length == 0) return false;
+
+        // Ajuste relativo: empieza por + o - (siempre relativo, nunca absoluto).
+        if (entrada[0] is '+' or '-' && long.TryParse(entrada, out var delta))
+        {
+            resultado = volumenActual + (int)delta;
+            return true;
+        }
+
+        // Número absoluto.
+        if (long.TryParse(entrada, out var absoluto))
+        {
+            resultado = (int)absoluto;
+            return true;
+        }
+
+        // Expresión simple: operando operador operando (un solo operador).
+        foreach (var op in new[] { '+', '-', '*', '/' })
+        {
+            var idx = entrada.IndexOf(op);
+            if (idx <= 0 || idx >= entrada.Length - 1) continue;
+            if (!long.TryParse(entrada[..idx].Trim(), out var a)) continue;
+            if (!long.TryParse(entrada[(idx + 1)..].Trim(), out var b)) continue;
+
+            resultado = op switch
+            {
+                '+' => (int)(a + b),
+                '-' => (int)(a - b),
+                '*' => (int)(a * b),
+                '/' when b != 0 => (int)(a / b),
+                _ => resultado
+            };
+            if (op == '/' && b == 0) return false;
+            return true;
+        }
+
+        return false;
+    }
+
+    public static string FormatearDuracion(TimeSpan d, bool enVivo, string enVivoLabel = "🔴 LIVE")
+        => enVivo ? enVivoLabel : d.TotalHours >= 1 ? d.ToString(@"h\:mm\:ss") : d.ToString(@"m\:ss");
 }
 
 public static class ColaExtensions
