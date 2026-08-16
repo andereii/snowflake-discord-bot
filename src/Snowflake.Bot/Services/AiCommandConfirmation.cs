@@ -153,7 +153,7 @@ public sealed class AiCommandConfirmation(
         await ResolverAsync(estado, aceptar: false, expirado: true).ConfigureAwait(false);
     }
 
-    /// <summary>Deshabilita los botones del mensaje de confirmación.</summary>
+    /// <summary>Deshabilita los botones del mensaje de confirmación y lo borra tras 3 segundos.</summary>
     private async Task DeshabilitarBotonesAsync(Estado estado)
     {
         try
@@ -161,18 +161,34 @@ public sealed class AiCommandConfirmation(
             if (estado.Interaction is not null && estado.MensajeEfimeroId is { } idEfimero)
             {
                 var builder = new DiscordWebhookBuilder()
+                    .AddEmbed(CrearEmbedConfirmacion(estado.Ctx.Guild.Id, estado.ComandoDescripcion))
                     .AddComponents(
                         new DiscordButtonComponent(ButtonStyle.Success, "snowflake_ai_done_ok", "✓", disabled: true),
                         new DiscordButtonComponent(ButtonStyle.Danger, "snowflake_ai_done_no", "✕", disabled: true));
                 await estado.Interaction.EditFollowupMessageAsync(idEfimero, builder);
+
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+                    try { await estado.Interaction.DeleteFollowupMessageAsync(idEfimero); }
+                    catch { /* ignorar si ya fue borrado */ }
+                });
             }
             else if (estado.MensajePublico is not null)
             {
-                await estado.MensajePublico.ModifyAsync(new DiscordMessageBuilder()
-                    .WithContent(msg.Get(estado.Ctx.Guild.Id, "Chat:ComandoCancelado"))
+                var builder = new DiscordMessageBuilder()
+                    .AddEmbed(CrearEmbedConfirmacion(estado.Ctx.Guild.Id, estado.ComandoDescripcion))
                     .AddComponents(
                         new DiscordButtonComponent(ButtonStyle.Success, "snowflake_ai_done_ok", "✓", disabled: true),
-                        new DiscordButtonComponent(ButtonStyle.Danger, "snowflake_ai_done_no", "✕", disabled: true)));
+                        new DiscordButtonComponent(ButtonStyle.Danger, "snowflake_ai_done_no", "✕", disabled: true));
+                await estado.MensajePublico.ModifyAsync(builder);
+
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+                    try { await estado.MensajePublico.DeleteAsync(); }
+                    catch { /* ignorar si ya fue borrado */ }
+                });
             }
         }
         catch (Exception ex)
@@ -193,15 +209,11 @@ public sealed class AiCommandConfirmation(
         {
             if (!aceptar)
             {
-                var rechazo = expirado
-                    ? msg.Get(guildId, "Chat:ComandoExpirado")
-                    : msg.Get(guildId, "Chat:ComandoCancelado");
-                // El modelo termina la frase según el resultado.
-                outcome = await ia.ReanudarToolAsync(
+                // Reanuda el historial de la IA para registrar la no autorización sin publicar nada en el canal.
+                await ia.ReanudarToolAsync(
                     estado.Ctx, estado.Pendiente,
                     "The user did not authorize the command. Acknowledge briefly.",
                     default).ConfigureAwait(false);
-                await PublicarAsync(estado, outcome, extra: null, aviso: rechazo).ConfigureAwait(false);
                 return;
             }
 
@@ -218,12 +230,6 @@ public sealed class AiCommandConfirmation(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error resolviendo la confirmación de IA en {Guild}", guildId);
-            try
-            {
-                await PublicarAsync(estado, new AiChatOutcome { Texto = msg.Get(guildId, "Chat:ComandoCancelado") },
-                    extra: null, aviso: msg.Get(guildId, "Chat:ErrorEjecucion")).ConfigureAwait(false);
-            }
-            catch { /* último intento */ }
         }
     }
 

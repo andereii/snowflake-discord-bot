@@ -72,11 +72,9 @@ public sealed class ChatModule : SnowflakeModuleBase
 
             if (outcome.HayPendiente)
             {
-                // Comando destructivo: pre-texto público + confirmación efímera con botones.
-                var pre = _msg.Get(ctx.Guild.Id, "Chat:ConfirmacionPendiente")
-                    + "\n" + outcome.Pendiente!.DescripcionComando;
-                await SafeEditAsync(ctx, pre);
-                await _confirmaciones.EnviarEfimeroAsync(ctx, outcome.Pendiente, aiCtx, outcome.Pendiente.DescripcionComando);
+                // Comando destructivo: eliminamos la respuesta pública 'Pensando...' y enviamos la confirmación efímera.
+                try { await ctx.DeleteResponseAsync(); } catch { }
+                await _confirmaciones.EnviarEfimeroAsync(ctx, outcome.Pendiente!, aiCtx, outcome.Pendiente!.DescripcionComando);
                 return;
             }
 

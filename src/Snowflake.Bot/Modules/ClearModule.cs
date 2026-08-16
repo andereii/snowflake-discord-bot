@@ -73,7 +73,7 @@ public sealed class ClearModule : SnowflakeModuleBase
             return;
         }
 
-        await ctx.DeferAsync();
+        await ctx.DeferAsync(ephemeral: true);
 
         try
         {
@@ -143,12 +143,24 @@ public sealed class ClearModule : SnowflakeModuleBase
                 resultado = _msg.Get(ctx.Guild.Id, "Limpiar:Exito", ("n", borrados), ("canal", canal.Mention));
             }
 
-            // La respuesta diferida es efímera para no ensuciar el canal recién limpiado.
+            // La respuesta diferida es efímera para no ensuciar el canal recién limpiado y se borra a los 3s.
             await SafeEditAsync(ctx, resultado);
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                try { await ctx.DeleteResponseAsync(); }
+                catch { /* ignorar */ }
+            });
         }
         catch (Exception)
         {
             await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Errores:Interno"));
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(3));
+                try { await ctx.DeleteResponseAsync(); }
+                catch { /* ignorar */ }
+            });
         }
     }
 }

@@ -243,11 +243,9 @@ public sealed class DiscordBotService : BackgroundService
 
             if (outcome.HayPendiente)
             {
-                // Comando destructivo: pre-texto público + confirmación con botones (mensaje normal).
-                var pre = _msg.Get(guildId, "Chat:ConfirmacionPendiente")
-                    + "\n" + outcome.Pendiente!.DescripcionComando;
-                await mensajeBot.ModifyAsync(new DiscordMessageBuilder().WithContent(pre));
-                await _confirmaciones.EnviarNormalAsync(e.Channel, outcome.Pendiente, aiCtx, outcome.Pendiente.DescripcionComando);
+                // Comando destructivo: eliminamos el mensaje inicial de 'Pensando...' y enviamos la confirmación.
+                try { await mensajeBot.DeleteAsync(); } catch { }
+                await _confirmaciones.EnviarNormalAsync(e.Channel, outcome.Pendiente!, aiCtx, outcome.Pendiente!.DescripcionComando);
                 return;
             }
 
