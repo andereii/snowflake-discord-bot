@@ -71,7 +71,6 @@ public sealed partial class AiCommandExecutor
     private readonly MusicWidgetService _widget;
     private readonly ColorService _colors;
     private readonly YouTubeNotifyService _yt;
-    private readonly CatService _cat;
     private readonly IDbContextFactory<BotDbContext> _dbFactory;
     private readonly ILogger<AiCommandExecutor> _logger;
 
@@ -87,7 +86,6 @@ public sealed partial class AiCommandExecutor
         MusicWidgetService widget,
         ColorService colors,
         YouTubeNotifyService yt,
-        CatService cat,
         IDbContextFactory<BotDbContext> dbFactory,
         ILogger<AiCommandExecutor> logger)
     {
@@ -100,7 +98,6 @@ public sealed partial class AiCommandExecutor
         _widget = widget;
         _colors = colors;
         _yt = yt;
-        _cat = cat;
         _dbFactory = dbFactory;
         _logger = logger;
 
@@ -625,21 +622,6 @@ public sealed partial class AiCommandExecutor
             return new AiCommandResult(borrados > 0, texto, desc);
         });
 
-    private ToolDef ToolCat() => new(
-        Nombre: "get_cat",
-        Descripcion: "Get a random cute cat picture URL.",
-        Esquema: Esquema(),
-        Destructivo: false,
-        DescripcionComando: null,
-        Ejecutar: async (ctx, _) =>
-        {
-            var url = await _cat.ObtenerFotoGatoAsync().ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(url))
-                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Gato:Error"), "/cat");
-
-            return new AiCommandResult(true, $"🐱 {url}", "/cat");
-        });
-
     // ------------------------- catálogo -------------------------
 
     private Dictionary<string, ToolDef> ConstruirCatalogo()
@@ -661,6 +643,5 @@ public sealed partial class AiCommandExecutor
         yield return ToolLock();
         yield return ToolUnlock();
         yield return ToolClear();
-        yield return ToolCat();
     }
 }
