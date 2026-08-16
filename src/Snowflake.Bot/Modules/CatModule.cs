@@ -30,8 +30,9 @@ public sealed class CatModule(CatService catService, MessagesService msg) : Snow
         var titulo = GenerarTituloMew();
         var embed = new DiscordEmbedBuilder()
             .WithTitle(titulo)
+            .WithUrl(fotoUrl)
             .WithImageUrl(fotoUrl)
-            .WithDescription($"-# [{fotoUrl}]({fotoUrl})")
+            .WithFooter(fotoUrl)
             .WithColor(new DiscordColor("#f9c2d1"));
 
         await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(embed));
