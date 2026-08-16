@@ -192,8 +192,23 @@ public sealed partial class DeepSeekService
         {
             conversacion.ConfirmacionPendiente = false;
 
-            conversacion.Historial.Add(pendiente.FunctionCallItem);
-            conversacion.Historial.Add(CrearItemToolOutput(pendiente.CallId, resultadoTexto));
+            // BucleAsync ya añade FunctionCallItem al historial al recibirlo del modelo.
+            // Si no estaba, lo agregamos; si ya existe, no duplicamos para evitar error 'Duplicate call_id'.
+            var yaTieneCall = conversacion.Historial.Any(h =>
+                h is JsonObject obj
+                && obj["type"]?.GetValue<string>() == "function_call"
+                && obj["call_id"]?.GetValue<string>() == pendiente.CallId);
+
+            if (!yaTieneCall)
+                conversacion.Historial.Add(pendiente.FunctionCallItem);
+
+            var yaTieneOutput = conversacion.Historial.Any(h =>
+                h is JsonObject obj
+                && obj["type"]?.GetValue<string>() == "function_call_output"
+                && obj["call_id"]?.GetValue<string>() == pendiente.CallId);
+
+            if (!yaTieneOutput)
+                conversacion.Historial.Add(CrearItemToolOutput(pendiente.CallId, resultadoTexto));
 
             var cfg = await _settings.GetAsync(ctx.Guild.Id).ConfigureAwait(false);
             var input = new List<JsonNode>(conversacion.Historial);
@@ -439,6 +454,48 @@ public sealed partial class DeepSeekService
 
         while (historial.Count > 0 && !EsUsuario(historial[0]))
             historial.RemoveAt(0);
+
+        var sanitizado = SanitizarInput(historial);
+        if (sanitizado.Count != historial.Count)
+        {
+            historial.Clear();
+            historial.AddRange(sanitizado);
+        }
+    }
+
+    /// <summary>
+    /// Elimina duplicados de function_call o function_call_output con el mismo call_id
+    /// para evitar que la API de DeepSeek falle con 'Duplicate call_id'.
+    /// </summary>
+    private static List<JsonNode> SanitizarInput(List<JsonNode> input)
+    {
+        var sanitizado = new List<JsonNode>();
+        var seenCallIds = new HashSet<string>(StringComparer.Ordinal);
+        var seenOutputIds = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var item in input)
+        {
+            if (item is JsonObject obj)
+            {
+                var tipo = obj["type"]?.GetValue<string>();
+                var callId = obj["call_id"]?.GetValue<string>();
+
+                if (tipo == "function_call" && !string.IsNullOrEmpty(callId))
+                {
+                    if (!seenCallIds.Add(callId))
+                        continue;
+                }
+                else if (tipo == "function_call_output" && !string.IsNullOrEmpty(callId))
+                {
+                    if (!seenOutputIds.Add(callId))
+                        continue;
+                }
+            }
+
+            sanitizado.Add(item);
+        }
+
+        return sanitizado;
     }
 
     private static int ContarUsuarios(List<JsonNode> historial)
@@ -556,7 +613,7 @@ public sealed partial class DeepSeekService
                 ? env
                 : opts.Model,
             Instructions: opts.SystemPrompt,
-            Input: input,
+            Input: SanitizarInput(input),
             Tools: todas.Count > 0 ? todas : null,
             ToolChoice: todas.Count > 0 ? "auto" : null,
             Temperature: opts.Temperature,
