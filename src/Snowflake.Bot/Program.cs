@@ -161,6 +161,13 @@ public static partial class SnowflakeServiceExtensions
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
         });
 
+        // API de imágenes de gatos (The Cat API / Cataas).
+        services.AddHttpClient("CatApi", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
+        });
+
         return services;
     }
 
@@ -183,6 +190,7 @@ public static partial class SnowflakeServiceExtensions
         services.AddSingleton<DeepSeekService>();
         services.AddSingleton<YouTubeNotifyService>();
         services.AddSingleton<ChannelLockService>();
+        services.AddSingleton<CatService>();
         services.AddHostedService<YouTubeNotifyService>();
         return services;
     }

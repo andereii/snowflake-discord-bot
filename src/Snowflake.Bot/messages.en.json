@@ -281,6 +281,9 @@
             "CanalInvalido": "Only text or voice channels can be locked.",
             "SinPermisosCanal": "You don't have the \"Manage Channels\" permission in {canal}.",
             "SinPermisosBotCanal": "The bot is missing the \"Manage Roles\" permission in {canal} (needed to change channel permissions)."
+        },
+        "Gato": {
+            "Error": "<:error:1534417252185800720> Could not get a cat picture right now. Try again later!"
         }
     }
 }

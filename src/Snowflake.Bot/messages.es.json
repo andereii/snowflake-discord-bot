@@ -281,6 +281,9 @@
             "CanalInvalido": "Solo se pueden bloquear canales de texto o de voz.",
             "SinPermisosCanal": "No tienes el permiso \"Gestionar canales\" en {canal}.",
             "SinPermisosBotCanal": "Al bot le falta el permiso \"Gestionar roles\" en {canal} (necesario para cambiar los permisos del canal)."
+        },
+        "Gato": {
+            "Error": "<:error:1534417252185800720> No se pudo obtener una foto de gato en este momento. ¡Inténtalo más tarde!"
         }
     }
 }
