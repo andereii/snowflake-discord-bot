@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Modules;
 using Snowflake.Bot.Services.AiCommands;
+using Snowflake.Bot.Services.PrefixCommands;
 using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
@@ -30,6 +31,7 @@ public sealed class DiscordBotService : BackgroundService
     private readonly DeepSeekService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly CountingService _counting;
+    private readonly PrefixCommandService _prefix;
     private readonly ILogger<DiscordBotService> _logger;
 
     public DiscordBotService(
@@ -44,6 +46,7 @@ public sealed class DiscordBotService : BackgroundService
         DeepSeekService ia,
         AiCommandConfirmation confirmaciones,
         CountingService counting,
+        PrefixCommandService prefix,
         ILogger<DiscordBotService> logger)
     {
         _client = client;
@@ -56,6 +59,7 @@ public sealed class DiscordBotService : BackgroundService
         _ia = ia;
         _confirmaciones = confirmaciones;
         _counting = counting;
+        _prefix = prefix;
         _logger = logger;
 
         if (config.CurrentValue.TestGuildId == 0)
@@ -156,6 +160,10 @@ public sealed class DiscordBotService : BackgroundService
         if (string.IsNullOrWhiteSpace(texto))
             return;
 
+        // Camino 0: comando de texto con prefijo ';'
+        if (await _prefix.ProcesarMensajeAsync(e))
+            return;
+
         // Camino 1: respuesta a un mensaje del chatbot (ya existente).
         var mensajeReferenciado = e.Message.ReferencedMessage;
         if (mensajeReferenciado is not null
@@ -186,7 +194,7 @@ public sealed class DiscordBotService : BackgroundService
         if (_ia.EspontaneoHabilitado(e.Guild.Id))
         {
             // Ignoramos comandos (no aportan contexto de charla).
-            if (texto.StartsWith('/')) return;
+            if (texto.StartsWith('/') || texto.StartsWith(PrefixCommandService.Prefijo)) return;
 
             var dispara = _ia.RegistrarMensajeParaEspontaneo(e.Guild.Id, e.Author.Username, texto);
             if (dispara)

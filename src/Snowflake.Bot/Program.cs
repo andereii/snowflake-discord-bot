@@ -11,6 +11,7 @@ using Snowflake.Bot.Data;
 using Snowflake.Bot.Endpoints;
 using Snowflake.Bot.Services;
 using Snowflake.Bot.Services.AiCommands;
+using Snowflake.Bot.Services.PrefixCommands;
 using Snowflake.Bot.Services.Settings;
 
 // Carga las variables del archivo .env (si existe); nunca sobreescribe las del sistema.
@@ -178,6 +179,7 @@ public static partial class SnowflakeServiceExtensions
         services.AddSingleton<GuildSettingsService>();
         services.AddSingleton<AiCommandExecutor>();
         services.AddSingleton<AiCommandConfirmation>();
+        services.AddSingleton<PrefixCommandService>();
 
         services.AddSingleton<ModerationLogService>();
         services.AddSingleton<DownloadService>();
