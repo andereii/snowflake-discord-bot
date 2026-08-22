@@ -22,6 +22,7 @@ public sealed class MusicService(
     ITrackManager tracks,
     GuildSettingsService settings,
     IOptionsMonitor<MusicOptions> options,
+    IOptionsMonitor<LavalinkOptions> lavalinkOptions,
     IHttpClientFactory httpClientFactory)
 {
     /// <summary>Recupera el reproductor activo del guild, o null si no hay.</summary>
@@ -347,6 +348,123 @@ public sealed class MusicService(
 
     public static string FormatearDuracion(TimeSpan d, bool enVivo, string enVivoLabel = "🔴 LIVE")
         => enVivo ? enVivoLabel : d.TotalHours >= 1 ? d.ToString(@"h\:mm\:ss") : d.ToString(@"m\:ss");
+
+    /// <summary>
+    /// Diagnóstico del estado del servidor Lavalink (temporal para pruebas de infraestructura).
+    /// </summary>
+    public async Task<DiscordEmbedBuilder> ConstruirEmbedEstadoLavalinkAsync(ulong guildId, MessagesService msg)
+    {
+        var cfg = lavalinkOptions.CurrentValue;
+        var host = cfg.Host;
+        var port = cfg.Port;
+        var pass = cfg.Password;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var client = httpClientFactory.CreateClient("LavalinkDiag");
+
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"http://{host}:{port}/v4/info");
+            request.Headers.Add("Authorization", pass);
+            using var response = await client.SendAsync(request).ConfigureAwait(false);
+            sw.Stop();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new DiscordEmbedBuilder()
+                    .WithTitle("🔌 Lavalink Status — Error")
+                    .WithColor(DiscordColor.Red)
+                    .AddField("Host", $"`{host}:{port}`", inline: true)
+                    .AddField("Estado", $"❌ HTTP {(int)response.StatusCode} {response.ReasonPhrase}", inline: true)
+                    .AddField("Latencia", $"`{sw.ElapsedMilliseconds} ms`", inline: true)
+                    .WithFooter("Error al autenticar o consultar Lavalink");
+            }
+
+            using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+            using var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
+            var root = doc.RootElement;
+
+            var version = root.TryGetProperty("version", out var vObj) && vObj.TryGetProperty("semver", out var semver)
+                ? semver.GetString() ?? "v4"
+                : "v4";
+
+            var jvm = root.TryGetProperty("jvm", out var jvmProp) ? jvmProp.GetString() : "Unknown";
+
+            var pluginsList = new List<string>();
+            if (root.TryGetProperty("plugins", out var pluginsProp) && pluginsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var p in pluginsProp.EnumerateArray())
+                {
+                    if (p.TryGetProperty("name", out var pName) && p.TryGetProperty("version", out var pVer))
+                        pluginsList.Add($"{pName.GetString()} ({pVer.GetString()})");
+                }
+            }
+
+            // Consultar /v4/stats
+            var reqStats = new HttpRequestMessage(HttpMethod.Get, $"http://{host}:{port}/v4/stats");
+            reqStats.Headers.Add("Authorization", pass);
+            using var resStats = await client.SendAsync(reqStats).ConfigureAwait(false);
+
+            int totalPlayers = 0;
+            int playingPlayers = 0;
+            TimeSpan uptime = TimeSpan.Zero;
+            long ramUsedMb = 0;
+            long ramAllocatedMb = 0;
+            double cpuLav = 0.0;
+            double cpuSys = 0.0;
+
+            if (resStats.IsSuccessStatusCode)
+            {
+                using var streamStats = await resStats.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                using var docStats = await JsonDocument.ParseAsync(streamStats).ConfigureAwait(false);
+                var stats = docStats.RootElement;
+
+                if (stats.TryGetProperty("players", out var pl)) totalPlayers = pl.GetInt32();
+                if (stats.TryGetProperty("playingPlayers", out var ppl)) playingPlayers = ppl.GetInt32();
+                if (stats.TryGetProperty("uptime", out var up)) uptime = TimeSpan.FromMilliseconds(up.GetInt64());
+
+                if (stats.TryGetProperty("memory", out var mem))
+                {
+                    if (mem.TryGetProperty("used", out var u)) ramUsedMb = u.GetInt64() / (1024 * 1024);
+                    if (mem.TryGetProperty("allocated", out var al)) ramAllocatedMb = al.GetInt64() / (1024 * 1024);
+                }
+
+                if (stats.TryGetProperty("cpu", out var cpu))
+                {
+                    if (cpu.TryGetProperty("lavalinkLoad", out var cl)) cpuLav = cl.GetDouble() * 100;
+                    if (cpu.TryGetProperty("systemLoad", out var cs)) cpuSys = cs.GetDouble() * 100;
+                }
+            }
+
+            var embed = new DiscordEmbedBuilder()
+                .WithTitle("🔌 Lavalink Status — Online")
+                .WithColor(DiscordColor.SpringGreen)
+                .AddField("🟢 Estado", "Conectado y Operativo", inline: true)
+                .AddField("📡 Host", $"`{host}:{port}`", inline: true)
+                .AddField("⚡ Latencia REST", $"`{sw.ElapsedMilliseconds} ms`", inline: true)
+                .AddField("📦 Versión", $"`{version}` (JVM: {jvm})", inline: true)
+                .AddField("⏱️ Uptime", $"`{uptime.Days}d {uptime.Hours}h {uptime.Minutes}m {uptime.Seconds}s`", inline: true)
+                .AddField("🎵 Reproductores", $"Tocando: `{playingPlayers}` / Total: `{totalPlayers}`", inline: true)
+                .AddField("💾 Memoria RAM", $"`{ramUsedMb} MB` / `{ramAllocatedMb} MB`", inline: true)
+                .AddField("🖥️ CPU Load", $"Lavalink: `{cpuLav:F1}%` / Sistema: `{cpuSys:F1}%`", inline: true)
+                .AddField("🧩 Plugins", pluginsList.Count > 0 ? string.Join(", ", pluginsList) : "Ninguno", inline: false)
+                .WithFooter($"Consultado por Snowflake • {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+
+            return embed;
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new DiscordEmbedBuilder()
+                .WithTitle("🔌 Lavalink Status — Offline")
+                .WithColor(DiscordColor.Red)
+                .AddField("🔴 Estado", "Inalcanzable / Desconectado", inline: true)
+                .AddField("📡 Host", $"`{host}:{port}`", inline: true)
+                .AddField("⏱️ Tiempo intento", $"`{sw.ElapsedMilliseconds} ms`", inline: true)
+                .AddField("⚠️ Detalle del error", $"```{ex.GetType().Name}: {ex.Message}```", inline: false)
+                .WithFooter("Verifica que el servidor de Lavalink esté encendido y que el puerto sea accesible.");
+        }
+    }
 }
 
 public static class ColaExtensions

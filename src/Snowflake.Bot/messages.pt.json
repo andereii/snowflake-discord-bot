@@ -284,6 +284,15 @@
         },
         "Gato": {
             "Error": "<:error:1534417252185800720> Não foi possível obter uma foto de gato agora. Tente novamente mais tarde!"
+        },
+        "Roles": {
+            "Asignado": "<:check:1534413756057260152> Cargo **{rol}** atribuído a **{usuario}**.",
+            "Removido": "<:check:1534413756057260152> Cargo **{rol}** removido de **{usuario}**.",
+            "YaTiene": "ℹ️ **{usuario}** já possui o cargo **{rol}**.",
+            "NoTiene": "ℹ️ **{usuario}** não possui o cargo **{rol}**.",
+            "JerarquiaBot": "<:error:1534417252185800720> Não posso gerenciar o cargo **{rol}**: ele está acima ou no mesmo nível do meu cargo mais alto. Mova meu cargo para cima em *Configurações do Servidor → Cargos*.",
+            "JerarquiaUsuario": "<:error:1534417252185800720> Você não pode gerenciar o cargo **{rol}**: ele está acima ou no mesmo nível do seu cargo mais alto.",
+            "NoEncontrado": "<:error:1534417252185800720> Cargo não encontrado."
         }
     }
 }

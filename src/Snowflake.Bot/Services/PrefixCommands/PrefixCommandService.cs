@@ -3,6 +3,8 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Modules;
 using Snowflake.Bot.Services.AiCommands;
@@ -25,9 +27,13 @@ public sealed class PrefixCommandService
     private readonly CatService _cat;
     private readonly MusicService _music;
     private readonly MusicWidgetService _widget;
+    private readonly DownloadService _dl;
+    private readonly LitterboxService _litter;
     private readonly DeepSeekService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly ModerationLogService _modLog;
+    private readonly IOptionsMonitor<DownloadOptions> _dlOptions;
+    private readonly IOptionsMonitor<BotConfiguration> _config;
     private readonly ILogger<PrefixCommandService> _logger;
 
     public PrefixCommandService(
@@ -37,9 +43,13 @@ public sealed class PrefixCommandService
         CatService cat,
         MusicService music,
         MusicWidgetService widget,
+        DownloadService dl,
+        LitterboxService litter,
         DeepSeekService ia,
         AiCommandConfirmation confirmaciones,
         ModerationLogService modLog,
+        IOptionsMonitor<DownloadOptions> dlOptions,
+        IOptionsMonitor<BotConfiguration> config,
         ILogger<PrefixCommandService> logger)
     {
         _client = client;
@@ -48,9 +58,13 @@ public sealed class PrefixCommandService
         _cat = cat;
         _music = music;
         _widget = widget;
+        _dl = dl;
+        _litter = litter;
         _ia = ia;
         _confirmaciones = confirmaciones;
         _modLog = modLog;
+        _dlOptions = dlOptions;
+        _config = config;
         _logger = logger;
     }
 
@@ -100,6 +114,14 @@ public sealed class PrefixCommandService
                 case "comandos":
                 case "commands":
                     await EjecutarAyudaAsync(e);
+                    return true;
+
+                // ================= Descargas =================
+                case "download":
+                case "descargar":
+                case "baixar":
+                case "d":
+                    await EjecutarDescargarAsync(e, args);
                     return true;
 
                 // ================= IA =================
@@ -161,6 +183,11 @@ public sealed class PrefixCommandService
                     await EjecutarVolumenAsync(e, args.FirstOrDefault());
                     return true;
 
+                case "lavalink":
+                case "lavalink-status":
+                    await EjecutarLavalinkStatusAsync(e);
+                    return true;
+
                 // ================= Moderación / Utilidad =================
                 case "clear":
                 case "limpiar":
@@ -193,6 +220,12 @@ public sealed class PrefixCommandService
                 case "warn":
                 case "advertir":
                     await EjecutarWarnAsync(e, args);
+                    return true;
+
+                case "role":
+                case "rol":
+                case "r":
+                    await EjecutarRoleAsync(e, args);
                     return true;
 
                 default:
@@ -264,15 +297,147 @@ public sealed class PrefixCommandService
         await e.Message.RespondAsync(embed);
     }
 
+    private async Task EjecutarDescargarAsync(MessageCreateEventArgs e, List<string> args)
+    {
+        // Interruptor por servidor
+        if (!(await _settings.GetAsync(e.Guild.Id)).DownloadsEnabled)
+        {
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Descargas:Desactivado"));
+            return;
+        }
+
+        if (args.Count == 0)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;descargar <URL> [video|audio]` (o `;d <URL>`)");
+            return;
+        }
+
+        string url = "";
+        bool soloAudio = false;
+
+        // Detectar si el usuario pasó formato antes o después de la URL
+        foreach (var arg in args)
+        {
+            if (arg.Equals("audio", StringComparison.OrdinalIgnoreCase) || arg.Equals("mp3", StringComparison.OrdinalIgnoreCase))
+            {
+                soloAudio = true;
+            }
+            else if (arg.Equals("video", StringComparison.OrdinalIgnoreCase) || arg.Equals("mp4", StringComparison.OrdinalIgnoreCase))
+            {
+                soloAudio = false;
+            }
+            else if (Uri.TryCreate(arg, UriKind.Absolute, out var uri) && (uri.Scheme is "http" or "https"))
+            {
+                url = arg;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Descargas:UrlInvalida"));
+            return;
+        }
+
+        await e.Channel.TriggerTypingAsync();
+        DiscordMessage? progreso = null;
+        try
+        {
+            progreso = await e.Message.RespondAsync("⏳ Descargando y procesando el archivo...");
+        }
+        catch { }
+
+        string? tempDir = null;
+        try
+        {
+            var timeout = TimeSpan.FromMinutes(Math.Max(1, _dlOptions.CurrentValue.TimeoutMinutes));
+            using var cts = new CancellationTokenSource(timeout);
+            var res = await _dl.DescargarAsync(url, soloAudio, cts.Token);
+            tempDir = res.TempDir;
+
+            var size = new FileInfo(res.FilePath).Length;
+            var maxBytes = _dlOptions.CurrentValue.MaxDiscordBytes;
+
+            if (size <= maxBytes)
+            {
+                await using var fs = File.OpenRead(res.FilePath);
+                var builder = new DiscordMessageBuilder()
+                    .WithContent(_msg.Get(e.Guild.Id, "Descargas:Exito", ("titulo", res.Title)));
+                builder.AddFile(Path.GetFileName(res.FilePath), fs);
+
+                if (progreso is not null)
+                {
+                    try { await progreso.DeleteAsync(); } catch { }
+                }
+
+                await e.Message.RespondAsync(builder);
+            }
+            else
+            {
+                var enlace = await _litter.SubirAsync(
+                    res.FilePath, Path.GetFileName(res.FilePath), CancellationToken.None);
+
+                var sizeMB = size / (1024.0 * 1024.0);
+                var embed = new DiscordEmbedBuilder()
+                    .WithTitle(res.Title)
+                    .WithDescription(_msg.Get(e.Guild.Id, "Descargas:DemasiadoGrandeEmbed",
+                        ("tamano", sizeMB.ToString("0.#")),
+                        ("enlace", enlace)))
+                    .WithUrl(enlace)
+                    .WithColor(DiscordColor.Azure)
+                    .WithFooter(_msg.Get(e.Guild.Id, "Descargas:PieLitterbox"));
+
+                if (progreso is not null)
+                {
+                    await progreso.ModifyAsync(new DiscordMessageBuilder().AddEmbed(embed));
+                }
+                else
+                {
+                    await e.Message.RespondAsync(embed);
+                }
+            }
+        }
+        catch (YtDlpException ex)
+        {
+            var debug = _config.CurrentValue.Debug;
+            var texto = debug
+                ? _msg.Get(e.Guild.Id, "Descargas:Error", ("detalles", ex.Message))
+                : _msg.Get(e.Guild.Id, "Descargas:ErrorGenerico");
+
+            if (progreso is not null)
+                await progreso.ModifyAsync(texto);
+            else
+                await e.Message.RespondAsync(texto);
+        }
+        catch (Exception ex)
+        {
+            var debug = _config.CurrentValue.Debug;
+            var texto = debug
+                ? _msg.Get(e.Guild.Id, "Descargas:ErrorInterno", ("tipo", ex.GetType().Name), ("mensaje", ex.Message))
+                : _msg.Get(e.Guild.Id, "Descargas:ErrorGenerico");
+
+            if (progreso is not null)
+                await progreso.ModifyAsync(texto);
+            else
+                await e.Message.RespondAsync(texto);
+        }
+        finally
+        {
+            if (tempDir is not null)
+            {
+                try { Directory.Delete(tempDir, recursive: true); } catch { }
+            }
+        }
+    }
+
     private async Task EjecutarAyudaAsync(MessageCreateEventArgs e)
     {
         var embed = new DiscordEmbedBuilder()
             .WithTitle("❄️ Snowflake — Comandos con prefijo `;`")
             .WithDescription("También puedes usar todos los comandos con la barra diagonal `/`.")
-            .AddField("📌 General", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
+            .AddField("📌 General y Multimedia", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;descargar <URL> [audio]` — Descargar vídeo/audio de Internet\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
             .AddField("💬 Inteligencia Artificial", "`;talk <texto>` — Habla con la IA\n`;talk-clear` — Reinicia la memoria de la IA")
             .AddField("🎵 Música", "`;play <canción/URL>` — Reproducir música\n`;pause` / `;resume` — Pausar / Reanudar\n`;skip` — Saltar canción\n`;stop` — Detener y salir\n`;queue` — Ver la cola\n`;np` — Canción actual\n`;volume <0-100>` — Ajustar volumen")
-            .AddField("🛡️ Moderación", "`;clear <1-100>` — Limpiar mensajes\n`;kick @usuario [motivo]` — Expulsar usuario\n`;ban @usuario [motivo]` — Banear usuario\n`;unban <id> [motivo]` — Desbanear usuario\n`;timeout @usuario <tiempo> [motivo]` — Aislar usuario\n`;warn @usuario [motivo]` — Advertir usuario")
+            .AddField("🛡️ Moderación y Roles", "`;role <add|remove> @user <rol>` — Gestionar roles\n`;clear <1-100>` — Limpiar mensajes\n`;kick @usuario [motivo]` — Expulsar usuario\n`;ban @usuario [motivo]` — Banear usuario\n`;unban <id> [motivo]` — Desbanear usuario\n`;timeout @usuario <tiempo> [motivo]` — Aislar usuario\n`;warn @usuario [motivo]` — Advertir usuario")
             .WithColor(DiscordColor.Cyan);
 
         await e.Message.RespondAsync(embed);
@@ -492,6 +657,12 @@ public sealed class PrefixCommandService
 
         var aplicado = await _music.VolumenAsync(e.Guild.Id, vol);
         await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Musica:Volumen", ("nivel", aplicado)));
+    }
+
+    private async Task EjecutarLavalinkStatusAsync(MessageCreateEventArgs e)
+    {
+        var embed = await _music.ConstruirEmbedEstadoLavalinkAsync(e.Guild.Id, _msg);
+        await e.Message.RespondAsync(embed);
     }
 
     private async Task<(bool Ok, string MensajeClave)> ValidarControlMusicaAsync(MessageCreateEventArgs e)
@@ -731,9 +902,128 @@ public sealed class PrefixCommandService
         await e.Message.RespondAsync($"{BotEmojis.Check} {_msg.Get(e.Guild.Id, "Moderacion:Exito:Advertencia", ("usuario", target.Username))}");
     }
 
+    private async Task EjecutarRoleAsync(MessageCreateEventArgs e, List<string> args)
+    {
+        var miembroAutor = e.Message.Author as DiscordMember ?? await e.Guild.GetMemberAsync(e.Author.Id);
+        if (miembroAutor is null || !miembroAutor.Permissions.HasPermission(Permissions.ManageRoles))
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Errores:SinPermisos")}");
+            return;
+        }
+
+        if (args.Count < 3)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;role <add|remove> <@usuario> <rol>` (o `;rol <agregar|quitar> <@usuario> <rol>`)");
+            return;
+        }
+
+        var subcmd = args[0].ToLowerInvariant();
+        bool esAgregar = subcmd is "add" or "agregar" or "anadir" or "añadir" or "+";
+        bool esQuitar = subcmd is "remove" or "quitar" or "remover" or "-";
+
+        if (!esAgregar && !esQuitar)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} Subcomando inválido. Usa `;role add ...` o `;role remove ...`");
+            return;
+        }
+
+        var usuarioArg = args[1];
+        var rolArg = string.Join(' ', args.Skip(2));
+
+        var targetUser = await ObtenerUsuarioObjetivoAsync(e, [usuarioArg]);
+        if (targetUser is null)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Moderacion:NoMiembro")}");
+            return;
+        }
+
+        var targetMiembro = await e.Guild.GetMemberAsync(targetUser.Id);
+        if (targetMiembro is null)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Moderacion:NoMiembro")}");
+            return;
+        }
+
+        var rol = ResolverRolPrefix(e.Guild, rolArg, e);
+        if (rol is null)
+        {
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Roles:NoEncontrado"));
+            return;
+        }
+
+        if (e.Guild.CurrentMember.Hierarchy <= rol.Position)
+        {
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Roles:JerarquiaBot", ("rol", rol.Name)));
+            return;
+        }
+
+        if (e.Guild.OwnerId != miembroAutor.Id && miembroAutor.Hierarchy <= rol.Position)
+        {
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Roles:JerarquiaUsuario", ("rol", rol.Name)));
+            return;
+        }
+
+        if (esAgregar)
+        {
+            if (targetMiembro.Roles.Any(r => r.Id == rol.Id))
+            {
+                await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Roles:YaTiene", ("usuario", targetMiembro.DisplayName), ("rol", rol.Name)));
+                return;
+            }
+
+            await targetMiembro.GrantRoleAsync(rol, $"Asignado por {miembroAutor.Username} ({miembroAutor.Id})");
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Roles:Asignado", ("usuario", targetMiembro.DisplayName), ("rol", rol.Name)));
+        }
+        else
+        {
+            if (!targetMiembro.Roles.Any(r => r.Id == rol.Id))
+            {
+                await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Roles:NoTiene", ("usuario", targetMiembro.DisplayName), ("rol", rol.Name)));
+                return;
+            }
+
+            await targetMiembro.RevokeRoleAsync(rol, $"Quitado por {miembroAutor.Username} ({miembroAutor.Id})");
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Roles:Removido", ("usuario", targetMiembro.DisplayName), ("rol", rol.Name)));
+        }
+    }
+
     // =========================================================================
     // Helpers
     // =========================================================================
+
+    private DiscordRole? ResolverRolPrefix(DiscordGuild guild, string input, MessageCreateEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        input = input.Trim();
+
+        if (e.Message.MentionedRoles.Count > 0)
+        {
+            var matchId = Regex.Match(input, @"\d+");
+            if (matchId.Success && ulong.TryParse(matchId.Value, out var mId))
+            {
+                var rolMencionado = e.Message.MentionedRoles.FirstOrDefault(r => r.Id == mId);
+                if (rolMencionado is not null) return rolMencionado;
+            }
+        }
+
+        var match = Regex.Match(input, @"\d+");
+        if (match.Success && ulong.TryParse(match.Value, out var id) && guild.Roles.TryGetValue(id, out var rId))
+            return rId;
+
+        foreach (var r in guild.Roles.Values)
+        {
+            if (r.Name.Equals(input, StringComparison.OrdinalIgnoreCase))
+                return r;
+        }
+
+        foreach (var r in guild.Roles.Values)
+        {
+            if (r.Name.Contains(input, StringComparison.OrdinalIgnoreCase))
+                return r;
+        }
+
+        return null;
+    }
 
     private async Task<DiscordUser?> ObtenerUsuarioObjetivoAsync(MessageCreateEventArgs e, List<string> args)
     {

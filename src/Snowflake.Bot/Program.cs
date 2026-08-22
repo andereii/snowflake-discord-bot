@@ -108,6 +108,7 @@ public static partial class SnowflakeServiceExtensions
         services.Configure<DatabaseOptions>(configuration.GetSection("Database"));
         services.Configure<YouTubeOptions>(configuration.GetSection("YouTube"));
         services.Configure<MusicOptions>(configuration.GetSection("Music"));
+        services.Configure<LavalinkOptions>(configuration.GetSection("Lavalink"));
         services.Configure<DownloadOptions>(configuration.GetSection("Downloads"));
         return services;
     }
@@ -138,6 +139,13 @@ public static partial class SnowflakeServiceExtensions
         services.AddHttpClient("Spotify", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
+        });
+
+        // Diagnóstico REST de Lavalink.
+        services.AddHttpClient("LavalinkDiag", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(5);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
         });
 

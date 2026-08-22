@@ -220,6 +220,21 @@ public sealed class MusicModule : SnowflakeModuleBase
         await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Volumen", ("nivel", aplicado)));
     }
 
+    /// <summary>
+    /// Comando temporal de diagnóstico de Lavalink (se eliminará antes del release).
+    /// </summary>
+    [SlashCommand("status", "Check the Lavalink music server connection status")]
+    [NameLocalization(Localization.Spanish, "estado")]
+    [NameLocalization(Localization.Portuguese, "status")]
+    [DescriptionLocalization(Localization.Spanish, "Comprueba el estado de la conexión con el servidor Lavalink")]
+    [DescriptionLocalization(Localization.Portuguese, "Verifica o status da conexão com o servidor Lavalink")]
+    public async Task StatusAsync(InteractionContext ctx)
+    {
+        await ctx.DeferAsync();
+        var embed = await _music.ConstruirEmbedEstadoLavalinkAsync(ctx.Guild.Id, _msg);
+        await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(embed));
+    }
+
     // ------ auditoría de control de la reproducción ------
 
     /// <summary>

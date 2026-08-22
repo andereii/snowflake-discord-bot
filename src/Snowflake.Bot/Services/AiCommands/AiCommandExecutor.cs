@@ -61,6 +61,7 @@ public sealed partial class AiCommandExecutor
 {
     private static readonly Regex MencionRegex = new(@"<@!?(\d+)>", RegexOptions.Compiled);
     private static readonly Regex CanalRegex = new(@"<#(\d+)>", RegexOptions.Compiled);
+    private static readonly Regex RolRegex = new(@"<@&(\d+)>", RegexOptions.Compiled);
 
     private readonly DiscordClient _client;
     private readonly GuildSettingsService _settings;
@@ -231,6 +232,34 @@ public sealed partial class AiCommandExecutor
             if (tipo is not null && c.Type != tipo.Value) continue;
             if (c.Name.Contains(canal, StringComparison.OrdinalIgnoreCase)) return c;
         }
+        return null;
+    }
+
+    /// <summary>Resuelve "rol" (mención, ID o nombre) a un rol del servidor.</summary>
+    private DiscordRole? ResolverRol(AiCommandContext ctx, string? rolNombreOId)
+    {
+        if (string.IsNullOrWhiteSpace(rolNombreOId)) return null;
+        rolNombreOId = rolNombreOId.Trim();
+
+        var m = RolRegex.Match(rolNombreOId);
+        if (m.Success && ulong.TryParse(m.Groups[1].Value, out var idMencion))
+            return ctx.Guild.GetRole(idMencion);
+
+        if (ulong.TryParse(rolNombreOId, out var id))
+            return ctx.Guild.GetRole(id);
+
+        foreach (var r in ctx.Guild.Roles.Values)
+        {
+            if (r.Name.Equals(rolNombreOId, StringComparison.OrdinalIgnoreCase))
+                return r;
+        }
+
+        foreach (var r in ctx.Guild.Roles.Values)
+        {
+            if (r.Name.Contains(rolNombreOId, StringComparison.OrdinalIgnoreCase))
+                return r;
+        }
+
         return null;
     }
 
@@ -622,6 +651,78 @@ public sealed partial class AiCommandExecutor
             return new AiCommandResult(borrados > 0, texto, desc);
         });
 
+    private ToolDef ToolRoleAdd() => new(
+        "role_add",
+        "Add a role to a server member. Requires ManageRoles permission on both the user and the bot.",
+        Esquema(("user", "string", "The user to receive the role: mention (<@id>), ID or username."),
+                ("role", "string", "The role name, mention (<@&id>) or ID to assign.")),
+        Destructivo: false,
+        DescripcionComando: null,
+        Ejecutar: async (ctx, args) =>
+        {
+            var desc = "/role add";
+            if (await ChequearPermisoGuild(ctx, Permissions.ManageRoles, desc) is { } error) return error;
+
+            var usuarioStr = ArgString(args, "user");
+            var rolStr = ArgString(args, "role");
+
+            var miembro = await ResolverUsuarioAsync(ctx, usuarioStr).ConfigureAwait(false);
+            if (miembro is null)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Moderacion:NoMiembro"), desc);
+
+            var rol = ResolverRol(ctx, rolStr);
+            if (rol is null)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Roles:NoEncontrado"), desc);
+
+            if (ctx.Guild.CurrentMember.Hierarchy <= rol.Position)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Roles:JerarquiaBot", ("rol", rol.Name)), desc);
+
+            if (ctx.Guild.OwnerId != ctx.Miembro.Id && ctx.Miembro.Hierarchy <= rol.Position)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Roles:JerarquiaUsuario", ("rol", rol.Name)), desc);
+
+            if (miembro.Roles.Any(r => r.Id == rol.Id))
+                return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Roles:YaTiene", ("usuario", miembro.DisplayName), ("rol", rol.Name)), desc);
+
+            await miembro.GrantRoleAsync(rol, $"Asignado por IA a petición de {ctx.Miembro.Username} ({ctx.Miembro.Id})").ConfigureAwait(false);
+            return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Roles:Asignado", ("usuario", miembro.DisplayName), ("rol", rol.Name)), desc);
+        });
+
+    private ToolDef ToolRoleRemove() => new(
+        "role_remove",
+        "Remove a role from a server member. Requires ManageRoles permission on both the user and the bot.",
+        Esquema(("user", "string", "The user to remove the role from: mention (<@id>), ID or username."),
+                ("role", "string", "The role name, mention (<@&id>) or ID to remove.")),
+        Destructivo: false,
+        DescripcionComando: null,
+        Ejecutar: async (ctx, args) =>
+        {
+            var desc = "/role remove";
+            if (await ChequearPermisoGuild(ctx, Permissions.ManageRoles, desc) is { } error) return error;
+
+            var usuarioStr = ArgString(args, "user");
+            var rolStr = ArgString(args, "role");
+
+            var miembro = await ResolverUsuarioAsync(ctx, usuarioStr).ConfigureAwait(false);
+            if (miembro is null)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Moderacion:NoMiembro"), desc);
+
+            var rol = ResolverRol(ctx, rolStr);
+            if (rol is null)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Roles:NoEncontrado"), desc);
+
+            if (ctx.Guild.CurrentMember.Hierarchy <= rol.Position)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Roles:JerarquiaBot", ("rol", rol.Name)), desc);
+
+            if (ctx.Guild.OwnerId != ctx.Miembro.Id && ctx.Miembro.Hierarchy <= rol.Position)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Roles:JerarquiaUsuario", ("rol", rol.Name)), desc);
+
+            if (!miembro.Roles.Any(r => r.Id == rol.Id))
+                return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Roles:NoTiene", ("usuario", miembro.DisplayName), ("rol", rol.Name)), desc);
+
+            await miembro.RevokeRoleAsync(rol, $"Quitado por IA a petición de {ctx.Miembro.Username} ({ctx.Miembro.Id})").ConfigureAwait(false);
+            return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Roles:Removido", ("usuario", miembro.DisplayName), ("rol", rol.Name)), desc);
+        });
+
     // ------------------------- catálogo -------------------------
 
     private Dictionary<string, ToolDef> ConstruirCatalogo()
@@ -643,5 +744,7 @@ public sealed partial class AiCommandExecutor
         yield return ToolLock();
         yield return ToolUnlock();
         yield return ToolClear();
+        yield return ToolRoleAdd();
+        yield return ToolRoleRemove();
     }
 }

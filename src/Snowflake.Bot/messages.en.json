@@ -284,6 +284,15 @@
         },
         "Gato": {
             "Error": "<:error:1534417252185800720> Could not get a cat picture right now. Try again later!"
+        },
+        "Roles": {
+            "Asignado": "<:check:1534413756057260152> Role **{rol}** added to **{usuario}**.",
+            "Removido": "<:check:1534413756057260152> Role **{rol}** removed from **{usuario}**.",
+            "YaTiene": "ℹ️ **{usuario}** already has the role **{rol}**.",
+            "NoTiene": "ℹ️ **{usuario}** doesn't have the role **{rol}**.",
+            "JerarquiaBot": "<:error:1534417252185800720> I can't manage the role **{rol}**: it is equal to or above my highest role. Move my role higher in *Server settings → Roles*.",
+            "JerarquiaUsuario": "<:error:1534417252185800720> You can't manage the role **{rol}**: it is equal to or above your highest role.",
+            "NoEncontrado": "<:error:1534417252185800720> Role not found."
         }
     }
 }
