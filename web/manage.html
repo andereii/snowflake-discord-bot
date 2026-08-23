@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar Servidor - Snowflake</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    
+    <!-- Módulos CSS -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body style="padding-top: 0; margin: 0; display: flex; background: var(--color-bg-body);">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <ul class="sidebar-menu">
+            <a href="#general" class="sidebar-menu-item"><i class="fa-solid fa-gear"></i> General</a>
+            <a href="#moderacion" class="sidebar-menu-item active"><i class="fa-solid fa-shield-halved"></i> Moderación</a>
+            <a href="#bienvenida" class="sidebar-menu-item"><i class="fa-solid fa-handshake"></i> Bienvenida</a>
+            <a href="#musica" class="sidebar-menu-item"><i class="fa-solid fa-music"></i> Música</a>
+            <a href="#ia" class="sidebar-menu-item"><i class="fa-solid fa-robot"></i> Inteligencia Artificial</a>
+            <a href="#conteo" class="sidebar-menu-item"><i class="fa-solid fa-1"></i> Juego de Conteo</a>
+            <a href="#youtube" class="sidebar-menu-item"><i class="fa-brands fa-youtube"></i> YouTube</a>
+            <a href="#voces" class="sidebar-menu-item"><i class="fa-solid fa-microphone-lines"></i> Canales de Voz</a>
+            <a href="#descargas" class="sidebar-menu-item"><i class="fa-solid fa-download"></i> Descargas</a>
+            <a href="#bloqueos" class="sidebar-menu-item"><i class="fa-solid fa-lock"></i> Bloqueos</a>
+        </ul>
+    </aside>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="manage-container" style="flex: 1;">
+        
+        <!-- SECCIÓN: GENERAL -->
+        <section id="general" class="settings-section">
+            <h2>Configuración General</h2>
+            <p>Ajustes básicos del servidor.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <!-- SECCIÓN: MODERACIÓN (Activa por defecto) -->
+        <section id="moderacion" class="settings-section active">
+            <h2>Moderación</h2>
+            <p>Configura cómo el bot maneja los incidentes y registros de moderación.</p>
+            
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canal de Logs</h3>
+                    <p>El canal donde Snowflake enviará los avisos de baneos, expulsiones, aislamientos y advertencias.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="modLogChannelId" class="form-input" placeholder="ID del canal (ej. 1234567890)" />
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-moderation-btn" class="btn-discord">Guardar cambios</button>
+            </div>
+        </section>
+
+        <!-- SECCIONES EN CONSTRUCCIÓN -->
+        <section id="bienvenida" class="settings-section">
+            <h2>Bienvenida</h2>
+            <p>Configura los mensajes para los nuevos miembros.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <section id="musica" class="settings-section">
+            <h2>Música</h2>
+            <p>Ajustes de reproducción y controles de Lavalink.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <section id="ia" class="settings-section">
+            <h2>Inteligencia Artificial</h2>
+            <p>Ajustes del chatbot de DeepSeek y sus permisos.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <section id="conteo" class="settings-section">
+            <h2>Juego de Conteo</h2>
+            <p>Configura el canal, la base numérica y las metas del servidor.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <section id="youtube" class="settings-section">
+            <h2>YouTube</h2>
+            <p>Administra las notificaciones automáticas de nuevos vídeos.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <section id="voces" class="settings-section">
+            <h2>Canales de Voz (Join-to-create)</h2>
+            <p>Ajustes para los canales de voz temporales.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <section id="descargas" class="settings-section">
+            <h2>Descargas</h2>
+            <p>Habilita o deshabilita la descarga de contenido multimedia.</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <section id="bloqueos" class="settings-section">
+            <h2>Bloqueos</h2>
+            <p>Canales actualmente bloqueados por el sistema (Lockdown).</p>
+            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
+                <i>(Sección en construcción)</i>
+            </div>
+        </section>
+
+        <!-- Toast Notifications Container -->
+        <div id="toast-container"></div>
+    </main>
+
+    <script type="module" src="js/manage/manage.js"></script>
+</body>
+</html>

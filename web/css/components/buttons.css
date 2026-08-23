@@ -1,0 +1,59 @@
+/* --- Botones --- */
+.btn-discord {
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    font-weight: 600;
+    background-color: var(--color-discord);
+    color: #ffffff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+}
+.btn-discord:hover {
+    background-color: var(--color-discord-hover);
+}
+.btn-discord:active {
+    transform: scale(0.96);
+}
+
+.btn-manage {
+    font-family: var(--font-primary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-discord);
+    background-color: rgba(88, 101, 242, 0.1);
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+.btn-manage:hover { background-color: rgba(88, 101, 242, 0.2); }
+
+.btn-logout {
+    width: 100%; text-align: left; background: none; border: none;
+    padding: 10px 12px; font-family: var(--font-primary); font-size: 0.9rem;
+    color: var(--color-danger); cursor: pointer; border-radius: 6px;
+    display: flex; align-items: center; gap: 8px; transition: background-color 0.2s;
+}
+.btn-logout:hover { background-color: var(--color-danger-bg); }
+
+.btn-invite {
+    background-color: var(--color-discord);
+    color: #fff;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+.btn-invite:hover {
+    background-color: var(--color-discord-hover);
+    color: #fff;
+}

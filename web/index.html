@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Snowflake</title>
-
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -17,7 +16,6 @@
     <link rel="stylesheet" href="css/components.css">
 </head>
 <body>
-
     <!-- NAVBAR -->
     <nav class="navbar">
         <div class="navbar-brand">
@@ -48,9 +46,42 @@
     </main>
 
     <!-- ========================================== -->
-    <!-- TEMPLATES (Ocultos en el DOM)              -->
+    <!-- MODALES (Ocultos por defecto vía CSS)      -->
     <!-- ========================================== -->
 
+    <!-- Modal 1: Lista de servidores para agregar el bot -->
+    <div class="modal-overlay" id="add-server-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Añadir a un servidor</h2>
+                <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body servers-list" id="invite-servers-list">
+                <!-- Servidores pendientes se inyectan aquí -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Pantalla completa para configurar (Iframe) -->
+    <div class="modal-overlay fullscreen" id="config-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <img id="config-server-icon" src="" alt="Icono del Servidor" style="width: 44px; height: 44px; border-radius: 12px; object-fit: cover; box-shadow: 0 2px 8px var(--color-shadow);">
+                    <h2 id="config-server-name" style="margin: 0; color: var(--color-text-main);"></h2>
+                </div>
+                <button class="close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body iframe-container">
+                <iframe id="config-iframe" src="" frameborder="0"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TEMPLATES (Ocultos en el DOM)              -->
+    <!-- ========================================== -->
+    
     <!-- Template: User Pill -->
     <template id="user-pill-template">
         <div class="user-dropdown-container">
@@ -58,7 +89,6 @@
                 <span class="user-tag" id="user-tag-text">@usuario</span>
                 <img class="user-avatar" id="user-avatar-img" src="" alt="Avatar">
             </button>
-            
             <div class="user-dropdown-menu" id="user-dropdown-menu">
                 <button class="btn-logout" id="logout-btn">
                     <i class="fa-solid fa-arrow-right-from-bracket"></i> Cerrar sesión
@@ -67,17 +97,29 @@
         </div>
     </template>
 
-    <!-- Template: Server Card -->
+    <!-- Template: Tarjeta Dashboard (Servidores ya configurados) -->
     <template id="server-card-template">
         <div class="server-card">
-            <img class="server-icon" src="" alt="Icono del servidor">
+            <div class="server-banner"></div>
+            <img class="server-icon" src="" alt="Icono">
             <div class="server-info">
                 <h3 class="server-name">Nombre del Servidor</h3>
-                <a href="#" class="btn-manage">Configurar <i class="fa-solid fa-gear"></i></a>
+                <button class="btn-manage">Configurar <i class="fa-solid fa-gear"></i></button>
             </div>
         </div>
     </template>
 
-    <script src="js/auth.js"></script>
+    <!-- Template: Item de Lista (Para el modal de invitación) -->
+    <template id="invite-item-template">
+        <div class="invite-item">
+            <div class="invite-item-info">
+                <img class="invite-icon" src="" alt="Icono">
+                <span class="invite-name">Nombre</span>
+            </div>
+            <a href="#" class="btn-manage btn-invite">Añadir bot <i class="fa-solid fa-plus"></i></a>
+        </div>
+    </template>
+
+    <script type="module" src="js/auth/auth.js"></script>
 </body>
 </html>

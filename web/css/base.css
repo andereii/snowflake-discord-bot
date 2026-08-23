@@ -3,14 +3,12 @@
     padding: 0;
     box-sizing: border-box;
 }
-
 body {
     font-family: var(--font-primary);
     background-color: var(--color-bg-body);
     color: var(--color-text-main);
     padding-top: 80px;
 }
-
 h1, h2, h3 {
     font-family: var(--font-headings);
     color: var(--color-text-dark);

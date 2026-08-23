@@ -12,7 +12,6 @@
     width: 100%;
     z-index: 1000;
 }
-
 .navbar-brand {
     font-family: var(--font-headings);
     font-size: 1.5rem;
@@ -22,7 +21,6 @@
     align-items: center;
     gap: 10px;
 }
-
 /* --- Contenedores Principales --- */
 .container {
     text-align: center;
@@ -33,23 +31,18 @@
     max-width: 600px;
     margin: 40px auto;
 }
-
-/* --- Contenedores Principales --- */
 .dashboard-container {
-    max-width: 1000px; /* Más ancho para que quepan las tarjetas */
+    max-width: 1000px;
     margin: 40px auto;
     padding: 0 20px;
 }
-
 .view-section {
-    display: none; /* Oculto por defecto, JS lo muestra */
+    display: none;
     animation: fadeIn 0.3s ease;
 }
-
 .view-section.show {
     display: block;
 }
-
 #login-prompt {
     text-align: center;
     background: var(--color-bg-surface);
@@ -59,17 +52,14 @@
     max-width: 600px;
     margin: 0 auto;
 }
-
 .text-muted {
     color: var(--color-text-muted);
     margin-bottom: 30px;
     font-size: 1.05rem;
 }
-
 /* --- Cuadrícula de Servidores --- */
 .servers-grid {
     display: grid;
-    /* Crea columnas adaptables de mínimo 280px */
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
 }
