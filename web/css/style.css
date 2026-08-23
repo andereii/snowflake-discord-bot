@@ -1,0 +1,163 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: #f4f6f8;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.container {
+    text-align: center;
+    background: #ffffff;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.btn-discord {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    background-color: #5865F2;
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+}
+
+.btn-discord:hover {
+    background-color: #4752C4;
+}
+
+.btn-discord:active {
+    transform: scale(0.96);
+}
+
+.success-state h1 {
+    font-family: 'Outfit', sans-serif;
+    color: #1a1a1a;
+    margin: 15px 0 5px 0;
+}
+
+.icono-exito {
+    font-size: 3rem;
+    color: #23a559;
+}
+/* --- Navbar --- */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 5%;
+    background-color: #ffffff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    position: fixed; /* Fija el nav arriba */
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+}
+
+.navbar-brand {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Ajuste del body para el navbar fijo */
+body {
+    padding-top: 80px; /* Deja espacio para el navbar */
+    align-items: flex-start; /* Evita que el contenedor choque arriba */
+}
+
+/* --- User Pill --- */
+.user-dropdown-container {
+    position: relative;
+    display: inline-block;
+}
+
+.user-pill {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: #f0f2f5;
+    border: 1px solid #e1e4e8;
+    border-radius: 50px;
+    padding: 6px 6px 6px 16px; /* Más padding a la izquierda, menos a la derecha para la foto */
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.user-pill:hover {
+    background-color: #e4e6eb;
+}
+
+.user-tag {
+    font-weight: 600;
+    color: #1a1a1a;
+    font-size: 0.95rem;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* --- Dropdown Menu --- */
+.user-dropdown-menu {
+    display: none; /* Oculto por defecto */
+    position: absolute;
+    top: 115%;
+    right: 0;
+    background-color: #ffffff;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 160px;
+    z-index: 1001;
+    border: 1px solid #eee;
+}
+
+.user-dropdown-menu.show {
+    display: block;
+}
+
+.btn-logout {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    padding: 10px 12px;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.9rem;
+    color: #dc3545;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.btn-logout:hover {
+    background-color: #fff0f1;
+}

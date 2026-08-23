@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Snowflake</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Módulos CSS -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <i class="fa-solid fa-snowflake"></i> Snowflake
+        </div>
+        
+        <div class="navbar-auth" id="auth-container">
+            <a href="#" id="discord-login-btn" class="btn-discord">
+                <i class="fa-brands fa-discord"></i> Iniciar sesión
+            </a>
+        </div>
+    </nav>
+
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="dashboard-container">
+        <!-- Vista para usuarios SIN sesión -->
+        <div id="login-prompt" class="view-section show">
+            <h1>Bienvenido al Dashboard</h1>
+            <p>Inicia sesión para administrar el bot en tus servidores.</p>
+        </div>
+
+        <!-- Vista para usuarios CON sesión (Servidores) -->
+        <div id="servers-dashboard" class="view-section">
+            <div class="servers-grid" id="servers-grid">
+                <!-- Las tarjetas se inyectarán aquí dinámicamente -->
+            </div>
+        </div>
+    </main>
+
+    <!-- ========================================== -->
+    <!-- TEMPLATES (Ocultos en el DOM)              -->
+    <!-- ========================================== -->
+
+    <!-- Template: User Pill -->
+    <template id="user-pill-template">
+        <div class="user-dropdown-container">
+            <button class="user-pill" id="user-pill-btn" aria-expanded="false" title="Opciones de cuenta">
+                <span class="user-tag" id="user-tag-text">@usuario</span>
+                <img class="user-avatar" id="user-avatar-img" src="" alt="Avatar">
+            </button>
+            
+            <div class="user-dropdown-menu" id="user-dropdown-menu">
+                <button class="btn-logout" id="logout-btn">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> Cerrar sesión
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <!-- Template: Server Card -->
+    <template id="server-card-template">
+        <div class="server-card">
+            <img class="server-icon" src="" alt="Icono del servidor">
+            <div class="server-info">
+                <h3 class="server-name">Nombre del Servidor</h3>
+                <a href="#" class="btn-manage">Configurar <i class="fa-solid fa-gear"></i></a>
+            </div>
+        </div>
+    </template>
+
+    <script src="js/auth.js"></script>
+</body>
+</html>
