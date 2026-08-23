@@ -305,6 +305,29 @@
             "ErrorFactorial": "<:error:1534417252185800720> O fatorial só é definido para inteiros não negativos.",
             "ErrorDominio": "<:error:1534417252185800720> Erro de domínio matemático (ex. raiz de número negativo ou logaritmo não positivo).",
             "ErrorDesconocido": "<:error:1534417252185800720> Não foi possível avaliar a expressão: {error}"
+        },
+        "Trivia": {
+            "Titulo": "Pergunta de Curiosidades",
+            "Categoria": "Categoria",
+            "Dificultad": "Dificuldade",
+            "Recompensa": "Recompensa",
+            "Pregunta": "Pergunta",
+            "TiempoLimite": "Você tem 25s para responder",
+            "TiempoAgotado": "Tempo esgotado!",
+            "TiempoAgotadoDesc": "O tempo acabou. A resposta correta era: **{correcta}**",
+            "RespuestaCorrecta": "Resposta correta!",
+            "GanastePuntos": "Excelente, **{usuario}**! Você ganhou **+{puntos} pontos**.",
+            "RespuestaIncorrecta": "Resposta incorreta!",
+            "FallasteDesc": "Você escolheu **{elegida}**, mas a correta era: **{correcta}**",
+            "TusEstadisticas": "Suas estatísticas",
+            "PuntosTotales": "Pontos totais",
+            "RachaActual": "Sequência atual",
+            "Precision": "Precisão",
+            "SinEstadisticas": "ℹ️ **{usuario}** ainda não jogou nenhuma partida de curiosidades.",
+            "SinRanking": "ℹ️ Ninguém jogou curiosidades neste servidor ainda. Seja o primeiro com `/trivia jogar`!",
+            "TituloStats": "Estatísticas de Curiosidades — {usuario}",
+            "TituloRanking": "Classificação de Curiosidades",
+            "ErrorCarga": "<:error:1534417252185800720> Não foi possível obter uma pergunta de curiosidades neste momento. Tente novamente!"
         }
     }
 }

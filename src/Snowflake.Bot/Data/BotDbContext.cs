@@ -14,6 +14,7 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
     public DbSet<TempChannel> TempChannels => Set<TempChannel>();
     public DbSet<CountingConfig> CountingConfigs => Set<CountingConfig>();
     public DbSet<CountingStat> CountingStats => Set<CountingStat>();
+    public DbSet<TriviaStat> TriviaStats => Set<TriviaStat>();
     public DbSet<YouTubeSubscription> YouTubeSubscriptions => Set<YouTubeSubscription>();
     public DbSet<ChannelLock> ChannelLocks => Set<ChannelLock>();
 
@@ -60,6 +61,13 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
         });
 
         modelBuilder.Entity<CountingStat>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => new { s.GuildId, s.UserId }).IsUnique();
+            e.HasIndex(s => s.GuildId);
+        });
+
+        modelBuilder.Entity<TriviaStat>(e =>
         {
             e.HasKey(s => s.Id);
             e.HasIndex(s => new { s.GuildId, s.UserId }).IsUnique();

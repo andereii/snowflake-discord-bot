@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using DSharpPlus;
 using DSharpPlus.Entities;
@@ -31,6 +32,7 @@ public sealed class PrefixCommandService
     private readonly DownloadService _dl;
     private readonly LitterboxService _litter;
     private readonly CalculatorService _calc;
+    private readonly TriviaService _trivia;
     private readonly DeepSeekService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly ModerationLogService _modLog;
@@ -48,6 +50,7 @@ public sealed class PrefixCommandService
         DownloadService dl,
         LitterboxService litter,
         CalculatorService calc,
+        TriviaService trivia,
         DeepSeekService ia,
         AiCommandConfirmation confirmaciones,
         ModerationLogService modLog,
@@ -64,6 +67,7 @@ public sealed class PrefixCommandService
         _dl = dl;
         _litter = litter;
         _calc = calc;
+        _trivia = trivia;
         _ia = ia;
         _confirmaciones = confirmaciones;
         _modLog = modLog;
@@ -126,6 +130,12 @@ public sealed class PrefixCommandService
                 case "calculadora":
                 case "math":
                     await EjecutarCalcAsync(e, sinPrefijo[cmd.Length..].Trim());
+                    return true;
+
+                // ================= Trivia =================
+                case "trivia":
+                case "t":
+                    await EjecutarTriviaAsync(e, args);
                     return true;
 
                 // ================= Descargas =================
@@ -446,13 +456,81 @@ public sealed class PrefixCommandService
         var embed = new DiscordEmbedBuilder()
             .WithTitle("❄️ Snowflake — Comandos con prefijo `;`")
             .WithDescription("También puedes usar todos los comandos con la barra diagonal `/`.")
-            .AddField("📌 General y Multimedia", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;calc <expresión/problema>` — Calculadora y resolución con IA\n`;descargar <URL> [audio]` — Descargar vídeo/audio de Internet\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
+            .AddField("📌 General y Multimedia", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;calc <expresión/problema>` — Calculadora y resolución con IA\n`;trivia [categoría] [dificultad]` — Jugar a la trivia cultural\n`;descargar <URL> [audio]` — Descargar vídeo/audio de Internet\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
             .AddField("💬 Inteligencia Artificial", "`;talk <texto>` — Habla con la IA\n`;talk-clear` — Reinicia la memoria de la IA")
             .AddField("🎵 Música", "`;play <canción/URL>` — Reproducir música\n`;pause` / `;resume` — Pausar / Reanudar\n`;skip` — Saltar canción\n`;stop` — Detener y salir\n`;queue` — Ver la cola\n`;np` — Canción actual\n`;volume <0-100>` — Ajustar volumen")
             .AddField("🛡️ Moderación y Roles", "`;role <add|remove> @user <rol>` — Gestionar roles\n`;clear <1-100>` — Limpiar mensajes\n`;kick @usuario [motivo]` — Expulsar usuario\n`;ban @usuario [motivo]` — Banear usuario\n`;unban <id> [motivo]` — Desbanear usuario\n`;timeout @usuario <tiempo> [motivo]` — Aislar usuario\n`;warn @usuario [motivo]` — Advertir usuario")
             .WithColor(DiscordColor.Cyan);
 
         await e.Message.RespondAsync(embed);
+    }
+
+    private async Task EjecutarTriviaAsync(MessageCreateEventArgs e, IReadOnlyList<string> args)
+    {
+        if (args.Count > 0 && args[0].Equals("stats", StringComparison.OrdinalIgnoreCase))
+        {
+            ulong targetId = e.Author.Id;
+            if (args.Count > 1 && ulong.TryParse(Regex.Match(args[1], @"\d+").Value, out var idMencion))
+                targetId = idMencion;
+
+            var stat = await _trivia.ObtenerEstadisticasAsync(e.Guild.Id, targetId);
+            var member = await e.Guild.GetMemberAsync(targetId);
+
+            if (stat is null || stat.TotalAnswers == 0)
+            {
+                await e.Message.RespondAsync($"ℹ️ **{member.DisplayName}** aún no ha jugado ninguna partida de trivia.");
+                return;
+            }
+
+            var precision = stat.TotalAnswers > 0 ? (stat.CorrectAnswers * 100 / stat.TotalAnswers) : 0;
+            var embedStats = new DiscordEmbedBuilder()
+                .WithTitle($"🏆 {_msg.Get(e.Guild.Id, "Trivia:TituloStats", ("usuario", member.DisplayName))}")
+                .WithThumbnail(member.AvatarUrl)
+                .WithColor(DiscordColor.Gold)
+                .AddField($"⭐ {_msg.Get(e.Guild.Id, "Trivia:PuntosTotales")}", $"`{stat.Score}` pts", inline: true)
+                .AddField($"🔥 {_msg.Get(e.Guild.Id, "Trivia:RachaActual")}", $"`{stat.CurrentStreak}` (Mejor: `{stat.BestStreak}`)", inline: true)
+                .AddField($"🎯 {_msg.Get(e.Guild.Id, "Trivia:Precision")}", $"`{precision}%` ({stat.CorrectAnswers}/{stat.TotalAnswers})", inline: true)
+                .WithFooter($"Snowflake Trivia • {e.Guild.Name}");
+
+            await e.Message.RespondAsync(embedStats);
+            return;
+        }
+
+        if (args.Count > 0 && (args[0].Equals("top", StringComparison.OrdinalIgnoreCase) ||
+                                args[0].Equals("leaderboard", StringComparison.OrdinalIgnoreCase) ||
+                                args[0].Equals("ranking", StringComparison.OrdinalIgnoreCase)))
+        {
+            var top = await _trivia.ObtenerLeaderboardAsync(e.Guild.Id, 10);
+            if (top.Count == 0)
+            {
+                await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Trivia:SinRanking"));
+                return;
+            }
+
+            var sb = new StringBuilder();
+            var medallas = new[] { "🥇", "🥈", "🥉" };
+            for (int i = 0; i < top.Count; i++)
+            {
+                var s = top[i];
+                var icono = i < 3 ? medallas[i] : $"**#{i + 1}**";
+                var precision = s.TotalAnswers > 0 ? (s.CorrectAnswers * 100 / s.TotalAnswers) : 0;
+                sb.AppendLine($"{icono} <@{s.UserId}> — **{s.Score} pts** (`{s.CorrectAnswers}/{s.TotalAnswers}` aciertos • {precision}%)");
+            }
+
+            var embedTop = new DiscordEmbedBuilder()
+                .WithTitle($"🏆 {_msg.Get(e.Guild.Id, "Trivia:TituloRanking")}")
+                .WithDescription(sb.ToString())
+                .WithColor(DiscordColor.Gold)
+                .WithFooter($"Snowflake Trivia • {e.Guild.Name}");
+
+            await e.Message.RespondAsync(embedTop);
+            return;
+        }
+
+        string? categoria = args.Count > 0 ? args[0] : null;
+        string? dificultad = args.Count > 1 ? args[1] : null;
+
+        await _trivia.JugarPrefixAsync(e, categoria, dificultad);
     }
 
     private async Task EjecutarCalcAsync(MessageCreateEventArgs e, string entrada)

@@ -305,6 +305,29 @@
             "ErrorFactorial": "<:error:1534417252185800720> Factorial is only defined for non-negative integers.",
             "ErrorDominio": "<:error:1534417252185800720> Math domain error (e.g. square root of a negative number or non-positive logarithm).",
             "ErrorDesconocido": "<:error:1534417252185800720> Could not evaluate expression: {error}"
+        },
+        "Trivia": {
+            "Titulo": "Trivia Question",
+            "Categoria": "Category",
+            "Dificultad": "Difficulty",
+            "Recompensa": "Reward",
+            "Pregunta": "Question",
+            "TiempoLimite": "You have 25s to answer",
+            "TiempoAgotado": "Time's up!",
+            "TiempoAgotadoDesc": "No one answered in time. The correct answer was: **{correcta}**",
+            "RespuestaCorrecta": "Correct answer!",
+            "GanastePuntos": "Great job, **{usuario}**! You earned **+{puntos} points**.",
+            "RespuestaIncorrecta": "Wrong answer!",
+            "FallasteDesc": "You chose **{elegida}**, but the correct answer was: **{correcta}**",
+            "TusEstadisticas": "Your Stats",
+            "PuntosTotales": "Total Score",
+            "RachaActual": "Current Streak",
+            "Precision": "Accuracy",
+            "SinEstadisticas": "ℹ️ **{usuario}** hasn't played any trivia games yet.",
+            "SinRanking": "ℹ️ No one has played trivia on this server yet. Be the first with `/trivia play`!",
+            "TituloStats": "Trivia Stats — {usuario}",
+            "TituloRanking": "Trivia Leaderboard",
+            "ErrorCarga": "<:error:1534417252185800720> Failed to fetch a trivia question at this moment. Please try again!"
         }
     }
 }

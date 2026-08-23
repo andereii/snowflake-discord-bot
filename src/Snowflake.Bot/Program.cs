@@ -188,6 +188,8 @@ public static partial class SnowflakeServiceExtensions
         services.AddSingleton<GuildSettingsService>();
         services.AddSingleton<AiCommandExecutor>();
         services.AddSingleton<AiCommandConfirmation>();
+        services.AddSingleton<TranslationService>();
+        services.AddSingleton<TriviaService>();
         services.AddSingleton<PrefixCommandService>();
 
         services.AddSingleton<ModerationLogService>();
