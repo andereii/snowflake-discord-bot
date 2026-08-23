@@ -293,6 +293,18 @@
             "JerarquiaBot": "<:error:1534417252185800720> Não posso gerenciar o cargo **{rol}**: ele está acima ou no mesmo nível do meu cargo mais alto. Mova meu cargo para cima em *Configurações do Servidor → Cargos*.",
             "JerarquiaUsuario": "<:error:1534417252185800720> Você não pode gerenciar o cargo **{rol}**: ele está acima ou no mesmo nível do seu cargo mais alto.",
             "NoEncontrado": "<:error:1534417252185800720> Cargo não encontrado."
+        },
+        "Calculadora": {
+            "Titulo": "🧮 Calculadora",
+            "Expresion": "Expressão",
+            "Resultado": "Resultado",
+            "Fraccion": "Fração exata",
+            "Tiempo": "Tempo de cálculo",
+            "ErrorSintaxis": "<:error:1534417252185800720> Erro de sintaxe na expressão: {error}",
+            "DivisionPorCero": "<:error:1534417252185800720> A divisão por zero não é definida.",
+            "ErrorFactorial": "<:error:1534417252185800720> O fatorial só é definido para inteiros não negativos.",
+            "ErrorDominio": "<:error:1534417252185800720> Erro de domínio matemático (ex. raiz de número negativo ou logaritmo não positivo).",
+            "ErrorDesconocido": "<:error:1534417252185800720> Não foi possível avaliar a expressão: {error}"
         }
     }
 }

@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Data.Entities;
+using Snowflake.Bot.Services.Calculators;
 
 namespace Snowflake.Bot.Services;
 
@@ -52,14 +53,32 @@ public sealed partial class CountingService(
         _ => valor.ToString("0", CultureInfo.InvariantCulture)
     };
 
-    /// <summary>Intenta interpretar un texto como número en la base dada.</summary>
+    /// <summary>Intenta interpretar un texto como número en la base dada (soporta expresiones matemáticas en modo decimal).</summary>
     public static bool IntentarParsear(string texto, CountingBase b, out long valor)
     {
         valor = 0;
         if (string.IsNullOrWhiteSpace(texto)) return false;
+        var limpio = texto.Trim();
+
         try
         {
-            valor = Convert.ToInt64(texto.Trim(), BaseRadix(b));
+            if (b == CountingBase.Decimal)
+            {
+                if (long.TryParse(limpio, NumberStyles.Integer, CultureInfo.InvariantCulture, out valor) && valor > 0)
+                    return true;
+
+                // Evaluación con el motor matemático para soportar 5^2, sqrt(25), etc.
+                var mathRes = MathEngine.Evaluar(limpio);
+                if (mathRes.Exitoso && !double.IsNaN(mathRes.Resultado) && !double.IsInfinity(mathRes.Resultado))
+                {
+                    valor = (long)System.Math.Round(mathRes.Resultado, MidpointRounding.AwayFromZero);
+                    return valor > 0;
+                }
+
+                return false;
+            }
+
+            valor = Convert.ToInt64(limpio, BaseRadix(b));
             return valor > 0; // la cuenta empieza en 1; no aceptamos 0 ni negativos
         }
         catch { return false; }

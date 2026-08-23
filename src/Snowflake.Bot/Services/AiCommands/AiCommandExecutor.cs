@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using DSharpPlus;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Data.Entities;
+using Snowflake.Bot.Services.Calculators;
 using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
@@ -723,6 +725,32 @@ public sealed partial class AiCommandExecutor
             return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Roles:Removido", ("usuario", miembro.DisplayName), ("rol", rol.Name)), desc);
         });
 
+    private ToolDef ToolCalculate() => new(
+        "math_calculate",
+        "Evaluate a mathematical or scientific expression with high precision (supports PEMDAS, (), [], {}, fractions, roots, logs, trig, factorials).",
+        Esquema(("expression", "string", "The math expression to evaluate, e.g. '5^2 + sqrt(144)', '3(9/3/2)', 'log(1000)'.")),
+        Destructivo: false,
+        DescripcionComando: null,
+        Ejecutar: (ctx, args) =>
+        {
+            var desc = "/calc";
+            var expr = ArgString(args, "expression");
+            if (string.IsNullOrWhiteSpace(expr))
+                return Task.FromResult(new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Calculadora:ErrorSintaxis", ("error", "Expresión vacía")), desc));
+
+            var res = MathEngine.Evaluar(expr);
+            if (res.Exitoso)
+            {
+                var texto = string.IsNullOrEmpty(res.FraccionExacta)
+                    ? $"{expr} = {res.Resultado.ToString(CultureInfo.InvariantCulture)}"
+                    : $"{expr} = {res.Resultado.ToString(CultureInfo.InvariantCulture)} ({res.FraccionExacta})";
+                return Task.FromResult(new AiCommandResult(true, texto, desc));
+            }
+
+            var err = _msg.Get(ctx.Guild.Id, res.ErrorClave ?? "Calculadora:ErrorDesconocido", ("error", res.ErrorDetalle ?? ""));
+            return Task.FromResult(new AiCommandResult(false, err, desc));
+        });
+
     // ------------------------- catálogo -------------------------
 
     private Dictionary<string, ToolDef> ConstruirCatalogo()
@@ -746,5 +774,6 @@ public sealed partial class AiCommandExecutor
         yield return ToolClear();
         yield return ToolRoleAdd();
         yield return ToolRoleRemove();
+        yield return ToolCalculate();
     }
 }

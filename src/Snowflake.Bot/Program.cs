@@ -11,6 +11,7 @@ using Snowflake.Bot.Data;
 using Snowflake.Bot.Endpoints;
 using Snowflake.Bot.Services;
 using Snowflake.Bot.Services.AiCommands;
+using Snowflake.Bot.Services.Calculators;
 using Snowflake.Bot.Services.PrefixCommands;
 using Snowflake.Bot.Services.Settings;
 
@@ -193,6 +194,7 @@ public static partial class SnowflakeServiceExtensions
         services.AddSingleton<DownloadService>();
         services.AddSingleton<LitterboxService>();
         services.AddSingleton<ColorService>();
+        services.AddSingleton<CalculatorService>();
         services.AddSingleton<VoiceHubService>();
         services.AddSingleton<MusicService>();
         services.AddSingleton<MusicWidgetService>();

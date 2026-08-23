@@ -293,6 +293,18 @@
             "JerarquiaBot": "<:error:1534417252185800720> No puedo gestionar el rol **{rol}**: está por encima o al mismo nivel que mi rol más alto. Sube mi rol en *Ajustes → Roles*.",
             "JerarquiaUsuario": "<:error:1534417252185800720> No puedes gestionar el rol **{rol}**: está por encima o al mismo nivel que tu rol más alto.",
             "NoEncontrado": "<:error:1534417252185800720> No encontré ese rol."
+        },
+        "Calculadora": {
+            "Titulo": "🧮 Calculadora",
+            "Expresion": "Expresión",
+            "Resultado": "Resultado",
+            "Fraccion": "Fracción exacta",
+            "Tiempo": "Tiempo de cálculo",
+            "ErrorSintaxis": "<:error:1534417252185800720> Error de sintaxis en la expresión: {error}",
+            "DivisionPorCero": "<:error:1534417252185800720> La división por cero no está definida.",
+            "ErrorFactorial": "<:error:1534417252185800720> El factorial solo está definido para enteros no negativos.",
+            "ErrorDominio": "<:error:1534417252185800720> Error de dominio matemático (ej. raíz de un negativo o logaritmo no positivo).",
+            "ErrorDesconocido": "<:error:1534417252185800720> No se pudo evaluar la expresión: {error}"
         }
     }
 }

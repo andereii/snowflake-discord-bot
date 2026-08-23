@@ -8,6 +8,7 @@ using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data.Entities;
 using Snowflake.Bot.Modules;
 using Snowflake.Bot.Services.AiCommands;
+using Snowflake.Bot.Services.Calculators;
 using Snowflake.Bot.Services.Settings;
 using Snowflake.Bot.Utilities;
 
@@ -29,6 +30,7 @@ public sealed class PrefixCommandService
     private readonly MusicWidgetService _widget;
     private readonly DownloadService _dl;
     private readonly LitterboxService _litter;
+    private readonly CalculatorService _calc;
     private readonly DeepSeekService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly ModerationLogService _modLog;
@@ -45,6 +47,7 @@ public sealed class PrefixCommandService
         MusicWidgetService widget,
         DownloadService dl,
         LitterboxService litter,
+        CalculatorService calc,
         DeepSeekService ia,
         AiCommandConfirmation confirmaciones,
         ModerationLogService modLog,
@@ -60,6 +63,7 @@ public sealed class PrefixCommandService
         _widget = widget;
         _dl = dl;
         _litter = litter;
+        _calc = calc;
         _ia = ia;
         _confirmaciones = confirmaciones;
         _modLog = modLog;
@@ -114,6 +118,14 @@ public sealed class PrefixCommandService
                 case "comandos":
                 case "commands":
                     await EjecutarAyudaAsync(e);
+                    return true;
+
+                // ================= Calculadora y Matemáticas =================
+                case "calc":
+                case "calcular":
+                case "calculadora":
+                case "math":
+                    await EjecutarCalcAsync(e, sinPrefijo[cmd.Length..].Trim());
                     return true;
 
                 // ================= Descargas =================
@@ -434,13 +446,35 @@ public sealed class PrefixCommandService
         var embed = new DiscordEmbedBuilder()
             .WithTitle("❄️ Snowflake — Comandos con prefijo `;`")
             .WithDescription("También puedes usar todos los comandos con la barra diagonal `/`.")
-            .AddField("📌 General y Multimedia", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;descargar <URL> [audio]` — Descargar vídeo/audio de Internet\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
+            .AddField("📌 General y Multimedia", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;calc <expresión/problema>` — Calculadora y resolución con IA\n`;descargar <URL> [audio]` — Descargar vídeo/audio de Internet\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
             .AddField("💬 Inteligencia Artificial", "`;talk <texto>` — Habla con la IA\n`;talk-clear` — Reinicia la memoria de la IA")
             .AddField("🎵 Música", "`;play <canción/URL>` — Reproducir música\n`;pause` / `;resume` — Pausar / Reanudar\n`;skip` — Saltar canción\n`;stop` — Detener y salir\n`;queue` — Ver la cola\n`;np` — Canción actual\n`;volume <0-100>` — Ajustar volumen")
             .AddField("🛡️ Moderación y Roles", "`;role <add|remove> @user <rol>` — Gestionar roles\n`;clear <1-100>` — Limpiar mensajes\n`;kick @usuario [motivo]` — Expulsar usuario\n`;ban @usuario [motivo]` — Banear usuario\n`;unban <id> [motivo]` — Desbanear usuario\n`;timeout @usuario <tiempo> [motivo]` — Aislar usuario\n`;warn @usuario [motivo]` — Advertir usuario")
             .WithColor(DiscordColor.Cyan);
 
         await e.Message.RespondAsync(embed);
+    }
+
+    private async Task EjecutarCalcAsync(MessageCreateEventArgs e, string entrada)
+    {
+        if (string.IsNullOrWhiteSpace(entrada))
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;calc <expresión o problema en texto>` (ej. `;calc 5^2 + sqrt(144)` o `;calc 3(9/3/2)`)");
+            return;
+        }
+
+        var miembro = e.Message.Author as DiscordMember ?? await e.Guild.GetMemberAsync(e.Author.Id);
+        await e.Channel.TriggerTypingAsync();
+        var res = await _calc.ProcesarAsync(e.Guild, e.Channel, miembro, entrada);
+
+        if (res.EsIa && !string.IsNullOrEmpty(res.TextoIa))
+        {
+            await e.Message.RespondAsync(res.TextoIa);
+        }
+        else if (res.Embed is not null)
+        {
+            await e.Message.RespondAsync(res.Embed);
+        }
     }
 
     private async Task EjecutarChatIaAsync(MessageCreateEventArgs e, string texto)
