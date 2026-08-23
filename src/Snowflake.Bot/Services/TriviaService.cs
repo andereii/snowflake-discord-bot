@@ -1,7 +1,4 @@
 using System.Collections.Concurrent;
-using System.Net;
-using System.Security.Cryptography;
-using System.Text.Json;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
@@ -36,13 +33,11 @@ public sealed class TriviaSession
 
 /// <summary>
 /// Servicio central del juego de Trivia interactivo con botones,
-/// traducción automática (Google GTX) y estadísticas por servidor.
+/// banco local curado de preguntas i18n (es/en/pt) y estadísticas por servidor.
 /// </summary>
 public sealed class TriviaService
 {
     private readonly DiscordClient _client;
-    private readonly HttpClient _http;
-    private readonly TranslationService _translation;
     private readonly GuildSettingsService _settings;
     private readonly IDbContextFactory<BotDbContext> _dbFactory;
     private readonly MessagesService _msg;
@@ -52,16 +47,12 @@ public sealed class TriviaService
 
     public TriviaService(
         DiscordClient client,
-        HttpClient http,
-        TranslationService translation,
         GuildSettingsService settings,
         IDbContextFactory<BotDbContext> dbFactory,
         MessagesService msg,
         ILogger<TriviaService> logger)
     {
         _client = client;
-        _http = http;
-        _translation = translation;
         _settings = settings;
         _dbFactory = dbFactory;
         _msg = msg;
@@ -109,13 +100,7 @@ public sealed class TriviaService
         string? dificultad = null)
     {
         var lang = (await _settings.GetAsync(ctx.Guild.Id)).Language;
-        var pregunta = await ObtenerPreguntaAsync(ctx.Guild.Id, lang, categoria, dificultad).ConfigureAwait(false);
-
-        if (pregunta is null)
-        {
-            await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(_msg.Get(ctx.Guild.Id, "Trivia:ErrorCarga")));
-            return;
-        }
+        var pregunta = ObtenerPregunta(lang, categoria, dificultad);
 
         var sessionId = Guid.NewGuid().ToString("N")[..8];
         var embed = ConstruirEmbedPregunta(ctx.Guild.Id, pregunta, ctx.User);
@@ -151,13 +136,7 @@ public sealed class TriviaService
         string? dificultad = null)
     {
         var lang = (await _settings.GetAsync(e.Guild.Id)).Language;
-        var pregunta = await ObtenerPreguntaAsync(e.Guild.Id, lang, categoria, dificultad).ConfigureAwait(false);
-
-        if (pregunta is null)
-        {
-            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Trivia:ErrorCarga"));
-            return;
-        }
+        var pregunta = ObtenerPregunta(lang, categoria, dificultad);
 
         var sessionId = Guid.NewGuid().ToString("N")[..8];
         var embed = ConstruirEmbedPregunta(e.Guild.Id, pregunta, e.Author);
@@ -274,167 +253,10 @@ public sealed class TriviaService
             .ToListAsync();
     }
 
-    // ------------------------- API y Traducción -------------------------
-
-    private async Task<TriviaPregunta?> ObtenerPreguntaAsync(
-        ulong guildId,
-        string lang,
-        string? categoria = null,
-        string? dificultad = null)
+    private static TriviaPregunta ObtenerPregunta(string lang, string? categoria = null, string? dificultad = null)
     {
-        try
-        {
-            var url = "https://opentdb.com/api.php?amount=1&type=multiple";
-            if (!string.IsNullOrWhiteSpace(dificultad))
-            {
-                var difLower = dificultad.ToLowerInvariant();
-                if (difLower is "easy" or "medium" or "hard" or "facil" or "medio" or "dificil")
-                {
-                    var difApi = difLower switch
-                    {
-                        "facil" => "easy",
-                        "medio" => "medium",
-                        "dificil" => "hard",
-                        _ => difLower
-                    };
-                    url += $"&difficulty={difApi}";
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(categoria) && MapearCategoria(categoria) is int catId)
-            {
-                url += $"&category={catId}";
-            }
-
-            using var resp = await _http.GetAsync(url).ConfigureAwait(false);
-            if (!resp.IsSuccessStatusCode)
-                return FallbackPregunta(lang);
-
-            var json = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            using var doc = JsonDocument.Parse(json);
-
-            var root = doc.RootElement;
-            if (root.GetProperty("response_code").GetInt32() != 0)
-                return FallbackPregunta(lang);
-
-            var item = root.GetProperty("results")[0];
-            var catRaw = WebUtility.HtmlDecode(item.GetProperty("category").GetString() ?? "General Knowledge");
-            var difRaw = item.GetProperty("difficulty").GetString() ?? "medium";
-            var pregRaw = WebUtility.HtmlDecode(item.GetProperty("question").GetString() ?? "");
-            var correctaRaw = WebUtility.HtmlDecode(item.GetProperty("correct_answer").GetString() ?? "");
-
-            var incorrectasRaw = new List<string>();
-            foreach (var inc in item.GetProperty("incorrect_answers").EnumerateArray())
-                incorrectasRaw.Add(WebUtility.HtmlDecode(inc.GetString() ?? ""));
-
-            // Traducción con Google Translate GTX si no es inglés
-            string catTrad = catRaw;
-            string difTrad = difRaw;
-            string pregTrad = pregRaw;
-            string correctaTrad = correctaRaw;
-            var incorrectasTrad = new List<string>(incorrectasRaw);
-
-            if (lang is "es" or "pt")
-            {
-                var textosParaTraducir = new List<string> { catRaw, pregRaw, correctaRaw };
-                textosParaTraducir.AddRange(incorrectasRaw);
-
-                var traducidos = await _translation.TraducirLoteAsync(textosParaTraducir, lang, "en").ConfigureAwait(false);
-                if (traducidos.Count >= 3 + incorrectasRaw.Count)
-                {
-                    catTrad = traducidos[0];
-                    pregTrad = traducidos[1];
-                    correctaTrad = traducidos[2];
-                    incorrectasTrad = traducidos.Skip(3).Take(incorrectasRaw.Count).ToList();
-                }
-
-                difTrad = difRaw switch
-                {
-                    "easy" => lang == "es" ? "Fácil" : "Fácil",
-                    "medium" => lang == "es" ? "Media" : "Média",
-                    "hard" => lang == "es" ? "Difícil" : "Difícil",
-                    _ => difRaw
-                };
-            }
-            else
-            {
-                difTrad = char.ToUpper(difRaw[0]) + difRaw[1..];
-            }
-
-            int puntos = difRaw switch
-            {
-                "easy" => 10,
-                "hard" => 30,
-                _ => 20
-            };
-
-            // Mezclar opciones
-            var todasOpciones = new List<string> { correctaTrad };
-            todasOpciones.AddRange(incorrectasTrad);
-            Mezclar(todasOpciones);
-
-            int indiceCorrecto = todasOpciones.IndexOf(correctaTrad);
-
-            return new TriviaPregunta(catTrad, difTrad, pregTrad, todasOpciones, indiceCorrecto, puntos);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error obteniendo pregunta de OpenTDB");
-            return FallbackPregunta(lang);
-        }
+        return TriviaBank.ObtenerPreguntaAleatoria(lang, categoria, dificultad);
     }
-
-    private static int? MapearCategoria(string cat)
-    {
-        var c = cat.ToLowerInvariant().Trim();
-        if (c.Contains("general") || c.Contains("cultura")) return 9;
-        if (c.Contains("libro") || c.Contains("book")) return 10;
-        if (c.Contains("cine") || c.Contains("pelicula") || c.Contains("film") || c.Contains("movie")) return 11;
-        if (c.Contains("musica") || c.Contains("music")) return 12;
-        if (c.Contains("videojuego") || c.Contains("game") || c.Contains("gaming")) return 15;
-        if (c.Contains("ciencia") || c.Contains("science") || c.Contains("naturaleza")) return 17;
-        if (c.Contains("comput") || c.Contains("informatica") || c.Contains("tecnolog")) return 18;
-        if (c.Contains("matemat") || c.Contains("math")) return 19;
-        if (c.Contains("mitolog") || c.Contains("myth")) return 20;
-        if (c.Contains("deporte") || c.Contains("sport") || c.Contains("futbol")) return 21;
-        if (c.Contains("geograf") || c.Contains("geo")) return 22;
-        if (c.Contains("historia") || c.Contains("history")) return 23;
-        if (c.Contains("arte") || c.Contains("art")) return 25;
-        if (c.Contains("animal")) return 27;
-        if (c.Contains("anime") || c.Contains("manga")) return 31;
-        if (c.Contains("caricatura") || c.Contains("cartoon")) return 32;
-        return null;
-    }
-
-    private static void Mezclar<T>(IList<T> list)
-    {
-        int n = list.Count;
-        while (n > 1)
-        {
-            n--;
-            int k = RandomNumberGenerator.GetInt32(n + 1);
-            (list[k], list[n]) = (list[n], list[k]);
-        }
-    }
-
-    private static TriviaPregunta FallbackPregunta(string lang) => lang switch
-    {
-        "pt" => new TriviaPregunta(
-            "Conhecimento Geral", "Média",
-            "Qual é o maior planeta do nosso sistema solar?",
-            ["Júpiter", "Saturno", "Terra", "Marte"],
-            0, 20),
-        "es" => new TriviaPregunta(
-            "Cultura General", "Media",
-            "¿Cuál es el planeta más grande de nuestro sistema solar?",
-            ["Júpiter", "Saturno", "Tierra", "Marte"],
-            0, 20),
-        _ => new TriviaPregunta(
-            "General Knowledge", "Medium",
-            "What is the largest planet in our solar system?",
-            ["Jupiter", "Saturn", "Earth", "Mars"],
-            0, 20)
-    };
 
     // ------------------------- Embeds y Botones -------------------------
 
