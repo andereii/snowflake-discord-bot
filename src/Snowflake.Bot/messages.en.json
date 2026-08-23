@@ -327,7 +327,8 @@
             "SinRanking": "ℹ️ No one has played trivia on this server yet. Be the first with `/trivia play`!",
             "TituloStats": "Trivia Stats — {usuario}",
             "TituloRanking": "Trivia Leaderboard",
-            "ErrorCarga": "<:error:1534417252185800720> Failed to fetch a trivia question at this moment. Please try again!"
+            "ErrorCarga": "<:error:1534417252185800720> Failed to fetch a trivia question at this moment. Please try again!",
+            "AvisoPrueba": "⚠️ Demo question: this feature has not been fully implemented yet."
         }
     }
 }

@@ -262,14 +262,15 @@ public sealed class TriviaService
 
     private DiscordEmbedBuilder ConstruirEmbedPregunta(ulong guildId, TriviaPregunta p, DiscordUser user)
     {
+        var aviso = _msg.Get(guildId, "Trivia:AvisoPrueba");
         return new DiscordEmbedBuilder()
             .WithTitle($"❓ {_msg.Get(guildId, "Trivia:Titulo")}")
             .WithColor(DiscordColor.CornflowerBlue)
             .AddField($"🏷️ {_msg.Get(guildId, "Trivia:Categoria")}", p.Categoria, inline: true)
             .AddField($"⚡ {_msg.Get(guildId, "Trivia:Dificultad")}", p.Dificultad, inline: true)
             .AddField($"🏆 {_msg.Get(guildId, "Trivia:Recompensa")}", $"+{p.Puntos} pts", inline: true)
-            .AddField($"📝 {_msg.Get(guildId, "Trivia:Pregunta")}", $"**{p.Pregunta}**")
-            .WithFooter($"⏱️ {_msg.Get(guildId, "Trivia:TiempoLimite")} • Jugador: {user.Username}", user.AvatarUrl);
+            .AddField($"📝 {_msg.Get(guildId, "Trivia:Pregunta")}", $"**{p.Pregunta}**\n\n-# {aviso}")
+            .WithFooter($"⏱️ {_msg.Get(guildId, "Trivia:TiempoLimite")} • {user.Username} • {aviso}", user.AvatarUrl);
     }
 
     private DiscordEmbedBuilder ConstruirEmbedResultado(
@@ -284,6 +285,7 @@ public sealed class TriviaService
     {
         var embed = new DiscordEmbedBuilder();
         var correctaTexto = p.Opciones[p.IndiceCorrecto];
+        var aviso = _msg.Get(guildId, "Trivia:AvisoPrueba");
 
         if (!respondio)
         {
@@ -317,8 +319,8 @@ public sealed class TriviaService
             }
         }
 
-        embed.AddField($"📝 {_msg.Get(guildId, "Trivia:Pregunta")}", $"*{p.Pregunta}*");
-        embed.WithFooter($"Snowflake Trivia • {member.DisplayName}", member.AvatarUrl);
+        embed.AddField($"📝 {_msg.Get(guildId, "Trivia:Pregunta")}", $"*{p.Pregunta}*\n\n-# {aviso}");
+        embed.WithFooter($"Snowflake Trivia • {aviso}", member.AvatarUrl);
         return embed;
     }
 

@@ -327,7 +327,8 @@
             "SinRanking": "ℹ️ Nadie ha jugado trivia en este servidor todavía. ¡Sé el primero con `/trivia jugar`!",
             "TituloStats": "Estadísticas de Trivia — {usuario}",
             "TituloRanking": "Clasificación de Trivia",
-            "ErrorCarga": "<:error:1534417252185800720> No se pudo obtener una pregunta de trivia en este momento. ¡Inténtalo de nuevo!"
+            "ErrorCarga": "<:error:1534417252185800720> No se pudo obtener una pregunta de trivia en este momento. ¡Inténtalo de nuevo!",
+            "AvisoPrueba": "⚠️ Pregunta de prueba: esta función aún no ha sido implementada por completo."
         }
     }
 }

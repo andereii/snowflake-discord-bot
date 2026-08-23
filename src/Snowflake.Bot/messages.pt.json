@@ -327,7 +327,8 @@
             "SinRanking": "ℹ️ Ninguém jogou curiosidades neste servidor ainda. Seja o primeiro com `/trivia jogar`!",
             "TituloStats": "Estatísticas de Curiosidades — {usuario}",
             "TituloRanking": "Classificação de Curiosidades",
-            "ErrorCarga": "<:error:1534417252185800720> Não foi possível obter uma pergunta de curiosidades neste momento. Tente novamente!"
+            "ErrorCarga": "<:error:1534417252185800720> Não foi possível obter uma pergunta de curiosidades neste momento. Tente novamente!",
+            "AvisoPrueba": "⚠️ Pergunta de teste: este recurso ainda não foi totalmente implementado."
         }
     }
 }
