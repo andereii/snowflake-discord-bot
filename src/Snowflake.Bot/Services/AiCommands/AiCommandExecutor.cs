@@ -74,6 +74,7 @@ public sealed partial class AiCommandExecutor
     private readonly MusicWidgetService _widget;
     private readonly ColorService _colors;
     private readonly YouTubeNotifyService _yt;
+    private readonly AfkService _afk;
     private readonly IDbContextFactory<BotDbContext> _dbFactory;
     private readonly ILogger<AiCommandExecutor> _logger;
 
@@ -89,6 +90,7 @@ public sealed partial class AiCommandExecutor
         MusicWidgetService widget,
         ColorService colors,
         YouTubeNotifyService yt,
+        AfkService afk,
         IDbContextFactory<BotDbContext> dbFactory,
         ILogger<AiCommandExecutor> logger)
     {
@@ -101,6 +103,7 @@ public sealed partial class AiCommandExecutor
         _widget = widget;
         _colors = colors;
         _yt = yt;
+        _afk = afk;
         _dbFactory = dbFactory;
         _logger = logger;
 
@@ -751,6 +754,77 @@ public sealed partial class AiCommandExecutor
             return Task.FromResult(new AiCommandResult(false, err, desc));
         });
 
+    private ToolDef ToolAfkSet() => new(
+        "afk_set",
+        "Set the requesting user's status to AFK (Away From Keyboard) with an optional reason.",
+        Esquema(("reason", "string", "Optional reason why the user is away/AFK (e.g. 'eating lunch', 'sleeping', 'working').")),
+        Destructivo: false,
+        DescripcionComando: null,
+        Ejecutar: async (ctx, args) =>
+        {
+            var motivo = ArgString(args, "reason");
+            await _afk.EstablecerAfkAsync(ctx.Guild, ctx.Miembro, motivo).ConfigureAwait(false);
+
+            var motivoFmt = string.IsNullOrWhiteSpace(motivo) ? "AFK" : motivo.Trim();
+            var desc = $"/afk set {motivoFmt}";
+            var texto = _msg.Get(ctx.Guild.Id, "Afk:Establecido", ("usuario", ctx.Miembro.Username), ("motivo", motivoFmt));
+            return new AiCommandResult(true, $"💤 {texto}", desc);
+        });
+
+    private ToolDef ToolAfkRemove() => new(
+        "afk_remove",
+        "Remove the AFK (Away From Keyboard) status of the requesting user (or another member if requesting user is moderator).",
+        Esquema(("user", "string", "Optional user to remove AFK for (moderators only). If omitted, removes AFK for the requesting user.")),
+        Destructivo: false,
+        DescripcionComando: null,
+        Ejecutar: async (ctx, args) =>
+        {
+            var targetStr = ArgString(args, "user");
+            var target = ctx.Miembro;
+            if (!string.IsNullOrWhiteSpace(targetStr))
+            {
+                var resolved = await ResolverUsuarioAsync(ctx, targetStr).ConfigureAwait(false);
+                if (resolved is not null && resolved.Id != ctx.Miembro.Id)
+                {
+                    if (!ctx.Miembro.Permissions.HasPermission(Permissions.ManageGuild))
+                        return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Errores:SinPermisos"), "/afk remove");
+                    target = resolved;
+                }
+            }
+
+            var desc = $"/afk remove {target.DisplayName}";
+            var removido = await _afk.RemoverAfkAsync(ctx.Guild, target).ConfigureAwait(false);
+            if (removido)
+            {
+                var texto = _msg.Get(ctx.Guild.Id, "Afk:RemovidoMod", ("usuario", target.DisplayName));
+                return new AiCommandResult(true, $"✅ {texto}", desc);
+            }
+            return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Afk:NoEstaAusente", ("usuario", target.DisplayName)), desc);
+        });
+
+    private ToolDef ToolAfkList() => new(
+        "afk_list",
+        "List all members currently marked as AFK (Away From Keyboard) in the server.",
+        Esquema(),
+        Destructivo: false,
+        DescripcionComando: null,
+        Ejecutar: (ctx, _) =>
+        {
+            var ausentes = _afk.ListarAfk(ctx.Guild.Id);
+            var desc = "/afk list";
+            if (ausentes.Count == 0)
+                return Task.FromResult(new AiCommandResult(true, $"ℹ️ {_msg.Get(ctx.Guild.Id, "Afk:SinMiembrosAusentes")}", desc));
+
+            var ahora = DateTimeOffset.UtcNow;
+            var sb = new System.Text.StringBuilder();
+            foreach (var a in ausentes)
+            {
+                var tiempoFmt = DurationParser.Format(ahora - a.SetAt, _msg.Locale(ctx.Guild.Id));
+                sb.AppendLine($"• <@{a.UserId}> — *\"{a.Reason}\"* (`{tiempoFmt}`)");
+            }
+            return Task.FromResult(new AiCommandResult(true, sb.ToString().TrimEnd(), desc));
+        });
+
     // ------------------------- catálogo -------------------------
 
     private Dictionary<string, ToolDef> ConstruirCatalogo()
@@ -775,5 +849,8 @@ public sealed partial class AiCommandExecutor
         yield return ToolRoleAdd();
         yield return ToolRoleRemove();
         yield return ToolCalculate();
+        yield return ToolAfkSet();
+        yield return ToolAfkRemove();
+        yield return ToolAfkList();
     }
 }

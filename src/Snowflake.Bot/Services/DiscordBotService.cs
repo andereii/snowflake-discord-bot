@@ -85,8 +85,9 @@ public sealed class DiscordBotService : BackgroundService
         var slash = _client.UseSlashCommands(new SlashCommandsConfiguration { Services = services });
         slash.SlashCommandErrored += OnSlashCommandErrored;
 
-        // Registra automáticamente todos los módulos de comandos del ensamblado.
+        // Registra los comandos en el servidor de pruebas (aparecen al instante) y globalmente.
         slash.RegisterCommands(typeof(DiscordBotService).Assembly, config.CurrentValue.TestGuildId);
+        slash.RegisterCommands(typeof(DiscordBotService).Assembly);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
