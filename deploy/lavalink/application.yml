@@ -40,8 +40,9 @@ plugins:
 
   # Configuración del plugin LavaSrc (spotify, etc.)
   lavasrc:
-    # Proveedores usados para el "mirroring": resuelve por ISRC y luego por búsqueda en YouTube.
+    # Proveedores usados para el "mirroring": resuelve por SoundCloud y luego por búsqueda en YouTube.
     providers:
+      - "scsearch:%QUERY%"
       - "ytsearch:\"%ISRC%\""
       - "ytsearch:%QUERY%"
     sources:

@@ -176,19 +176,19 @@ public sealed class MusicService(
             return await tracks.LoadTracksAsync(consulta, TrackSearchMode.None, default, default).ConfigureAwait(false);
         }
 
-        // 3. Búsqueda por término: primero en YouTube
-        var resYt = await tracks.LoadTracksAsync(
-            consulta,
-            new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
-            default, default).ConfigureAwait(false);
-
-        if (resYt.IsSuccess && (resYt.Track is not null || resYt.Playlist is not null))
-            return resYt;
-
-        // 4. Fallback automático a SoundCloud si YouTube no encuentra o falla
-        return await tracks.LoadTracksAsync(
+        // 3. Búsqueda por término: primero en SoundCloud (robusto, sin bloqueos de IP de datacenter)
+        var resSc = await tracks.LoadTracksAsync(
             consulta,
             new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
+            default, default).ConfigureAwait(false);
+
+        if (resSc.IsSuccess && (resSc.Track is not null || resSc.Playlist is not null))
+            return resSc;
+
+        // 4. Fallback a YouTube si SoundCloud no encontró nada
+        return await tracks.LoadTracksAsync(
+            consulta,
+            new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
             default, default).ConfigureAwait(false);
     }
 
@@ -208,17 +208,17 @@ public sealed class MusicService(
             var title = titleElement.GetString();
             if (string.IsNullOrWhiteSpace(title)) return null;
 
-            var resYt = await tracks.LoadTracksAsync(
+            var resSc = await tracks.LoadTracksAsync(
                 title,
-                new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
+                new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
                 default, default).ConfigureAwait(false);
 
-            if (resYt.IsSuccess && (resYt.Track is not null || resYt.Playlist is not null))
-                return resYt;
+            if (resSc.IsSuccess && (resSc.Track is not null || resSc.Playlist is not null))
+                return resSc;
 
             return await tracks.LoadTracksAsync(
                 title,
-                new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
+                new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
                 default, default).ConfigureAwait(false);
         }
         catch (HttpRequestException)
