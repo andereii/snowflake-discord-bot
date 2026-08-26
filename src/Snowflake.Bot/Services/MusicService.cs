@@ -176,19 +176,19 @@ public sealed class MusicService(
             return await tracks.LoadTracksAsync(consulta, TrackSearchMode.None, default, default).ConfigureAwait(false);
         }
 
-        // 3. Búsqueda por término: primero en SoundCloud (robusto, sin bloqueos de IP de datacenter)
-        var resSc = await tracks.LoadTracksAsync(
-            consulta,
-            new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
-            default, default).ConfigureAwait(false);
-
-        if (resSc.IsSuccess && (resSc.Track is not null || resSc.Playlist is not null))
-            return resSc;
-
-        // 4. Fallback a YouTube si SoundCloud no encontró nada
-        return await tracks.LoadTracksAsync(
+        // 3. Búsqueda por término: intentamos YouTube (mediante TVHTML5_SIMPLY)
+        var resYt = await tracks.LoadTracksAsync(
             consulta,
             new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
+            default, default).ConfigureAwait(false);
+
+        if (resYt.IsSuccess && (resYt.Track is not null || resYt.Playlist is not null))
+            return resYt;
+
+        // 4. Fallback a SoundCloud si YouTube no encontró nada
+        return await tracks.LoadTracksAsync(
+            consulta,
+            new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
             default, default).ConfigureAwait(false);
     }
 
