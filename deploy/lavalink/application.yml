@@ -4,12 +4,13 @@ server:
 
 lavalink:
   plugins:
-    # Plugin que reemplaza el fuente YouTube nativo (roto) de Lavaplayer.
+    # Plugin YouTube: se mantiene SOLO para resolver búsquedas/metadatos (allowSearch).
+    # El streaming desde IPs de datacenter está bloqueado por YouTube (todos los
+    # clientes fallan con "Sign in" / 400 / "not a bot").
     - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
       snapshot: false
-    # Spotify, Apple Music, Deezer, etc. Spotify reproduce por "mirroring"
-    # (resuelve ISRC/búsqueda en YouTube). No requiere clientId/secret salvo
-    # para usar spsearch:.
+    # Spotify, Apple Music, etc. Spotify reproduce por "mirroring"
+    # (resuelve búsqueda en SoundCloud).
     - dependency: "com.github.topi314.lavasrc:lavasrc-plugin:4.8.3"
       snapshot: false
   server:
@@ -31,18 +32,18 @@ plugins:
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
     clients:
-      - TVHTML5_SIMPLY
-      - ANDROID_VR
       - MUSIC
+      - TVHTML5_SIMPLY
       - WEB
-      - IOS
 
   # Configuración del plugin LavaSrc (spotify, etc.)
   lavasrc:
+    # SoundCloud como proveedor primario para mirroring de Spotify.
+    # YouTube como último recurso (probablemente fallará en datacenter).
     providers:
+      - "scsearch:%QUERY%"
       - "ytsearch:\"%ISRC%\""
       - "ytsearch:%QUERY%"
-      - "scsearch:%QUERY%"
     sources:
       spotify: true
       applemusic: false
@@ -56,8 +57,6 @@ plugins:
       ytdlp: false
       jiosaavn: false
     spotify:
-      # Crea una aplicación en developer.spotify.com y define estas variables
-      # en .env para que LavaSrc pueda cargar playlists y álbumes.
       clientId: "${SPOTIFY_CLIENT_ID:}"
       clientSecret: "${SPOTIFY_CLIENT_SECRET:}"
       countryCode: "US"

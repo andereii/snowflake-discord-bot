@@ -176,16 +176,11 @@ public sealed class MusicService(
             return await tracks.LoadTracksAsync(consulta, TrackSearchMode.None, default, default).ConfigureAwait(false);
         }
 
-        // 3. Búsqueda por término: intentamos YouTube (mediante TVHTML5_SIMPLY)
-        var resYt = await tracks.LoadTracksAsync(
-            consulta,
-            new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
-            default, default).ConfigureAwait(false);
-
-        if (resYt.IsSuccess && (resYt.Track is not null || resYt.Playlist is not null))
-            return resYt;
-
-        // 4. Fallback a SoundCloud si YouTube no encontró nada
+        // 3. Búsqueda por término: solo SoundCloud.
+        //    YouTube está bloqueado para streaming desde IPs de datacenter
+        //    (todos los clientes fallan: "Sign in" / 400 / "not a bot").
+        //    La búsqueda YT encuentra la pista, pero al reproducir, Lavalink
+        //    no puede obtener el stream y el reproductor se detiene al instante.
         return await tracks.LoadTracksAsync(
             consulta,
             new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
@@ -208,17 +203,10 @@ public sealed class MusicService(
             var title = titleElement.GetString();
             if (string.IsNullOrWhiteSpace(title)) return null;
 
-            var resSc = await tracks.LoadTracksAsync(
-                title,
-                new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
-                default, default).ConfigureAwait(false);
-
-            if (resSc.IsSuccess && (resSc.Track is not null || resSc.Playlist is not null))
-                return resSc;
-
+            // Solo SoundCloud (YouTube no puede hacer streaming desde datacenter)
             return await tracks.LoadTracksAsync(
                 title,
-                new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
+                new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
                 default, default).ConfigureAwait(false);
         }
         catch (HttpRequestException)
