@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Snowflake.Bot.Data;
 using System.Text;
 using System.Text.RegularExpressions;
 using DSharpPlus;
@@ -39,6 +41,7 @@ public sealed class PrefixCommandService
     private readonly ModerationLogService _modLog;
     private readonly IOptionsMonitor<DownloadOptions> _dlOptions;
     private readonly IOptionsMonitor<BotConfiguration> _config;
+    private readonly IDbContextFactory<BotDbContext> _dbFactory;
     private readonly ILogger<PrefixCommandService> _logger;
 
     public PrefixCommandService(
@@ -58,6 +61,7 @@ public sealed class PrefixCommandService
         ModerationLogService modLog,
         IOptionsMonitor<DownloadOptions> dlOptions,
         IOptionsMonitor<BotConfiguration> config,
+        IDbContextFactory<BotDbContext> dbFactory,
         ILogger<PrefixCommandService> logger)
     {
         _client = client;
@@ -76,6 +80,7 @@ public sealed class PrefixCommandService
         _modLog = modLog;
         _dlOptions = dlOptions;
         _config = config;
+        _dbFactory = dbFactory;
         _logger = logger;
     }
 
@@ -229,6 +234,24 @@ public sealed class PrefixCommandService
                 case "expulsar":
                     await EjecutarKickAsync(e, args);
                     return true;
+
+                case "softban":
+                    await EjecutarSoftbanAsync(e, args);
+                    return true;
+                case "hardmute":
+                    await EjecutarHardmuteAsync(e, args);
+                    return true;
+                case "unhardmute":
+                    await EjecutarUnhardmuteAsync(e, args);
+                    return true;
+                case "shuffle":
+                    await EjecutarShuffleAsync(e);
+                    return true;
+                case "jump":
+                case "seek":
+                    await EjecutarJumpAsync(e, args.FirstOrDefault());
+                    return true;
+
 
                 case "ban":
                 case "banear":
@@ -1302,6 +1325,174 @@ public sealed class PrefixCommandService
         }
     }
 
+
+    private async Task EjecutarSoftbanAsync(MessageCreateEventArgs e, List<string> args)
+    {
+        var miembroAutor = e.Message.Author as DiscordMember ?? await e.Guild.GetMemberAsync(e.Author.Id);
+        if (miembroAutor is null || !miembroAutor.Permissions.HasPermission(Permissions.BanMembers))
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Errores:SinPermisos")}");
+            return;
+        }
+
+        var target = await ObtenerUsuarioObjetivoAsync(e, args);
+        if (target is null)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;softban @usuario [motivo]`");
+            return;
+        }
+
+        var motivo = args.Count > 1 ? string.Join(' ', args.Skip(1)) : _msg.Get(e.Guild.Id, "Moderacion:MotivoPorDefecto");
+        
+        await e.Guild.BanMemberAsync(target.Id, 7, motivo);
+        await e.Guild.UnbanMemberAsync(target.Id, "Softban: unban automático");
+
+        var incidente = await _modLog.RegistrarAsync(e.Guild.Id, target, e.Author, IncidentType.Softban, motivo);
+        await _modLog.AnunciarAsync(e.Guild, incidente);
+        await e.Message.RespondAsync($"{BotEmojis.Check} {_msg.Get(e.Guild.Id, "Moderacion:Exito:Softban", ("usuario", target.Username))}");
+    }
+
+    private async Task EjecutarHardmuteAsync(MessageCreateEventArgs e, List<string> args)
+    {
+        var miembroAutor = e.Message.Author as DiscordMember ?? await e.Guild.GetMemberAsync(e.Author.Id);
+        if (miembroAutor is null || !miembroAutor.Permissions.HasPermission(Permissions.ManageRoles))
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Errores:SinPermisos")}");
+            return;
+        }
+
+        var targetUser = await ObtenerUsuarioObjetivoAsync(e, args);
+        if (targetUser is null)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;hardmute @usuario [motivo]`");
+            return;
+        }
+        
+        var target = await e.Guild.GetMemberAsync(targetUser.Id);
+        if (target is null) return;
+
+        var motivo = args.Count > 1 ? string.Join(' ', args.Skip(1)) : _msg.Get(e.Guild.Id, "Moderacion:MotivoPorDefecto");
+        
+        var rolesQuitar = target.Roles
+            .Where(r => r.Id != e.Guild.EveryoneRole.Id && !r.IsManaged && r.Position < e.Guild.CurrentMember.Hierarchy)
+            .ToList();
+
+        if (rolesQuitar.Count > 0)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var backup = await db.HardmuteBackups.FirstOrDefaultAsync(h => h.GuildId == e.Guild.Id && h.UserId == target.Id);
+            var idsTexto = string.Join(",", rolesQuitar.Select(r => r.Id));
+            if (backup is null)
+            {
+                db.HardmuteBackups.Add(new HardmuteBackup { GuildId = e.Guild.Id, UserId = target.Id, RoleIds = idsTexto });
+            }
+            else
+            {
+                backup.RoleIds = idsTexto;
+                backup.CreatedAt = DateTimeOffset.UtcNow;
+            }
+            await db.SaveChangesAsync();
+
+            foreach (var rol in rolesQuitar)
+            {
+                try { await target.RevokeRoleAsync(rol, $"Hardmute por {miembroAutor.Username}"); } catch { }
+            }
+        }
+
+        foreach (var canal in e.Guild.Channels.Values)
+        {
+            if (canal.Type is not (ChannelType.Text or ChannelType.Voice or ChannelType.PublicThread or ChannelType.PrivateThread or ChannelType.News or ChannelType.Stage or ChannelType.GuildForum)) continue;
+            try
+            {
+                await canal.AddOverwriteAsync(target, deny: Permissions.SendMessages | Permissions.Speak | Permissions.SendMessagesInThreads, reason: $"Hardmute por {miembroAutor.Username}");
+            }
+            catch { }
+        }
+
+        var incidente = await _modLog.RegistrarAsync(e.Guild.Id, target, e.Author, IncidentType.Hardmute, motivo);
+        await _modLog.AnunciarAsync(e.Guild, incidente);
+        await e.Message.RespondAsync($"{BotEmojis.Check} {_msg.Get(e.Guild.Id, "Moderacion:Exito:Hardmute", ("usuario", target.Username))}");
+    }
+
+    private async Task EjecutarUnhardmuteAsync(MessageCreateEventArgs e, List<string> args)
+    {
+        var miembroAutor = e.Message.Author as DiscordMember ?? await e.Guild.GetMemberAsync(e.Author.Id);
+        if (miembroAutor is null || !miembroAutor.Permissions.HasPermission(Permissions.ManageRoles))
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Errores:SinPermisos")}");
+            return;
+        }
+
+        var targetUser = await ObtenerUsuarioObjetivoAsync(e, args);
+        if (targetUser is null)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;unhardmute @usuario [motivo]`");
+            return;
+        }
+        
+        var target = await e.Guild.GetMemberAsync(targetUser.Id);
+        if (target is null) return;
+
+        var motivo = args.Count > 1 ? string.Join(' ', args.Skip(1)) : _msg.Get(e.Guild.Id, "Moderacion:MotivoPorDefecto");
+        
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var backup = await db.HardmuteBackups.FirstOrDefaultAsync(h => h.GuildId == e.Guild.Id && h.UserId == target.Id);
+        if (backup is not null)
+        {
+            var roleIds = backup.RoleIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => ulong.TryParse(s, out var id) ? id : 0).Where(id => id != 0);
+            foreach (var roleId in roleIds)
+            {
+                var rol = e.Guild.GetRole(roleId);
+                if (rol is not null && !rol.IsManaged && rol.Position < e.Guild.CurrentMember.Hierarchy)
+                {
+                    try { await target.GrantRoleAsync(rol, $"Unhardmute por {miembroAutor.Username}"); } catch { }
+                }
+            }
+            db.HardmuteBackups.Remove(backup);
+            await db.SaveChangesAsync();
+        }
+
+        foreach (var canal in e.Guild.Channels.Values)
+        {
+            var overwrite = canal.PermissionOverwrites?.FirstOrDefault(o => o.Id == target.Id && o.Type == OverwriteType.Member);
+            if (overwrite is not null)
+            {
+                try { await overwrite.DeleteAsync($"Unhardmute: {motivo}"); } catch { }
+            }
+        }
+
+        var incidente = await _modLog.RegistrarAsync(e.Guild.Id, target, e.Author, IncidentType.FinHardmute, motivo);
+        await _modLog.AnunciarAsync(e.Guild, incidente);
+        await e.Message.RespondAsync($"{BotEmojis.Check} {_msg.Get(e.Guild.Id, "Moderacion:Exito:FinHardmute", ("usuario", target.Username))}");
+    }
+
+    private async Task EjecutarShuffleAsync(MessageCreateEventArgs e)
+    {
+        var (ok, msgClave) = await ValidarControlMusicaAsync(e);
+        if (!ok) { await e.Message.RespondAsync(_msg.Get(e.Guild.Id, msgClave)); return; }
+
+        if (_music.AleorizarCola(e.Guild.Id))
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Musica:Aleatorizado"));
+        else
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Musica:ColaVacia"));
+    }
+
+    private async Task EjecutarJumpAsync(MessageCreateEventArgs e, string? valorStr)
+    {
+        var (ok, msgClave) = await ValidarControlMusicaAsync(e);
+        if (!ok) { await e.Message.RespondAsync(_msg.Get(e.Guild.Id, msgClave)); return; }
+
+        if (string.IsNullOrWhiteSpace(valorStr) || !MusicService.TryParseTimestamp(valorStr, out var ts))
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Musica:TimestampInvalido")}");
+            return;
+        }
+
+        if (await _music.SaltarAPosicionAsync(e.Guild.Id, ts))
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Musica:SaltadoA", ("posicion", MusicService.FormatearDuracion(ts, false))));
+        else
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Musica:ErrorSaltar")}");
+    }
     // =========================================================================
     // Helpers
     // =========================================================================

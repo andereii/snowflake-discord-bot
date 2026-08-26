@@ -727,3 +727,30 @@ Aclaración y ajuste: el usuario preguntó si los mensajes del chat IA se traduc
 ### Validación
 - Compilación limpia; migración aplicada automáticamente en Fly.io; snapshot con `commandsEnabled: true`; bot online sin errores en el log.
 - Pendiente de probar en Discord: petición directa ("bájale 10pts a la música" → ejecuta), indirecta (pregunta y confirma), destructiva (botones + timeout) y `/m volume nivel:-10`.
+
+---
+
+## 25. Registro de cambios — 2026-08-26 (Buscador de Imágenes reparado, Comandos de Moderación/Música extra y Encuestas Nativas Dlang)
+
+### Solicitud
+1. El comando `/image` de búsqueda arrojaba error 400 y devolvía siempre "0 resultados encontrados".
+2. Faltaban funciones de control de música (shuffle, seek) y de moderación (softban, hardmute).
+3. Añadir sistema de encuestas (`/encuesta`) interactivo que cuente votos con reacciones numéricas, con soporte para opciones únicas o múltiples y temporizador, cuyo resultado devuelva una gráfica circular (Pie Chart) generada nativamente en Dlang de alto rendimiento.
+
+### Cambios realizados
+- **Reparación de DuckDuckGo (`/image`):** Cloudflare bloqueaba al cliente `HttpClient` devolviendo 403 Forbidden por discrepancia de huella TLS frente a cabeceras de Chrome; se removieron cabeceras falsas y se dejó un simple `Mozilla/5.0`. Se reparó el 400 Bad Request usando `EditResponseAsync` tras diferir la respuesta inicial.
+- **Comandos de Música Extra:** Añadidos comandos `/m shuffle` (aleatorizar cola) y `/m seek` (saltar a un tiempo en la canción, ej. `1:30`). Sincronizados con el catálogo AI.
+- **Comandos de Moderación (Softban y Hardmute):**
+  - **Softban:** Banea e inmediatamente desbanea (para borrar historial de chat de los últimos 7 días).
+  - **Hardmute:** En lugar de aislar temporalmente (timeout), deniega explícitamente (`OverwritePermissions`) enviar mensajes, añadir reacciones y hablar por voz canal por canal, persistiendo el estado en base de datos e ignorando roles de administrador si fuera necesario.
+- **Sistema de Encuestas y Dlang Piecharts:**
+  - Creado binario nativo en Dlang (`src/Dlang/piechart.d`) usando la biblioteca gráfica `arsd`. Recibe datos por `stdin` JSON, dibuja la gráfica, recorta etiquetas a 35 caracteres para evitar desbordamiento y remueve acentos para la fuente ASCII 8x8.
+  - El comando `/encuesta` recibe un texto corrido como `opciones:"Rojo, Azul, Verde"`, extrae opciones y publica el mensaje con reacciones (1️⃣, 2️⃣, 3️⃣...).
+  - **Voto Inteligente:** Si la encuesta está en `multi_opcion: false`, la caché en memoria ignora votos subsecuentes del usuario, evitando abusos y llamadas costosas a la API de Discord para borrar reacciones erróneas, hasta que quite su voto original.
+  - El bot empaqueta el binario ELF `piechart` vía `COPY` en el runtime de Fly.io y lo ejecuta mediante `System.Diagnostics.Process` para anexar la imagen generada.
+- **Solución a Crash Loop en Fly.io:** Se arregló un problema donde claves JSON duplicadas por la inyección de la traducción causaban `System.FormatException` rompiendo el bot antes de inicializarse. Los nodos de Fly ya operan con salud 100% en `count 1`.
+
+### Validación
+- Compilación de Dlang exitosa (`piechart` ejecutable ELF copiado en Docker).
+- Despliegue en Fly.io (`count 1`) escalado y operativo en producción, libre de crash loops.
+- Búsquedas de imágenes funcionan consistentemente.

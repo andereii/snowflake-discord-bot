@@ -38,23 +38,51 @@ public sealed class MusicModule : SnowflakeModuleBase
         _msg = msg;
     }
 
-    [SlashCommand("play", "Play a song or playlist (URL or search)")]
+    [SlashCommand("play", "Play a song, playlist, or uploaded file")]
     [NameLocalization(Localization.Spanish, "play")]
     [NameLocalization(Localization.Portuguese, "play")]
-    [DescriptionLocalization(Localization.Spanish, "Reproduce una canción o playlist (URL o búsqueda)")]
-    [DescriptionLocalization(Localization.Portuguese, "Toca uma música ou playlist (URL ou busca)")]
+    [DescriptionLocalization(Localization.Spanish, "Reproduce una canción, playlist, o archivo subido")]
+    [DescriptionLocalization(Localization.Portuguese, "Toca uma música, playlist, ou arquivo enviado")]
     public async Task PlayAsync(
         InteractionContext ctx,
-        [Option("query", "YouTube/Spotify URL or search terms")]
+        [Option("query", "URL, search terms, or leave empty to play an attached file")]
         [NameLocalization(Localization.Spanish, "consulta")]
         [NameLocalization(Localization.Portuguese, "consulta")]
-        [DescriptionLocalization(Localization.Spanish, "URL de YouTube/Spotify o términos de búsqueda")]
-        [DescriptionLocalization(Localization.Portuguese, "URL do YouTube/Spotify ou termos de busca")] string consulta)
+        [DescriptionLocalization(Localization.Spanish, "URL, búsqueda, o deja vacío para un archivo adjunto")]
+        [DescriptionLocalization(Localization.Portuguese, "URL, busca, ou deixe vazio para um arquivo anexado")] string? consulta = null,
+        [Option("file", "Audio file to play (MP3, WAV, FLAC, OGG)")]
+        [NameLocalization(Localization.Spanish, "archivo")]
+        [NameLocalization(Localization.Portuguese, "arquivo")]
+        [DescriptionLocalization(Localization.Spanish, "Archivo de audio a reproducir (MP3, WAV, FLAC, OGG)")]
+        [DescriptionLocalization(Localization.Portuguese, "Arquivo de áudio a tocar (MP3, WAV, FLAC, OGG)")] DiscordAttachment? archivo = null)
     {
         var voz = ctx.Member?.VoiceState?.Channel;
         if (voz is null)
         {
             await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoEnCanal"), ephemeral: true);
+            return;
+        }
+
+        // Determinar la consulta final
+        string consultaFinal;
+        if (archivo is not null)
+        {
+            var extensionesValidas = new[] { ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".webm", ".opus" };
+            var ext = Path.GetExtension(archivo.FileName)?.ToLowerInvariant();
+            if (ext is null || !extensionesValidas.Contains(ext))
+            {
+                await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:ArchivoInvalido"), ephemeral: true);
+                return;
+            }
+            consultaFinal = archivo.Url;
+        }
+        else if (!string.IsNullOrWhiteSpace(consulta))
+        {
+            consultaFinal = consulta;
+        }
+        else
+        {
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoConsulta"), ephemeral: true);
             return;
         }
 
@@ -68,7 +96,7 @@ public sealed class MusicModule : SnowflakeModuleBase
 
         try
         {
-            var (resultado, puestaEnCola) = await _music.ReproducirAsync(ctx.Guild.Id, voz.Id, consulta);
+            var (resultado, puestaEnCola) = await _music.ReproducirAsync(ctx.Guild.Id, voz.Id, consultaFinal);
 
             if (!resultado.IsSuccess)
             {
@@ -228,6 +256,59 @@ public sealed class MusicModule : SnowflakeModuleBase
     {
         var aplicado = await _music.VolumenAsync(ctx.Guild.Id, (int)nivel);
         await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Volumen", ("nivel", aplicado)));
+    }
+
+    [SlashCommand("shuffle", "Shuffle the queue")]
+    [NameLocalization(Localization.Spanish, "aleatorio")]
+    [NameLocalization(Localization.Portuguese, "aleatorio")]
+    [DescriptionLocalization(Localization.Spanish, "Aleatoriza el orden de la cola")]
+    [DescriptionLocalization(Localization.Portuguese, "Aleatoriza a ordem da fila")]
+    public async Task ShuffleAsync(InteractionContext ctx)
+    {
+        if (_music.Obtener(ctx.Guild.Id) is null)
+        {
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoActivo"), ephemeral: true);
+            return;
+        }
+        if (!await PuedeControlarAsync(ctx)) return;
+
+        if (_music.AleorizarCola(ctx.Guild.Id))
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:Aleatorizado"));
+        else
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:ColaVacia"), ephemeral: true);
+    }
+
+    [SlashCommand("jump", "Jump to a specific position in the current song")]
+    [NameLocalization(Localization.Spanish, "saltar")]
+    [NameLocalization(Localization.Portuguese, "pular")]
+    [DescriptionLocalization(Localization.Spanish, "Salta a una posición específica de la canción (ej: 3:14)")]
+    [DescriptionLocalization(Localization.Portuguese, "Pula para uma posição específica da música (ex: 3:14)")]
+    public async Task JumpAsync(
+        InteractionContext ctx,
+        [Option("position", "Timestamp to jump to (e.g. 3:14, 1:02:30, 90)")]
+        [NameLocalization(Localization.Spanish, "posicion")]
+        [NameLocalization(Localization.Portuguese, "posicao")]
+        [DescriptionLocalization(Localization.Spanish, "Posición a saltar (ej: 3:14, 1:02:30, 90)")]
+        [DescriptionLocalization(Localization.Portuguese, "Posição para pular (ex: 3:14, 1:02:30, 90)")] string posicion)
+    {
+        if (_music.Obtener(ctx.Guild.Id) is null)
+        {
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:NoActivo"), ephemeral: true);
+            return;
+        }
+        if (!await PuedeControlarAsync(ctx)) return;
+
+        if (!MusicService.TryParseTimestamp(posicion, out var ts))
+        {
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:TimestampInvalido"), ephemeral: true);
+            return;
+        }
+
+        if (await _music.SaltarAPosicionAsync(ctx.Guild.Id, ts))
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:SaltadoA",
+                ("posicion", MusicService.FormatearDuracion(ts, false))));
+        else
+            await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Musica:ErrorSaltar"), ephemeral: true);
     }
 
     /// <summary>

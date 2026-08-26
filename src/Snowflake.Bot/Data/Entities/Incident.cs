@@ -7,7 +7,11 @@ public enum IncidentType
     Expulsion,
     Veto,
     Aislamiento,
-    FinAislamiento
+    FinAislamiento,
+    Softban,
+    Hardmute,
+    FinHardmute,
+    Silencio
 }
 
 /// <summary>
@@ -32,5 +36,18 @@ public sealed class Incident
     /// <summary>Solo para aislamientos: cuánto duró.</summary>
     public TimeSpan? Duration { get; set; }
 
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+/// <summary>
+/// Respaldo de roles removidos durante un hardmute, para restaurarlos al quitar el hardmute.
+/// </summary>
+public sealed class HardmuteBackup
+{
+    public int Id { get; set; }
+    public ulong GuildId { get; set; }
+    public ulong UserId { get; set; }
+    /// <summary>IDs de roles separados por coma.</summary>
+    public string RoleIds { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

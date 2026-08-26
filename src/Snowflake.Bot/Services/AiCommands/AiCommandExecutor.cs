@@ -825,6 +825,199 @@ public sealed partial class AiCommandExecutor
             return Task.FromResult(new AiCommandResult(true, sb.ToString().TrimEnd(), desc));
         });
 
+
+    private ToolDef ToolSoftban() => new(
+        "softban_user",
+        "Softban a member (ban and immediate unban to delete recent messages). Destructive.",
+        Esquema(("user", "string", "The user to softban: mention (<@id>), ID or exact username."),
+                ("reason", "string", "Optional reason.")),
+        Destructivo: true,
+        DescripcionComando: async (ctx, args) =>
+        {
+            var u = await ResolverUsuarioAsync(ctx, ArgString(args, "user")).ConfigureAwait(false);
+            return $"/softban {(u is null ? ArgString(args, "user") : "@" + u.Username)}";
+        },
+        Ejecutar: async (ctx, args) =>
+        {
+            var desc = "/softban";
+            var usuario = ArgString(args, "user");
+            var motivo = ArgString(args, "reason") ?? _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
+
+            if (await ChequearPermisoGuild(ctx, Permissions.BanMembers, desc) is { } error) return error;
+
+            var miembro = await ResolverUsuarioAsync(ctx, usuario).ConfigureAwait(false);
+            if (miembro is null)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:NoEnServidor", ("usuario", usuario)), desc);
+            if (ValidarObjetivo(ctx, miembro, desc) is { } invalido) return invalido;
+
+            await _modLog.AvisarPrivadoAsync(miembro, ctx.Guild.Name, _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Softban"), motivo).ConfigureAwait(false);
+
+            await ctx.Guild.BanMemberAsync(miembro.Id, 7, motivo).ConfigureAwait(false);
+            await ctx.Guild.UnbanMemberAsync(miembro.Id, "Softban: unban automático").ConfigureAwait(false);
+
+            var incidente = await _modLog.RegistrarAsync(ctx.Guild.Id, miembro, ctx.Miembro, IncidentType.Softban, motivo).ConfigureAwait(false);
+            await _modLog.AnunciarAsync(ctx.Guild, incidente).ConfigureAwait(false);
+
+            return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Softban", ("usuario", miembro.Username)), desc);
+        });
+
+    private ToolDef ToolHardmute() => new(
+        "hardmute_user",
+        "Hardmute a user (removes roles and denies permissions in all channels). Destructive.",
+        Esquema(("user", "string", "The user to hardmute: mention (<@id>), ID or exact username."),
+                ("reason", "string", "Optional reason.")),
+        Destructivo: true,
+        DescripcionComando: async (ctx, args) =>
+        {
+            var u = await ResolverUsuarioAsync(ctx, ArgString(args, "user")).ConfigureAwait(false);
+            return $"/hardmute {(u is null ? ArgString(args, "user") : "@" + u.Username)}";
+        },
+        Ejecutar: async (ctx, args) =>
+        {
+            var desc = "/hardmute";
+            var usuario = ArgString(args, "user");
+            var motivo = ArgString(args, "reason") ?? _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
+
+            if (await ChequearPermisoGuild(ctx, Permissions.ManageRoles, desc) is { } error) return error;
+            if (!ctx.Guild.CurrentMember.Permissions.HasPermission(Permissions.ManageRoles | Permissions.ManageChannels))
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Errores:SinPermisos"), desc);
+
+            var miembro = await ResolverUsuarioAsync(ctx, usuario).ConfigureAwait(false);
+            if (miembro is null)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:NoEnServidor", ("usuario", usuario)), desc);
+            if (ValidarObjetivo(ctx, miembro, desc) is { } invalido) return invalido;
+
+            // 1. Guardar y quitar roles
+            var rolesQuitar = miembro.Roles
+                .Where(r => r.Id != ctx.Guild.EveryoneRole.Id && !r.IsManaged
+                            && r.Position < ctx.Guild.CurrentMember.Hierarchy)
+                .ToList();
+
+            if (rolesQuitar.Count > 0)
+            {
+                await using var db = await _dbFactory.CreateDbContextAsync().ConfigureAwait(false);
+                var backup = await db.HardmuteBackups
+                    .FirstOrDefaultAsync(h => h.GuildId == ctx.Guild.Id && h.UserId == miembro.Id).ConfigureAwait(false);
+
+                var idsTexto = string.Join(",", rolesQuitar.Select(r => r.Id));
+                if (backup is null)
+                {
+                    db.HardmuteBackups.Add(new HardmuteBackup
+                    {
+                        GuildId = ctx.Guild.Id,
+                        UserId = miembro.Id,
+                        RoleIds = idsTexto
+                    });
+                }
+                else
+                {
+                    backup.RoleIds = idsTexto;
+                    backup.CreatedAt = DateTimeOffset.UtcNow;
+                }
+                await db.SaveChangesAsync().ConfigureAwait(false);
+
+                foreach (var rol in rolesQuitar)
+                {
+                    try { await miembro.RevokeRoleAsync(rol, $"Hardmute por {ctx.Miembro.Username}").ConfigureAwait(false); }
+                    catch { /* Rol no removible */ }
+                }
+            }
+
+            // 2. Denegar permisos en canales
+            foreach (var canal in ctx.Guild.Channels.Values)
+            {
+                if (canal.Type is not (ChannelType.Text or ChannelType.Voice
+                    or ChannelType.PublicThread or ChannelType.PrivateThread
+                    or ChannelType.News or ChannelType.Stage or ChannelType.GuildForum))
+                    continue;
+
+                try
+                {
+                    await canal.AddOverwriteAsync(miembro,
+                        deny: Permissions.SendMessages | Permissions.Speak | Permissions.SendMessagesInThreads,
+                        reason: $"Hardmute por {ctx.Miembro.Username}: {motivo}").ConfigureAwait(false);
+                }
+                catch { /* Sin acceso */ }
+            }
+
+            await _modLog.AvisarPrivadoAsync(miembro, ctx.Guild.Name,
+                _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Hardmute"), motivo).ConfigureAwait(false);
+
+            var incidente = await _modLog.RegistrarAsync(ctx.Guild.Id, miembro, ctx.Miembro, IncidentType.Hardmute, motivo).ConfigureAwait(false);
+            await _modLog.AnunciarAsync(ctx.Guild, incidente).ConfigureAwait(false);
+
+            return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Hardmute", ("usuario", miembro.Username)), desc);
+        });
+
+    private ToolDef ToolUnhardmute() => new(
+        "unhardmute_user",
+        "Unhardmute a user (restores roles and permissions). Destructive.",
+        Esquema(("user", "string", "The user to unhardmute: mention (<@id>), ID or exact username."),
+                ("reason", "string", "Optional reason.")),
+        Destructivo: true,
+        DescripcionComando: async (ctx, args) =>
+        {
+            var u = await ResolverUsuarioAsync(ctx, ArgString(args, "user")).ConfigureAwait(false);
+            return $"/unhardmute {(u is null ? ArgString(args, "user") : "@" + u.Username)}";
+        },
+        Ejecutar: async (ctx, args) =>
+        {
+            var desc = "/unhardmute";
+            var usuario = ArgString(args, "user");
+            var motivo = ArgString(args, "reason") ?? _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
+
+            if (await ChequearPermisoGuild(ctx, Permissions.ManageRoles, desc) is { } error) return error;
+            if (!ctx.Guild.CurrentMember.Permissions.HasPermission(Permissions.ManageRoles | Permissions.ManageChannels))
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Errores:SinPermisos"), desc);
+
+            var miembro = await ResolverUsuarioAsync(ctx, usuario).ConfigureAwait(false);
+            if (miembro is null)
+                return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:NoEnServidor", ("usuario", usuario)), desc);
+            if (ValidarObjetivo(ctx, miembro, desc) is { } invalido) return invalido;
+
+            // 1. Restaurar roles desde backup
+            await using var db = await _dbFactory.CreateDbContextAsync().ConfigureAwait(false);
+            var backup = await db.HardmuteBackups
+                .FirstOrDefaultAsync(h => h.GuildId == ctx.Guild.Id && h.UserId == miembro.Id).ConfigureAwait(false);
+
+            if (backup is not null)
+            {
+                var roleIds = backup.RoleIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => ulong.TryParse(s, out var id) ? id : 0)
+                    .Where(id => id != 0);
+
+                foreach (var roleId in roleIds)
+                {
+                    var rol = ctx.Guild.GetRole(roleId);
+                    if (rol is not null && !rol.IsManaged && rol.Position < ctx.Guild.CurrentMember.Hierarchy)
+                    {
+                        try { await miembro.GrantRoleAsync(rol, $"Unhardmute por {ctx.Miembro.Username}").ConfigureAwait(false); }
+                        catch { }
+                    }
+                }
+
+                db.HardmuteBackups.Remove(backup);
+                await db.SaveChangesAsync().ConfigureAwait(false);
+            }
+
+            // 2. Eliminar overrides del miembro en todos los canales
+            foreach (var canal in ctx.Guild.Channels.Values)
+            {
+                var overwrite = canal.PermissionOverwrites?
+                    .FirstOrDefault(o => o.Id == miembro.Id && o.Type == OverwriteType.Member);
+                if (overwrite is not null)
+                {
+                    try { await overwrite.DeleteAsync($"Unhardmute: {motivo}").ConfigureAwait(false); }
+                    catch { }
+                }
+            }
+
+            var incidente = await _modLog.RegistrarAsync(ctx.Guild.Id, miembro, ctx.Miembro, IncidentType.FinHardmute, motivo).ConfigureAwait(false);
+            await _modLog.AnunciarAsync(ctx.Guild, incidente).ConfigureAwait(false);
+
+            return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Moderacion:Exito:FinHardmute", ("usuario", miembro.Username)), desc);
+        });
+
     // ------------------------- catálogo -------------------------
 
     private Dictionary<string, ToolDef> ConstruirCatalogo()
@@ -838,6 +1031,9 @@ public sealed partial class AiCommandExecutor
     private IEnumerable<ToolDef> CatalogoBase()
     {
         yield return ToolBan();
+        yield return ToolSoftban();
+        yield return ToolHardmute();
+        yield return ToolUnhardmute();
         yield return ToolKick();
         yield return ToolTimeout();
         yield return ToolUntimeout();

@@ -19,6 +19,7 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
     public DbSet<AfkIgnoredChannel> AfkIgnoredChannels => Set<AfkIgnoredChannel>();
     public DbSet<YouTubeSubscription> YouTubeSubscriptions => Set<YouTubeSubscription>();
     public DbSet<ChannelLock> ChannelLocks => Set<ChannelLock>();
+    public DbSet<HardmuteBackup> HardmuteBackups => Set<HardmuteBackup>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -100,6 +101,12 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
         {
             e.HasKey(l => l.ChannelId);
             e.HasIndex(l => l.GuildId);
+        });
+
+        modelBuilder.Entity<HardmuteBackup>(e =>
+        {
+            e.HasKey(h => h.Id);
+            e.HasIndex(h => new { h.GuildId, h.UserId }).IsUnique();
         });
     }
 }

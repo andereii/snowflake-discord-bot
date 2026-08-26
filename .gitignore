@@ -19,3 +19,7 @@ obj/
 .vs/
 .idea/
 .vscode/
+
+# Artefactos compilados de D (el piechart se genera en el build de Docker o con dmd)
+src/Dlang/piechart
+src/Dlang/*.o

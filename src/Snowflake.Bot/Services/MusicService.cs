@@ -385,6 +385,57 @@ public sealed class MusicService(
         return false;
     }
 
+    public bool AleorizarCola(ulong guildId)
+    {
+        if (Obtener(guildId) is not { } p || p.Queue.Count < 2) return false;
+        p.Queue.Shuffle();
+        return true;
+    }
+
+    public async Task<bool> SaltarAPosicionAsync(ulong guildId, TimeSpan posicion)
+    {
+        if (Obtener(guildId) is not { CurrentTrack: not null } p) return false;
+        if (p.CurrentTrack.IsLiveStream) return false;
+        if (posicion < TimeSpan.Zero || posicion > p.CurrentTrack.Duration) return false;
+        await p.SeekAsync(posicion, default).ConfigureAwait(false);
+        return true;
+    }
+
+    public static bool TryParseTimestamp(string entrada, out TimeSpan resultado)
+    {
+        resultado = TimeSpan.Zero;
+        entrada = entrada.Trim();
+
+        // Solo segundos: "90"
+        if (long.TryParse(entrada, out var soloSegs) && soloSegs >= 0)
+        {
+            resultado = TimeSpan.FromSeconds(soloSegs);
+            return true;
+        }
+
+        // "3:14" o "1:02:30"
+        var partes = entrada.Split(':');
+        if (partes.Length == 2
+            && int.TryParse(partes[0], out var min)
+            && int.TryParse(partes[1], out var seg)
+            && min >= 0 && seg >= 0)
+        {
+            resultado = new TimeSpan(0, min, seg);
+            return true;
+        }
+        if (partes.Length == 3
+            && int.TryParse(partes[0], out var h)
+            && int.TryParse(partes[1], out var m)
+            && int.TryParse(partes[2], out var s)
+            && h >= 0 && m >= 0 && s >= 0)
+        {
+            resultado = new TimeSpan(h, m, s);
+            return true;
+        }
+
+        return false;
+    }
+
     public static string FormatearDuracion(TimeSpan d, bool enVivo, string enVivoLabel = "🔴 LIVE")
         => enVivo ? enVivoLabel : d.TotalHours >= 1 ? d.ToString(@"h\:mm\:ss") : d.ToString(@"m\:ss");
 

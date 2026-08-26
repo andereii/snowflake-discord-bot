@@ -297,6 +297,276 @@ public sealed class ModerationModule : SnowflakeModuleBase
             new DiscordInteractionResponseBuilder().AddEmbed(embed).AsEphemeral());
     }
 
+    [SlashCommand("softban", "Ban and immediately unban to delete messages")]
+    [NameLocalization(Localization.Spanish, "softban")]
+    [NameLocalization(Localization.Portuguese, "softban")]
+    [DescriptionLocalization(Localization.Spanish, "Banea y desbanea al instante para borrar mensajes")]
+    [DescriptionLocalization(Localization.Portuguese, "Bane e desbane instantaneamente para apagar mensagens")]
+    [SlashRequirePermissions(Permissions.BanMembers)]
+    [SlashRequireBotPermissions(Permissions.BanMembers)]
+    public async Task SoftbanAsync(
+        InteractionContext ctx,
+        [Option("user", "User to softban")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a softbanear")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a softbanir")] DiscordUser usuario,
+        [Option("reason", "Reason for the softban")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo del softban")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo do softban")] string? motivo = null)
+    {
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
+
+        if (usuario.Id == ctx.User.Id)
+        { await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:MismoUsuario")); return; }
+        if (usuario.Id == ctx.Client.CurrentUser.Id)
+        { await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:AlBot")); return; }
+
+        var miembro = await BuscarMiembroAsync(ctx, usuario.Id);
+        if (miembro is not null)
+        {
+            if (!await ValidarJerarquiaAsync(ctx, miembro)) return;
+            await IntentarAvisoPrivadoAsync(miembro, ctx.Guild.Name,
+                _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Softban"), motivo);
+        }
+
+        await ctx.Guild.BanMemberAsync(usuario.Id, 7, motivo);
+        await ctx.Guild.UnbanMemberAsync(usuario.Id, "Softban: unban automático");
+
+        var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.Softban, motivo);
+        await _log.AnunciarAsync(ctx.Guild, incidente);
+        await ResponderExitoAsync(ctx,
+            _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Softban", ("usuario", usuario.Username)), incidente);
+    }
+
+    [SlashCommand("mute", "Mute a user (timeout)")]
+    [NameLocalization(Localization.Spanish, "mute")]
+    [NameLocalization(Localization.Portuguese, "mute")]
+    [DescriptionLocalization(Localization.Spanish, "Silencia a un usuario (timeout)")]
+    [DescriptionLocalization(Localization.Portuguese, "Silencia um usuário (timeout)")]
+    [SlashRequirePermissions(Permissions.ModerateMembers)]
+    [SlashRequireBotPermissions(Permissions.ModerateMembers)]
+    public async Task MuteAsync(
+        InteractionContext ctx,
+        [Option("user", "User to mute")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a silenciar")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a silenciar")] DiscordUser usuario,
+        [Option("duration", "Duration: 30s, 10m, 2h, 7d (max 28 days)")]
+        [NameLocalization(Localization.Spanish, "duracion")]
+        [NameLocalization(Localization.Portuguese, "duracao")]
+        [DescriptionLocalization(Localization.Spanish, "Duración: 30s, 10m, 2h, 7d (máx. 28 días)")]
+        [DescriptionLocalization(Localization.Portuguese, "Duração: 30s, 10m, 2h, 7d (máx. 28 dias)")] string duracion,
+        [Option("reason", "Reason")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo")] string? motivo = null)
+    {
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
+
+        if (!DurationParser.TryParse(duracion, out var tiempo) || tiempo <= TimeSpan.Zero)
+        {
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:DuracionInvalida"));
+            return;
+        }
+        if (tiempo > MaxAislamiento)
+        {
+            await ResponderErrorAsync(ctx, _msg.Get(ctx.Guild.Id, "Moderacion:Errores:DuracionMaxima"));
+            return;
+        }
+
+        var miembro = await ValidarObjetivoAsync(ctx, usuario);
+        if (miembro is null) return;
+
+        await IntentarAvisoPrivadoAsync(miembro, ctx.Guild.Name,
+            _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Silencio",
+                ("duracion", DurationParser.Format(tiempo, _msg.Locale(ctx.Guild.Id)))), motivo);
+        await miembro.TimeoutAsync(DateTimeOffset.UtcNow + tiempo, motivo);
+
+        var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.Silencio, motivo, tiempo);
+        await _log.AnunciarAsync(ctx.Guild, incidente);
+        await ResponderExitoAsync(ctx,
+            _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Silencio",
+                ("usuario", usuario.Username),
+                ("duracion", DurationParser.Format(tiempo, _msg.Locale(ctx.Guild.Id)))),
+            incidente);
+    }
+
+    [SlashCommand("hardmute", "Strip roles and revoke send/speak in all channels")]
+    [NameLocalization(Localization.Spanish, "hardmute")]
+    [NameLocalization(Localization.Portuguese, "hardmute")]
+    [DescriptionLocalization(Localization.Spanish, "Quita roles y revoca permisos de enviar/hablar en todos los canales")]
+    [DescriptionLocalization(Localization.Portuguese, "Remove cargos e revoga permissões de enviar/falar em todos os canais")]
+    [SlashRequirePermissions(Permissions.ManageRoles)]
+    [SlashRequireBotPermissions(Permissions.ManageRoles | Permissions.ManageChannels)]
+    public async Task HardmuteAsync(
+        InteractionContext ctx,
+        [Option("user", "User to hardmute")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a hardmutear")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a hardmutar")] DiscordUser usuario,
+        [Option("reason", "Reason")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo del hardmute")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo do hardmute")] string? motivo = null)
+    {
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
+
+        var miembro = await ValidarObjetivoAsync(ctx, usuario);
+        if (miembro is null) return;
+
+        await ctx.DeferAsync();
+
+        // 1. Guardar y quitar roles
+        var rolesQuitar = miembro.Roles
+            .Where(r => r.Id != ctx.Guild.EveryoneRole.Id && !r.IsManaged
+                        && r.Position < ctx.Guild.CurrentMember.Hierarchy)
+            .ToList();
+
+        if (rolesQuitar.Count > 0)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync();
+            var backup = await db.HardmuteBackups
+                .FirstOrDefaultAsync(h => h.GuildId == ctx.Guild.Id && h.UserId == usuario.Id);
+
+            var idsTexto = string.Join(",", rolesQuitar.Select(r => r.Id));
+            if (backup is null)
+            {
+                db.HardmuteBackups.Add(new HardmuteBackup
+                {
+                    GuildId = ctx.Guild.Id,
+                    UserId = usuario.Id,
+                    RoleIds = idsTexto
+                });
+            }
+            else
+            {
+                backup.RoleIds = idsTexto;
+                backup.CreatedAt = DateTimeOffset.UtcNow;
+            }
+            await db.SaveChangesAsync();
+
+            foreach (var rol in rolesQuitar)
+            {
+                try { await miembro.RevokeRoleAsync(rol, $"Hardmute por {ctx.User.Username}"); }
+                catch { /* Rol no removible */ }
+            }
+        }
+
+        // 2. Denegar permisos en canales
+        foreach (var canal in ctx.Guild.Channels.Values)
+        {
+            if (canal.Type is not (ChannelType.Text or ChannelType.Voice
+                or ChannelType.PublicThread or ChannelType.PrivateThread
+                or ChannelType.News or ChannelType.Stage or ChannelType.GuildForum))
+                continue;
+
+            try
+            {
+                await canal.AddOverwriteAsync(miembro,
+                    deny: Permissions.SendMessages | Permissions.Speak | Permissions.SendMessagesInThreads,
+                    reason: $"Hardmute por {ctx.User.Username}: {motivo}");
+            }
+            catch { /* Sin acceso */ }
+        }
+
+        await IntentarAvisoPrivadoAsync(miembro, ctx.Guild.Name,
+            _msg.Get(ctx.Guild.Id, "Moderacion:Dm:Acciones:Hardmute"), motivo);
+
+        var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.Hardmute, motivo);
+        await _log.AnunciarAsync(ctx.Guild, incidente);
+
+        var embed = new DiscordEmbedBuilder()
+            .WithDescription(_msg.Get(ctx.Guild.Id, "Moderacion:Exito:Formato",
+                ("texto", _msg.Get(ctx.Guild.Id, "Moderacion:Exito:Hardmute", ("usuario", usuario.Username))),
+                ("motivo", incidente.Reason)))
+            .WithFooter(_msg.Get(ctx.Guild.Id, "Moderacion:Caso", ("caso", incidente.Id)))
+            .WithColor(DiscordColor.Green);
+        await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(embed));
+    }
+
+    [SlashCommand("unhardmute", "Restore roles and permissions after a hardmute")]
+    [NameLocalization(Localization.Spanish, "unhardmute")]
+    [NameLocalization(Localization.Portuguese, "unhardmute")]
+    [DescriptionLocalization(Localization.Spanish, "Restaura roles y permisos tras un hardmute")]
+    [DescriptionLocalization(Localization.Portuguese, "Restaura cargos e permissões após um hardmute")]
+    [SlashRequirePermissions(Permissions.ManageRoles)]
+    [SlashRequireBotPermissions(Permissions.ManageRoles | Permissions.ManageChannels)]
+    public async Task UnhardmuteAsync(
+        InteractionContext ctx,
+        [Option("user", "User to unhardmute")]
+        [NameLocalization(Localization.Spanish, "usuario")]
+        [NameLocalization(Localization.Portuguese, "usuário")]
+        [DescriptionLocalization(Localization.Spanish, "Usuario a deshardmutear")]
+        [DescriptionLocalization(Localization.Portuguese, "Usuário a deshardmutar")] DiscordUser usuario,
+        [Option("reason", "Reason")]
+        [NameLocalization(Localization.Spanish, "motivo")]
+        [NameLocalization(Localization.Portuguese, "motivo")]
+        [DescriptionLocalization(Localization.Spanish, "Motivo")]
+        [DescriptionLocalization(Localization.Portuguese, "Motivo")] string? motivo = null)
+    {
+        motivo ??= _msg.Get(ctx.Guild.Id, "Moderacion:MotivoPorDefecto");
+
+        var miembro = await ValidarObjetivoAsync(ctx, usuario);
+        if (miembro is null) return;
+
+        await ctx.DeferAsync();
+
+        // 1. Restaurar roles desde backup
+        await using var db = await _dbFactory.CreateDbContextAsync();
+        var backup = await db.HardmuteBackups
+            .FirstOrDefaultAsync(h => h.GuildId == ctx.Guild.Id && h.UserId == usuario.Id);
+
+        if (backup is not null)
+        {
+            var roleIds = backup.RoleIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => ulong.TryParse(s, out var id) ? id : 0)
+                .Where(id => id != 0);
+
+            foreach (var roleId in roleIds)
+            {
+                var rol = ctx.Guild.GetRole(roleId);
+                if (rol is not null && !rol.IsManaged && rol.Position < ctx.Guild.CurrentMember.Hierarchy)
+                {
+                    try { await miembro.GrantRoleAsync(rol, $"Unhardmute por {ctx.User.Username}"); }
+                    catch { }
+                }
+            }
+
+            db.HardmuteBackups.Remove(backup);
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Eliminar overrides del miembro en todos los canales
+        foreach (var canal in ctx.Guild.Channels.Values)
+        {
+            var overwrite = canal.PermissionOverwrites?
+                .FirstOrDefault(o => o.Id == miembro.Id && o.Type == OverwriteType.Member);
+            if (overwrite is not null)
+            {
+                try { await overwrite.DeleteAsync($"Unhardmute: {motivo}"); }
+                catch { }
+            }
+        }
+
+        var incidente = await _log.RegistrarAsync(ctx.Guild.Id, usuario, ctx.User, IncidentType.FinHardmute, motivo);
+        await _log.AnunciarAsync(ctx.Guild, incidente);
+
+        var embed = new DiscordEmbedBuilder()
+            .WithDescription(_msg.Get(ctx.Guild.Id, "Moderacion:Exito:Formato",
+                ("texto", _msg.Get(ctx.Guild.Id, "Moderacion:Exito:FinHardmute", ("usuario", usuario.Username))),
+                ("motivo", incidente.Reason)))
+            .WithFooter(_msg.Get(ctx.Guild.Id, "Moderacion:Caso", ("caso", incidente.Id)))
+            .WithColor(DiscordColor.Green);
+        await ctx.EditResponseAsync(new DiscordWebhookBuilder().AddEmbed(embed));
+    }
+
     // ------------------------- Ayudantes internos -------------------------
 
     private static async Task<DiscordMember?> BuscarMiembroAsync(InteractionContext ctx, ulong userId)

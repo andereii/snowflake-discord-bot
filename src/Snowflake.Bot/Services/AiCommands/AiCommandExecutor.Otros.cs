@@ -171,6 +171,59 @@ public sealed partial class AiCommandExecutor
                 var aplicado = await _music.VolumenAsync(ctx.Guild.Id, objetivo).ConfigureAwait(false);
                 return new AiCommandResult(true, _msg.Get(ctx.Guild.Id, "Musica:Volumen", ("nivel", aplicado)), desc);
             });
+
+        yield return new ToolDef(
+            "music_shuffle",
+            "Shuffle the music queue.",
+            Esquema(),
+            Destructivo: false,
+            DescripcionComando: null,
+            Ejecutar: async (ctx, args) =>
+            {
+                var desc = "/m shuffle";
+                if (_music.Obtener(ctx.Guild.Id) is null)
+                    return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:NoActivo"), desc);
+                if (await _music.ValidarControlAsync(ctx.Guild, ctx.Miembro, _msg) is { Puede: false } control)
+                    return new AiCommandResult(false, control.MensajeError!, desc);
+
+                var exito = _music.AleorizarCola(ctx.Guild.Id);
+                var texto = exito
+                    ? _msg.Get(ctx.Guild.Id, "Musica:Aleatorizado")
+                    : _msg.Get(ctx.Guild.Id, "Musica:ColaVacia");
+                await _widget.RefrescarSiExisteAsync(ctx.Guild.Id, ctx.Canal).ConfigureAwait(false);
+                return new AiCommandResult(exito, texto, desc);
+            });
+
+        yield return new ToolDef(
+            "music_jump",
+            "Jump to a specific position in the current song (e.g. 1:30 or 90).",
+            Esquema(("position", "string", "Timestamp to jump to (e.g. 1:30 or 90).")),
+            Destructivo: false,
+            DescripcionComando: null,
+            Ejecutar: async (ctx, args) =>
+            {
+                var desc = "/m jump";
+                var posicionStr = ArgString(args, "position");
+                if (string.IsNullOrWhiteSpace(posicionStr))
+                    return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:TimestampInvalido"), desc);
+
+                if (_music.Obtener(ctx.Guild.Id) is null)
+                    return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:NoActivo"), desc);
+                if (await _music.ValidarControlAsync(ctx.Guild, ctx.Miembro, _msg) is { Puede: false } control)
+                    return new AiCommandResult(false, control.MensajeError!, desc);
+
+                if (!MusicService.TryParseTimestamp(posicionStr, out var posicion))
+                    return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:TimestampInvalido"), desc);
+
+                var exito = await _music.SaltarAPosicionAsync(ctx.Guild.Id, posicion).ConfigureAwait(false);
+                var texto = exito
+                    ? _msg.Get(ctx.Guild.Id, "Musica:SaltadoA", ("posicion", MusicService.FormatearDuracion(posicion, false)))
+                    : _msg.Get(ctx.Guild.Id, "Musica:ErrorSaltar");
+
+                await _widget.RefrescarSiExisteAsync(ctx.Guild.Id, ctx.Canal).ConfigureAwait(false);
+                return new AiCommandResult(exito, texto, desc);
+            });
+
     }
 
     // ------------------------- configuración (ManageGuild) -------------------------

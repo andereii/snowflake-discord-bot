@@ -143,6 +143,9 @@ public static partial class SnowflakeServiceExtensions
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
         });
 
+        services.AddHttpClient("DuckDuckGo", client => client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
+
         // Diagnóstico REST de Lavalink.
         services.AddHttpClient("LavalinkDiag", client =>
         {
@@ -201,6 +204,8 @@ public static partial class SnowflakeServiceExtensions
         services.AddSingleton<VoiceHubService>();
         services.AddSingleton<MusicService>();
         services.AddSingleton<MusicWidgetService>();
+    services.AddSingleton<ImageSearchWidgetService>();
+        services.AddSingleton<PollWidgetService>();
         services.AddSingleton<CountingService>();
         services.AddSingleton<DeepSeekService>();
         services.AddSingleton<YouTubeNotifyService>();

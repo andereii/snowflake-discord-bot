@@ -28,6 +28,8 @@ public sealed class DiscordBotService : BackgroundService
     private readonly ColorService _color;
     private readonly VoiceHubService _voces;
     private readonly MusicWidgetService _musicWidget;
+    private readonly ImageSearchWidgetService _imgWidget;
+    private readonly PollWidgetService _pollWidget;
     private readonly DeepSeekService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly CountingService _counting;
@@ -44,6 +46,8 @@ public sealed class DiscordBotService : BackgroundService
         ColorService color,
         VoiceHubService voces,
         MusicWidgetService musicWidget,
+        ImageSearchWidgetService imgWidget,
+        PollWidgetService pollWidget,
         DeepSeekService ia,
         AiCommandConfirmation confirmaciones,
         CountingService counting,
@@ -58,6 +62,8 @@ public sealed class DiscordBotService : BackgroundService
         _color = color;
         _voces = voces;
         _musicWidget = musicWidget;
+        _imgWidget = imgWidget;
+        _pollWidget = pollWidget;
         _ia = ia;
         _confirmaciones = confirmaciones;
         _counting = counting;
@@ -77,6 +83,8 @@ public sealed class DiscordBotService : BackgroundService
         _client.GuildMemberAdded += OnGuildMemberAdded;
         _client.VoiceStateUpdated += _voces.OnVoiceStateUpdatedAsync;
         _client.ComponentInteractionCreated += OnComponentInteractionCreated;
+        _client.MessageReactionAdded += (c, e) => _pollWidget.ManejarReaccionAgregadaAsync(e);
+        _client.MessageReactionRemoved += (c, e) => _pollWidget.ManejarReaccionRemovidaAsync(e);
         _client.MessageCreated += OnMessageCreated;
         _client.MessageCreated += OnMessageCreatedCounting;
 
@@ -154,8 +162,16 @@ public sealed class DiscordBotService : BackgroundService
             await _color.HandleSelectAsync(e);
         else if (MusicWidgetService.EsInteraccionMusica(e.Id))
             await _musicWidget.HandleButtonAsync(e);
+        else if (ImageSearchWidgetService.EsInteraccion(e.Id))
+            await _imgWidget.ManejarBotonAsync(e);
         else if (AiCommandConfirmation.EsInteraccionConfirmacion(e.Id))
             await _confirmaciones.ManejarBotonAsync(e);
+        else if (e.Id == "poll_end")
+        {
+            bool success = await _pollWidget.IntentarFinalizarManualAsync(e.Message, e.User, e.Guild);
+            if (success) await e.Interaction.CreateResponseAsync(InteractionResponseType.DeferredMessageUpdate);
+            else await e.Interaction.CreateResponseAsync(InteractionResponseType.ChannelMessageWithSource, new DSharpPlus.Entities.DiscordInteractionResponseBuilder().WithContent("❌ No tienes permiso para finalizar esta encuesta.").AsEphemeral());
+        }
     }
 
     /// <summary>
