@@ -173,7 +173,7 @@ public sealed class MusicService(
         if (Uri.TryCreate(consulta, UriKind.Absolute, out var uri) &&
             (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
         {
-            return await tracks.LoadTracksAsync(consulta, default, default).ConfigureAwait(false);
+            return await tracks.LoadTracksAsync(consulta, TrackSearchMode.None, default, default).ConfigureAwait(false);
         }
 
         // 3. Búsqueda por término: primero en YouTube
