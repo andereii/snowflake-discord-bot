@@ -25,6 +25,33 @@ public sealed class MusicService(
     IOptionsMonitor<LavalinkOptions> lavalinkOptions,
     IHttpClientFactory httpClientFactory)
 {
+    /// <summary>
+    /// Comprueba de forma ultra-rápida (con timeout de 1.5s) si el servidor Lavalink está online y responde.
+    /// </summary>
+    public async ValueTask<bool> EstaOnlineAsync(CancellationToken cancellationToken = default)
+    {
+        var host = lavalinkOptions.CurrentValue.Host;
+        var port = lavalinkOptions.CurrentValue.Port;
+        var pass = lavalinkOptions.CurrentValue.Password;
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromMilliseconds(1500));
+
+            var client = httpClientFactory.CreateClient("LavalinkDiag");
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://{host}:{port}/version");
+            request.Headers.Add("Authorization", pass);
+
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cts.Token).ConfigureAwait(false);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>Recupera el reproductor activo del guild, o null si no hay.</summary>
     public IQueuedLavalinkPlayer? Obtener(ulong guildId)
         => players.TryGetPlayer<IQueuedLavalinkPlayer>(guildId, out var p) ? p : null;
@@ -36,6 +63,9 @@ public sealed class MusicService(
     public async Task<(TrackLoadResult Result, bool PuestaEnCola)> ReproducirAsync(
         ulong guildId, ulong voiceChannelId, string consulta)
     {
+        if (!await EstaOnlineAsync().ConfigureAwait(false))
+            throw new LavalinkUnavailableException("Lavalink está desconectado o no responde.");
+
         await audio.WaitForReadyAsync(default).ConfigureAwait(false);
 
         // Si no había reproductor, se une al canal de voz auto-sordo (no oye a los usuarios).
@@ -466,6 +496,8 @@ public sealed class MusicService(
         }
     }
 }
+
+public sealed class LavalinkUnavailableException(string message) : Exception(message);
 
 public static class ColaExtensions
 {

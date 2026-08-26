@@ -333,12 +333,26 @@ public sealed class AfkService
                     var member = e.Author as DiscordMember ?? await e.Guild.GetMemberAsync(e.Author.Id);
                     await RemoverAfkAsync(e.Guild, member);
 
-                    var tiempoFmt = DurationParser.Format(duracion, _msg.Locale(e.Guild.Id));
+                    var timestampRelativo = $"<t:{afk.SetAt.ToUnixTimeSeconds()}:R>";
                     var textoRetorno = _msg.Get(e.Guild.Id, "Afk:BienvenidaRetorno",
                         ("usuario", e.Author.Mention),
-                        ("tiempo", tiempoFmt));
+                        ("tiempo", timestampRelativo));
 
-                    await e.Channel.SendMessageAsync(textoRetorno);
+                    var msgRetorno = await e.Channel.SendMessageAsync(textoRetorno);
+
+                    // Auto-eliminar el mensaje de bienvenida después de 10 segundos
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await Task.Delay(TimeSpan.FromSeconds(10));
+                            await msgRetorno.DeleteAsync();
+                        }
+                        catch
+                        {
+                            // Ignorar si ya fue borrado o faltan permisos
+                        }
+                    });
                 }
             }
         }
@@ -360,12 +374,11 @@ public sealed class AfkService
 
                     _mentionCooldowns[claveCooldown] = ahora.AddSeconds(8);
 
-                    var tiempoAusente = ahora - afkTarget.SetAt;
-                    var tiempoFmt = DurationParser.Format(tiempoAusente, _msg.Locale(e.Guild.Id));
+                    var timestampRelativo = $"<t:{afkTarget.SetAt.ToUnixTimeSeconds()}:R>";
                     var textoMencion = _msg.Get(e.Guild.Id, "Afk:MencionAusente",
                         ("usuario", mencionado.Username),
                         ("motivo", afkTarget.Reason),
-                        ("tiempo", tiempoFmt));
+                        ("tiempo", timestampRelativo));
 
                     await e.Channel.SendMessageAsync(textoMencion);
                 }

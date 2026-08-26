@@ -119,6 +119,7 @@
             "EstadoPausado": "⏸️ Pausado",
             "EstadoReproduciendo": "▶️ Reproduciendo",
             "ErrorLavalink": "<:error:1534417252185800720> No pude reproducir música ahora mismo. Verifica que el servidor Lavalink esté corriendo y sea alcanzable.",
+            "ErrorLavalinkOffline": "El servidor de música (Lavalink) no está disponible o está apagado en este momento. Inténtalo más tarde.",
             "MismoCanal": "Debes estar en el mismo canal de voz que el bot para controlar la música.",
             "RequiereDj": "Necesitas el rol {rol} o estar en el mismo canal de voz que el bot para controlar la música.",
             "EnVivo": "🔴 EN VIVO",
@@ -332,8 +333,8 @@
         },
         "Afk": {
             "Establecido": "Te he establecido como ausente: **{motivo}**",
-            "BienvenidaRetorno": "¡Bienvenido de nuevo, {usuario}! He removido tu estado de ausencia. Estuviste ausente durante **{tiempo}**.",
-            "MencionAusente": "**{usuario}** está ausente: *\"{motivo}\"* (hace {tiempo})",
+            "BienvenidaRetorno": "¡Bienvenido de nuevo, {usuario}! He removido tu estado de ausencia. Estuviste ausente desde {tiempo}.",
+            "MencionAusente": "**{usuario}** está ausente: *\"{motivo}\"* ({tiempo})",
             "CanalIgnorado": "El canal {canal} ha sido añadido a la lista de ignorados. Hablar allí no quitará el estado de ausencia.",
             "CanalYaIgnorado": "El canal {canal} ya está en la lista de ignorados de AFK.",
             "CanalDesignorado": "El canal {canal} ha sido removido de la lista de ignorados.",

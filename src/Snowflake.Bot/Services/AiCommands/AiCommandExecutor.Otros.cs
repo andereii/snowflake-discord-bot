@@ -31,7 +31,24 @@ public sealed partial class AiCommandExecutor
                 if (voz is null)
                     return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:NoEnCanal"), desc);
 
-                var (resultado, puestaEnCola) = await _music.ReproducirAsync(ctx.Guild.Id, voz.Id, query).ConfigureAwait(false);
+                if (!await _music.EstaOnlineAsync().ConfigureAwait(false))
+                    return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:ErrorLavalinkOffline"), desc);
+
+                (Lavalink4NET.Rest.Entities.Tracks.TrackLoadResult resultado, bool puestaEnCola) datos;
+                try
+                {
+                    datos = await _music.ReproducirAsync(ctx.Guild.Id, voz.Id, query).ConfigureAwait(false);
+                }
+                catch (LavalinkUnavailableException)
+                {
+                    return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:ErrorLavalinkOffline"), desc);
+                }
+                catch (Exception)
+                {
+                    return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:ErrorLavalink"), desc);
+                }
+
+                var (resultado, puestaEnCola) = datos;
                 if (!resultado.IsSuccess)
                     return new AiCommandResult(false, _msg.Get(ctx.Guild.Id, "Musica:NoEncontrado"), desc);
 

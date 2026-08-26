@@ -85,9 +85,8 @@ public sealed class DiscordBotService : BackgroundService
         var slash = _client.UseSlashCommands(new SlashCommandsConfiguration { Services = services });
         slash.SlashCommandErrored += OnSlashCommandErrored;
 
-        // Registra los comandos en el servidor de pruebas (aparecen al instante) y globalmente.
+        // Los comandos se registran SOLO en el servidor de pruebas para que aparezcan al instante y no se dupliquen.
         slash.RegisterCommands(typeof(DiscordBotService).Assembly, config.CurrentValue.TestGuildId);
-        slash.RegisterCommands(typeof(DiscordBotService).Assembly);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -108,10 +107,20 @@ public sealed class DiscordBotService : BackgroundService
         await _client.DisconnectAsync();
     }
 
-    private Task OnReady(DiscordClient sender, ReadyEventArgs e)
+    private async Task OnReady(DiscordClient sender, ReadyEventArgs e)
     {
         _logger.LogInformation("Sesión iniciada como {User}", sender.CurrentUser);
-        return Task.CompletedTask;
+
+        // Purga cualquier comando global residual en Discord para eliminar duplicados en los servidores.
+        try
+        {
+            await sender.BulkOverwriteGlobalApplicationCommandsAsync(Array.Empty<DiscordApplicationCommand>());
+            _logger.LogInformation("Comandos globales purgados con éxito.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudieron purgar los comandos globales.");
+        }
     }
 
     private async Task OnGuildDownloadCompleted(DiscordClient sender, GuildDownloadCompletedEventArgs e)

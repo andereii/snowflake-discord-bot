@@ -47,7 +47,13 @@ public sealed class AfkModule : SnowflakeModuleBase
             ("usuario", ctx.User.Username),
             ("motivo", motivoFmt));
 
-        await ResponderAsync(ctx, $"💤 {resp}");
+        var embed = new DiscordEmbedBuilder()
+            .WithTitle(ctx.User.Username)
+            .WithThumbnail(ctx.User.AvatarUrl)
+            .WithDescription($"💤 {resp}")
+            .WithColor(DiscordColor.CornflowerBlue);
+
+        await ResponderAsync(ctx, embed);
     }
 
     [SlashCommand("list", "Show the list of currently AFK members")]

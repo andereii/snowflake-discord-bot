@@ -705,7 +705,13 @@ public sealed class PrefixCommandService
             ("usuario", e.Author.Username),
             ("motivo", motivoFmt));
 
-        await e.Message.RespondAsync($"💤 {resp}");
+        var embedAfk = new DiscordEmbedBuilder()
+            .WithTitle(e.Author.Username)
+            .WithThumbnail(e.Author.AvatarUrl)
+            .WithDescription($"💤 {resp}")
+            .WithColor(DiscordColor.CornflowerBlue);
+
+        await e.Message.RespondAsync(embedAfk);
     }
 
     private async Task EjecutarCalcAsync(MessageCreateEventArgs e, string entrada)
@@ -812,7 +818,29 @@ public sealed class PrefixCommandService
             return;
         }
 
-        var (resultado, puestaEnCola) = await _music.ReproducirAsync(e.Guild.Id, voz.Id, consulta);
+        if (!await _music.EstaOnlineAsync())
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Musica:ErrorLavalinkOffline")}");
+            return;
+        }
+
+        (Lavalink4NET.Rest.Entities.Tracks.TrackLoadResult resultado, bool puestaEnCola) datos;
+        try
+        {
+            datos = await _music.ReproducirAsync(e.Guild.Id, voz.Id, consulta);
+        }
+        catch (LavalinkUnavailableException)
+        {
+            await e.Message.RespondAsync($"{BotEmojis.Error} {_msg.Get(e.Guild.Id, "Musica:ErrorLavalinkOffline")}");
+            return;
+        }
+        catch (Exception)
+        {
+            await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Musica:ErrorLavalink"));
+            return;
+        }
+
+        var (resultado, puestaEnCola) = datos;
         if (!resultado.IsSuccess)
         {
             await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Musica:NoEncontrado"));

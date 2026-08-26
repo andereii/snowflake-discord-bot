@@ -60,6 +60,12 @@ public sealed class MusicModule : SnowflakeModuleBase
 
         await ctx.DeferAsync();
 
+        if (!await _music.EstaOnlineAsync())
+        {
+            await SafeEditAsync(ctx, $"<:error:1534417252185800720> {_msg.Get(ctx.Guild.Id, "Musica:ErrorLavalinkOffline")}");
+            return;
+        }
+
         try
         {
             var (resultado, puestaEnCola) = await _music.ReproducirAsync(ctx.Guild.Id, voz.Id, consulta);
@@ -103,6 +109,10 @@ public sealed class MusicModule : SnowflakeModuleBase
 
                 await _widget.EnviarOActualizarAsync(ctx.Channel, ctx.Guild.Id);
             }
+        }
+        catch (LavalinkUnavailableException)
+        {
+            await SafeEditAsync(ctx, $"<:error:1534417252185800720> {_msg.Get(ctx.Guild.Id, "Musica:ErrorLavalinkOffline")}");
         }
         catch (Exception)
         {

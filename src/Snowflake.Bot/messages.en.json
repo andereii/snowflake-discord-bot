@@ -119,6 +119,7 @@
             "EstadoPausado": "⏸️ Paused",
             "EstadoReproduciendo": "▶️ Playing",
             "ErrorLavalink": "<:error:1534417252185800720> I couldn't play music right now. Make sure the Lavalink server is running and reachable.",
+            "ErrorLavalinkOffline": "The music server (Lavalink) is currently offline or unreachable. Please try again later.",
             "MismoCanal": "You must be in the same voice channel as the bot to control the music.",
             "RequiereDj": "You need the {rol} role or you must be in the same voice channel as the bot to control the music.",
             "EnVivo": "🔴 LIVE",
@@ -332,8 +333,8 @@
         },
         "Afk": {
             "Establecido": "I've set your status to AFK: **{motivo}**",
-            "BienvenidaRetorno": "Welcome back, {usuario}! I have removed your AFK status. You were away for **{tiempo}**.",
-            "MencionAusente": "**{usuario}** is currently AFK: *\"{motivo}\"* ({tiempo} ago)",
+            "BienvenidaRetorno": "Welcome back, {usuario}! I have removed your AFK status. You were away since {tiempo}.",
+            "MencionAusente": "**{usuario}** is currently AFK: *\"{motivo}\"* ({tiempo})",
             "CanalIgnorado": "Channel {canal} has been added to the AFK ignored list. Talking there won't remove AFK status.",
             "CanalYaIgnorado": "Channel {canal} is already in the AFK ignored list.",
             "CanalDesignorado": "Channel {canal} has been removed from the AFK ignored list.",
