@@ -247,7 +247,11 @@ public static partial class SnowflakeServiceExtensions
                         | DiscordIntents.GuildBans
                         | DiscordIntents.GuildVoiceStates
                         | DiscordIntents.GuildMessages
+                        | DiscordIntents.GuildMessageReactions
                         | DiscordIntents.MessageContents,
+                // Caché de mensajes: necesaria para que el evento MessageReactionAdded
+                // entregue el mensaje (e.Message) y las encuestas puedan contar votos.
+                MessageCacheSize = 1024,
                 LoggerFactory = sp.GetRequiredService<ILoggerFactory>()
             });
         });

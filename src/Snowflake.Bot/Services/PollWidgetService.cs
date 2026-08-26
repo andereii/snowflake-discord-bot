@@ -91,9 +91,10 @@ public sealed class PollWidgetService
     public async Task ManejarReaccionAgregadaAsync(MessageReactionAddEventArgs e)
     {
         if (e.User.IsBot) return;
+        if (e.Message is null || e.Emoji is null) return;
         if (!_polls.TryGetValue(e.Message.Id, out var session)) return;
 
-        int optIndex = Array.IndexOf(NumberEmojis, e.Emoji);
+        int optIndex = Array.FindIndex(NumberEmojis, em => em.Name == e.Emoji.Name);
         if (optIndex == -1 || optIndex >= session.Options.Count) return;
 
         session.Votes.AddOrUpdate(e.User.Id, 
@@ -113,9 +114,10 @@ public sealed class PollWidgetService
     public async Task ManejarReaccionRemovidaAsync(MessageReactionRemoveEventArgs e)
     {
         if (e.User.IsBot) return;
+        if (e.Message is null || e.Emoji is null) return;
         if (!_polls.TryGetValue(e.Message.Id, out var session)) return;
 
-        int optIndex = Array.IndexOf(NumberEmojis, e.Emoji);
+        int optIndex = Array.FindIndex(NumberEmojis, em => em.Name == e.Emoji.Name);
         if (optIndex == -1 || optIndex >= session.Options.Count) return;
 
         if (session.Votes.TryGetValue(e.User.Id, out var set))
