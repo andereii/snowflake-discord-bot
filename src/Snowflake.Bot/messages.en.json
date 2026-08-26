@@ -329,6 +329,23 @@
             "TituloRanking": "Trivia Leaderboard",
             "ErrorCarga": "<:error:1534417252185800720> Failed to fetch a trivia question at this moment. Please try again!",
             "AvisoPrueba": "⚠️ Demo question: this feature has not been fully implemented yet."
+        },
+        "Afk": {
+            "Establecido": "I've set your status to AFK: **{motivo}**",
+            "BienvenidaRetorno": "Welcome back, {usuario}! I have removed your AFK status. You were away for **{tiempo}**.",
+            "MencionAusente": "**{usuario}** is currently AFK: *\"{motivo}\"* ({tiempo} ago)",
+            "CanalIgnorado": "Channel {canal} has been added to the AFK ignored list. Talking there won't remove AFK status.",
+            "CanalYaIgnorado": "Channel {canal} is already in the AFK ignored list.",
+            "CanalDesignorado": "Channel {canal} has been removed from the AFK ignored list.",
+            "CanalNoIgnorado": "Channel {canal} is not in the AFK ignored list.",
+            "SinCanalesIgnorados": "There are no AFK ignored channels configured on this server.",
+            "TituloCanalesIgnorados": "AFK Ignored Channels",
+            "SinMiembrosAusentes": "There are currently no AFK members on this server.",
+            "TituloMiembrosAusentes": "Currently AFK Members",
+            "RemovidoMod": "Removed AFK status for **{usuario}**.",
+            "RemovidosTodos": "Successfully removed AFK status for **{total}** members.",
+            "MotivoReseteado": "Reset AFK reason for **{usuario}** to default.",
+            "NoEstaAusente": "**{usuario}** is not currently marked as AFK."
         }
     }
 }

@@ -329,6 +329,23 @@
             "TituloRanking": "Clasificación de Trivia",
             "ErrorCarga": "<:error:1534417252185800720> No se pudo obtener una pregunta de trivia en este momento. ¡Inténtalo de nuevo!",
             "AvisoPrueba": "⚠️ Pregunta de prueba: esta función aún no ha sido implementada por completo."
+        },
+        "Afk": {
+            "Establecido": "Te he establecido como ausente: **{motivo}**",
+            "BienvenidaRetorno": "¡Bienvenido de nuevo, {usuario}! He removido tu estado de ausencia. Estuviste ausente durante **{tiempo}**.",
+            "MencionAusente": "**{usuario}** está ausente: *\"{motivo}\"* (hace {tiempo})",
+            "CanalIgnorado": "El canal {canal} ha sido añadido a la lista de ignorados. Hablar allí no quitará el estado de ausencia.",
+            "CanalYaIgnorado": "El canal {canal} ya está en la lista de ignorados de AFK.",
+            "CanalDesignorado": "El canal {canal} ha sido removido de la lista de ignorados.",
+            "CanalNoIgnorado": "El canal {canal} no está en la lista de ignorados de AFK.",
+            "SinCanalesIgnorados": "No hay canales ignorados de AFK configurados en este servidor.",
+            "TituloCanalesIgnorados": "Canales Ignorados de AFK",
+            "SinMiembrosAusentes": "No hay miembros ausentes en este servidor actualmente.",
+            "TituloMiembrosAusentes": "Miembros Actualmente Ausentes",
+            "RemovidoMod": "Se ha removido el estado de ausencia de **{usuario}**.",
+            "RemovidosTodos": "Se ha removido el estado de ausencia de **{total}** miembros.",
+            "MotivoReseteado": "Se ha restablecido el motivo de ausencia de **{usuario}** por defecto.",
+            "NoEstaAusente": "**{usuario}** no está ausente actualmente."
         }
     }
 }

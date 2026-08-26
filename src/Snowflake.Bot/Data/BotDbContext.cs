@@ -15,6 +15,8 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
     public DbSet<CountingConfig> CountingConfigs => Set<CountingConfig>();
     public DbSet<CountingStat> CountingStats => Set<CountingStat>();
     public DbSet<TriviaStat> TriviaStats => Set<TriviaStat>();
+    public DbSet<AfkUser> AfkUsers => Set<AfkUser>();
+    public DbSet<AfkIgnoredChannel> AfkIgnoredChannels => Set<AfkIgnoredChannel>();
     public DbSet<YouTubeSubscription> YouTubeSubscriptions => Set<YouTubeSubscription>();
     public DbSet<ChannelLock> ChannelLocks => Set<ChannelLock>();
 
@@ -72,6 +74,18 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
             e.HasKey(s => s.Id);
             e.HasIndex(s => new { s.GuildId, s.UserId }).IsUnique();
             e.HasIndex(s => s.GuildId);
+        });
+
+        modelBuilder.Entity<AfkUser>(e =>
+        {
+            e.HasKey(a => new { a.GuildId, a.UserId });
+            e.HasIndex(a => a.GuildId);
+        });
+
+        modelBuilder.Entity<AfkIgnoredChannel>(e =>
+        {
+            e.HasKey(c => new { c.GuildId, c.ChannelId });
+            e.HasIndex(c => c.GuildId);
         });
 
         modelBuilder.Entity<YouTubeSubscription>(e =>

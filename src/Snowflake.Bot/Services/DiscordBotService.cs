@@ -31,6 +31,7 @@ public sealed class DiscordBotService : BackgroundService
     private readonly DeepSeekService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly CountingService _counting;
+    private readonly AfkService _afk;
     private readonly PrefixCommandService _prefix;
     private readonly ILogger<DiscordBotService> _logger;
 
@@ -46,6 +47,7 @@ public sealed class DiscordBotService : BackgroundService
         DeepSeekService ia,
         AiCommandConfirmation confirmaciones,
         CountingService counting,
+        AfkService afk,
         PrefixCommandService prefix,
         ILogger<DiscordBotService> logger)
     {
@@ -59,6 +61,7 @@ public sealed class DiscordBotService : BackgroundService
         _ia = ia;
         _confirmaciones = confirmaciones;
         _counting = counting;
+        _afk = afk;
         _prefix = prefix;
         _logger = logger;
 
@@ -159,6 +162,9 @@ public sealed class DiscordBotService : BackgroundService
         var texto = e.Message.Content?.Trim();
         if (string.IsNullOrWhiteSpace(texto))
             return;
+
+        // Procesa retorno de AFK y menciones a ausentes
+        await _afk.ProcesarMensajeAsync(sender, e);
 
         // Camino 0: comando de texto con prefijo ';'
         if (await _prefix.ProcesarMensajeAsync(e))

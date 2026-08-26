@@ -329,6 +329,23 @@
             "TituloRanking": "Classificação de Curiosidades",
             "ErrorCarga": "<:error:1534417252185800720> Não foi possível obter uma pergunta de curiosidades neste momento. Tente novamente!",
             "AvisoPrueba": "⚠️ Pergunta de teste: este recurso ainda não foi totalmente implementado."
+        },
+        "Afk": {
+            "Establecido": "Defini seu estado como ausente: **{motivo}**",
+            "BienvenidaRetorno": "Bem-vindo de volta, {usuario}! Removi seu estado de ausência. Você esteve ausente por **{tiempo}**.",
+            "MencionAusente": "**{usuario}** está ausente: *\"{motivo}\"* (há {tiempo})",
+            "CanalIgnorado": "O canal {canal} foi adicionado à lista de ignorados. Falar lá não removerá o estado de ausência.",
+            "CanalYaIgnorado": "O canal {canal} já está na lista de ignorados de AFK.",
+            "CanalDesignorado": "O canal {canal} foi removido da lista de ignorados.",
+            "CanalNoIgnorado": "O canal {canal} não está na lista de ignorados de AFK.",
+            "SinCanalesIgnorados": "Não há canais ignorados de AFK configurados neste servidor.",
+            "TituloCanalesIgnorados": "Canais Ignorados de AFK",
+            "SinMiembrosAusentes": "Não há membros ausentes neste servidor atualmente.",
+            "TituloMiembrosAusentes": "Membros Atualmente Ausentes",
+            "RemovidoMod": "O estado de ausência de **{usuario}** foi removido.",
+            "RemovidosTodos": "O estado de ausência de **{total}** membros foi removido.",
+            "MotivoReseteado": "O motivo de ausência de **{usuario}** foi redefinido para o padrão.",
+            "NoEstaAusente": "**{usuario}** não está ausente atualmente."
         }
     }
 }

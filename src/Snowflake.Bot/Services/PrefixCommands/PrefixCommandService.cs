@@ -33,6 +33,7 @@ public sealed class PrefixCommandService
     private readonly LitterboxService _litter;
     private readonly CalculatorService _calc;
     private readonly TriviaService _trivia;
+    private readonly AfkService _afk;
     private readonly DeepSeekService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly ModerationLogService _modLog;
@@ -51,6 +52,7 @@ public sealed class PrefixCommandService
         LitterboxService litter,
         CalculatorService calc,
         TriviaService trivia,
+        AfkService afk,
         DeepSeekService ia,
         AiCommandConfirmation confirmaciones,
         ModerationLogService modLog,
@@ -68,6 +70,7 @@ public sealed class PrefixCommandService
         _litter = litter;
         _calc = calc;
         _trivia = trivia;
+        _afk = afk;
         _ia = ia;
         _confirmaciones = confirmaciones;
         _modLog = modLog;
@@ -136,6 +139,11 @@ public sealed class PrefixCommandService
                 case "trivia":
                 case "t":
                     await EjecutarTriviaAsync(e, args);
+                    return true;
+
+                // ================= AFK =================
+                case "afk":
+                    await EjecutarAfkAsync(e, args, sinPrefijo[cmd.Length..].Trim());
                     return true;
 
                 // ================= Descargas =================
@@ -456,10 +464,10 @@ public sealed class PrefixCommandService
         var embed = new DiscordEmbedBuilder()
             .WithTitle("❄️ Snowflake — Comandos con prefijo `;`")
             .WithDescription("También puedes usar todos los comandos con la barra diagonal `/`.")
-            .AddField("📌 General y Multimedia", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;calc <expresión/problema>` — Calculadora y resolución con IA\n`;trivia [categoría] [dificultad]` — Jugar a la trivia cultural\n`;descargar <URL> [audio]` — Descargar vídeo/audio de Internet\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
+            .AddField("📌 General y Multimedia", "`;ping` — Latencia del bot\n`;gato` — Foto aleatoria de gato\n`;calc <expresión/problema>` — Calculadora y resolución con IA\n`;afk [motivo]` — Establecer estado ausente\n`;trivia [categoría] [dificultad]` — Jugar a la trivia cultural\n`;descargar <URL> [audio]` — Descargar vídeo/audio de Internet\n`;avatar [@usuario]` — Ver avatar\n`;help` — Esta lista de ayuda")
             .AddField("💬 Inteligencia Artificial", "`;talk <texto>` — Habla con la IA\n`;talk-clear` — Reinicia la memoria de la IA")
             .AddField("🎵 Música", "`;play <canción/URL>` — Reproducir música\n`;pause` / `;resume` — Pausar / Reanudar\n`;skip` — Saltar canción\n`;stop` — Detener y salir\n`;queue` — Ver la cola\n`;np` — Canción actual\n`;volume <0-100>` — Ajustar volumen")
-            .AddField("🛡️ Moderación y Roles", "`;role <add|remove> @user <rol>` — Gestionar roles\n`;clear <1-100>` — Limpiar mensajes\n`;kick @usuario [motivo]` — Expulsar usuario\n`;ban @usuario [motivo]` — Banear usuario\n`;unban <id> [motivo]` — Desbanear usuario\n`;timeout @usuario <tiempo> [motivo]` — Aislar usuario\n`;warn @usuario [motivo]` — Advertir usuario")
+            .AddField("🛡️ Moderación y Roles", "`;afk mod <ignore|unignore|ignored|list|remove|removeall|reset>` — Gestión de AFK\n`;role <add|remove> @user <rol>` — Gestionar roles\n`;clear <1-100>` — Limpiar mensajes\n`;kick @usuario [motivo]` — Expulsar usuario\n`;ban @usuario [motivo]` — Banear usuario\n`;unban <id> [motivo]` — Desbanear usuario\n`;timeout @usuario <tiempo> [motivo]` — Aislar usuario\n`;warn @usuario [motivo]` — Advertir usuario")
             .WithColor(DiscordColor.Cyan);
 
         await e.Message.RespondAsync(embed);
@@ -531,6 +539,173 @@ public sealed class PrefixCommandService
         string? dificultad = args.Count > 1 ? args[1] : null;
 
         await _trivia.JugarPrefixAsync(e, categoria, dificultad);
+    }
+
+    private async Task EjecutarAfkAsync(MessageCreateEventArgs e, IReadOnlyList<string> args, string restoTexto)
+    {
+        var miembro = e.Message.Author as DiscordMember ?? await e.Guild.GetMemberAsync(e.Author.Id);
+
+        // Subcomando de moderación: ;afk mod ...
+        if (args.Count > 0 && args[0].Equals("mod", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!miembro.Permissions.HasPermission(Permissions.ManageGuild))
+            {
+                await e.Message.RespondAsync($"{BotEmojis.Error} Necesitas el permiso `Gestionar Servidor` para usar los comandos de moderación de AFK.");
+                return;
+            }
+
+            var subArgs = args.Skip(1).ToList();
+            if (subArgs.Count == 0)
+            {
+                await e.Message.RespondAsync($"ℹ️ Uso: `;afk mod <ignore|unignore|ignored|list|remove|removeall|reset>`");
+                return;
+            }
+
+            var accion = subArgs[0].ToLowerInvariant();
+            switch (accion)
+            {
+                case "ignore":
+                    if (subArgs.Count < 2 || !ulong.TryParse(Regex.Match(subArgs[1], @"\d+").Value, out var chIgnoreId) || !e.Guild.Channels.TryGetValue(chIgnoreId, out var chIgnore))
+                    {
+                        await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;afk mod ignore <#canal>`");
+                        return;
+                    }
+                    var agreg = await _afk.AgregarCanalIgnoradoAsync(e.Guild.Id, chIgnore.Id);
+                    await e.Message.RespondAsync(agreg
+                        ? $"✅ {_msg.Get(e.Guild.Id, "Afk:CanalIgnorado", ("canal", chIgnore.Mention))}"
+                        : $"ℹ️ {_msg.Get(e.Guild.Id, "Afk:CanalYaIgnorado", ("canal", chIgnore.Mention))}");
+                    return;
+
+                case "unignore":
+                    if (subArgs.Count < 2 || !ulong.TryParse(Regex.Match(subArgs[1], @"\d+").Value, out var chUnignoreId) || !e.Guild.Channels.TryGetValue(chUnignoreId, out var chUnignore))
+                    {
+                        await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;afk mod unignore <#canal>`");
+                        return;
+                    }
+                    var rem = await _afk.RemoverCanalIgnoradoAsync(e.Guild.Id, chUnignore.Id);
+                    await e.Message.RespondAsync(rem
+                        ? $"✅ {_msg.Get(e.Guild.Id, "Afk:CanalDesignorado", ("canal", chUnignore.Mention))}"
+                        : $"⚠️ {_msg.Get(e.Guild.Id, "Afk:CanalNoIgnorado", ("canal", chUnignore.Mention))}");
+                    return;
+
+                case "ignored":
+                    var ignorados = _afk.ObtenerCanalesIgnorados(e.Guild.Id);
+                    if (ignorados.Count == 0)
+                    {
+                        await e.Message.RespondAsync($"ℹ️ {_msg.Get(e.Guild.Id, "Afk:SinCanalesIgnorados")}");
+                        return;
+                    }
+                    var sbIgn = new StringBuilder();
+                    foreach (var cId in ignorados)
+                        sbIgn.AppendLine($"• <#{cId}> (`{cId}`)");
+
+                    var embedIgn = new DiscordEmbedBuilder()
+                        .WithTitle($"🔇 {_msg.Get(e.Guild.Id, "Afk:TituloCanalesIgnorados")}")
+                        .WithDescription(sbIgn.ToString())
+                        .WithColor(DiscordColor.CornflowerBlue)
+                        .WithFooter($"Total: {ignorados.Count}");
+                    await e.Message.RespondAsync(embedIgn);
+                    return;
+
+                case "list":
+                    var ausentesMod = _afk.ListarAfk(e.Guild.Id);
+                    if (ausentesMod.Count == 0)
+                    {
+                        await e.Message.RespondAsync($"ℹ️ {_msg.Get(e.Guild.Id, "Afk:SinMiembrosAusentes")}");
+                        return;
+                    }
+                    var ahoraMod = DateTimeOffset.UtcNow;
+                    var sbAusMod = new StringBuilder();
+                    foreach (var a in ausentesMod)
+                    {
+                        var tiempoFmt = DurationParser.Format(ahoraMod - a.SetAt, _msg.Locale(e.Guild.Id));
+                        sbAusMod.AppendLine($"• <@{a.UserId}> — *\"{a.Reason}\"* (`{tiempoFmt}`)");
+                    }
+                    var embedAusMod = new DiscordEmbedBuilder()
+                        .WithTitle($"💤 {_msg.Get(e.Guild.Id, "Afk:TituloMiembrosAusentes")}")
+                        .WithDescription(sbAusMod.ToString())
+                        .WithColor(DiscordColor.CornflowerBlue)
+                        .WithFooter($"Total: {ausentesMod.Count}");
+                    await e.Message.RespondAsync(embedAusMod);
+                    return;
+
+                case "remove":
+                    if (subArgs.Count < 2 || !ulong.TryParse(Regex.Match(subArgs[1], @"\d+").Value, out var uRemId))
+                    {
+                        await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;afk mod remove <@usuario>`");
+                        return;
+                    }
+                    var mRem = await e.Guild.GetMemberAsync(uRemId);
+                    var remOk = await _afk.RemoverAfkAsync(e.Guild, mRem);
+                    await e.Message.RespondAsync(remOk
+                        ? $"✅ {_msg.Get(e.Guild.Id, "Afk:RemovidoMod", ("usuario", mRem.DisplayName))}"
+                        : $"⚠️ {_msg.Get(e.Guild.Id, "Afk:NoEstaAusente", ("usuario", mRem.DisplayName))}");
+                    return;
+
+                case "removeall":
+                    var totalRem = await _afk.RemoverTodosAfkAsync(e.Guild);
+                    await e.Message.RespondAsync(totalRem > 0
+                        ? $"✅ {_msg.Get(e.Guild.Id, "Afk:RemovidosTodos", ("total", totalRem.ToString()))}"
+                        : $"ℹ️ {_msg.Get(e.Guild.Id, "Afk:SinMiembrosAusentes")}");
+                    return;
+
+                case "reset":
+                    if (subArgs.Count < 2 || !ulong.TryParse(Regex.Match(subArgs[1], @"\d+").Value, out var uRstId))
+                    {
+                        await e.Message.RespondAsync($"{BotEmojis.Error} Uso: `;afk mod reset <@usuario>`");
+                        return;
+                    }
+                    var mRst = await e.Guild.GetMemberAsync(uRstId);
+                    var rstOk = await _afk.ResetearMotivoAfkAsync(e.Guild.Id, uRstId);
+                    await e.Message.RespondAsync(rstOk
+                        ? $"✅ {_msg.Get(e.Guild.Id, "Afk:MotivoReseteado", ("usuario", mRst.DisplayName))}"
+                        : $"⚠️ {_msg.Get(e.Guild.Id, "Afk:NoEstaAusente", ("usuario", mRst.DisplayName))}");
+                    return;
+
+                default:
+                    await e.Message.RespondAsync($"{BotEmojis.Error} Subcomando de moderación desconocido. Opciones: `ignore`, `unignore`, `ignored`, `list`, `remove`, `removeall`, `reset`");
+                    return;
+            }
+        }
+
+        // Subcomando ;afk list (acceso general de lectura)
+        if (args.Count > 0 && args[0].Equals("list", StringComparison.OrdinalIgnoreCase))
+        {
+            var ausentes = _afk.ListarAfk(e.Guild.Id);
+            if (ausentes.Count == 0)
+            {
+                await e.Message.RespondAsync($"ℹ️ {_msg.Get(e.Guild.Id, "Afk:SinMiembrosAusentes")}");
+                return;
+            }
+
+            var ahora = DateTimeOffset.UtcNow;
+            var sb = new StringBuilder();
+            foreach (var a in ausentes)
+            {
+                var tiempoFmt = DurationParser.Format(ahora - a.SetAt, _msg.Locale(e.Guild.Id));
+                sb.AppendLine($"• <@{a.UserId}> — *\"{a.Reason}\"* (`{tiempoFmt}`)");
+            }
+
+            var embed = new DiscordEmbedBuilder()
+                .WithTitle($"💤 {_msg.Get(e.Guild.Id, "Afk:TituloMiembrosAusentes")}")
+                .WithDescription(sb.ToString())
+                .WithColor(DiscordColor.CornflowerBlue)
+                .WithFooter($"Total: {ausentes.Count}");
+
+            await e.Message.RespondAsync(embed);
+            return;
+        }
+
+        // Establecer AFK personal: ;afk [motivo...]
+        var motivo = string.IsNullOrWhiteSpace(restoTexto) ? null : restoTexto.Trim();
+        await _afk.EstablecerAfkAsync(e.Guild, miembro, motivo);
+
+        var motivoFmt = string.IsNullOrWhiteSpace(motivo) ? "AFK" : motivo;
+        var resp = _msg.Get(e.Guild.Id, "Afk:Establecido",
+            ("usuario", e.Author.Username),
+            ("motivo", motivoFmt));
+
+        await e.Message.RespondAsync($"💤 {resp}");
     }
 
     private async Task EjecutarCalcAsync(MessageCreateEventArgs e, string entrada)
