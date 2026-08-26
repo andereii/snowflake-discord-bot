@@ -32,9 +32,11 @@ plugins:
     allowDirectPlaylistIds: true
     clients:
       - MUSIC
-      - ANDROID_VR
+      - ANDROID_TESTSUITE
       - WEB
-      - WEBEMBEDDED
+      - TVHTML5EMBEDDED
+      - ANDROID_VR
+      - IOS
 
   # Configuración del plugin LavaSrc (spotify, etc.)
   lavasrc:

@@ -161,9 +161,7 @@ public sealed class MusicService(
 
     private async Task<TrackLoadResult> CargarTracksAsync(string consulta)
     {
-        // El token anónimo que LavaSrc usa para Spotify puede dejar de funcionar
-        // aunque el plugin esté cargado. Para canciones individuales usamos el
-        // endpoint público de oEmbed y buscamos una fuente reproducible en YouTube.
+        // 1. URLs directas de Spotify
         if (TryGetSpotifyTrackUrl(consulta, out var spotifyUrl))
         {
             var resultadoSpotify = await CargarCancionSpotifyAsync(spotifyUrl).ConfigureAwait(false);
@@ -171,11 +169,26 @@ public sealed class MusicService(
                 return resultadoValido;
         }
 
-        // Mantiene el comportamiento normal para YouTube/búsquedas y permite que
-        // LavaSrc procese playlists o álbumes cuando hay credenciales configuradas.
-        return await tracks.LoadTracksAsync(
+        // 2. URLs directas (SoundCloud, YouTube, Twitch, HTTP stream, etc.)
+        if (Uri.TryCreate(consulta, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return await tracks.LoadTracksAsync(consulta, default, default).ConfigureAwait(false);
+        }
+
+        // 3. Búsqueda por término: primero en YouTube
+        var resYt = await tracks.LoadTracksAsync(
             consulta,
             new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
+            default, default).ConfigureAwait(false);
+
+        if (resYt.IsSuccess && (resYt.Track is not null || resYt.Playlist is not null))
+            return resYt;
+
+        // 4. Fallback automático a SoundCloud si YouTube no encuentra o falla
+        return await tracks.LoadTracksAsync(
+            consulta,
+            new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
             default, default).ConfigureAwait(false);
     }
 
@@ -195,9 +208,17 @@ public sealed class MusicService(
             var title = titleElement.GetString();
             if (string.IsNullOrWhiteSpace(title)) return null;
 
-            return await tracks.LoadTracksAsync(
+            var resYt = await tracks.LoadTracksAsync(
                 title,
                 new TrackLoadOptions { SearchMode = TrackSearchMode.YouTube },
+                default, default).ConfigureAwait(false);
+
+            if (resYt.IsSuccess && (resYt.Track is not null || resYt.Playlist is not null))
+                return resYt;
+
+            return await tracks.LoadTracksAsync(
+                title,
+                new TrackLoadOptions { SearchMode = TrackSearchMode.SoundCloud },
                 default, default).ConfigureAwait(false);
         }
         catch (HttpRequestException)
