@@ -257,6 +257,7 @@ public sealed class GuildSettingsService(
         DownloadsEnabled = c.DownloadsEnabled,
         AiWebSearchEnabled = c.AiWebSearchEnabled,
         AiCommandsEnabled = c.AiCommandsEnabled,
+        PollCount = c.PollCount,
         Language = c.Language
     };
 }

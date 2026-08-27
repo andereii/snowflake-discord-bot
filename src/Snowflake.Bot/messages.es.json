@@ -378,7 +378,7 @@
       "ErrorMinOpciones": "Debes poner al menos 2 opciones.",
       "ErrorMaxOpciones": "Puedes poner como máximo 10 opciones.",
       "Opciones": "**Opciones:**",
-      "Footer": "Encuesta de {autor}",
+      "Footer": "Encuesta #{numero} de {autor} · ID {id}",
       "TerminaEn": "Termina",
       "FinalizarBtn": "Finalizar Encuesta",
       "FinalizadaDesc": "¡La encuesta ha finalizado! Aquí están los resultados:",

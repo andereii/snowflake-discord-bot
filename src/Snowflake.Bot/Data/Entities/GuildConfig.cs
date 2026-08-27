@@ -87,6 +87,11 @@ public sealed class GuildConfig
     /// <summary>Si /download está habilitado en el servidor.</summary>
     public bool DownloadsEnabled { get; set; } = true;
 
+    // ------------------------- Encuestas -------------------------
+
+    /// <summary>Contador de encuestas creadas en este servidor (persistente).</summary>
+    public int PollCount { get; set; }
+
     // ------------------------- Idioma -------------------------
 
     /// <summary>

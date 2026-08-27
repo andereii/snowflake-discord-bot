@@ -378,7 +378,7 @@
       "ErrorMinOpciones": "You must provide at least 2 options.",
       "ErrorMaxOpciones": "You can provide at most 10 options.",
       "Opciones": "**Options:**",
-      "Footer": "Poll by {autor}",
+      "Footer": "Poll #{numero} by {autor} · ID {id}",
       "TerminaEn": "Ends",
       "FinalizarBtn": "End Poll",
       "FinalizadaDesc": "The poll has ended! Here are the results:",

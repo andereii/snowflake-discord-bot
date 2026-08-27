@@ -3,18 +3,25 @@ using DSharpPlus.Entities;
 using DSharpPlus.SlashCommands;
 using Microsoft.Extensions.Logging;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Modules;
 
 public class PollModule : SnowflakeModuleBase
 {
     private readonly PollWidgetService _pollService;
+    private readonly GuildSettingsService _settings;
     private readonly MessagesService _msg;
     private readonly ILogger<PollModule> _logger;
 
-    public PollModule(PollWidgetService pollService, MessagesService msg, ILogger<PollModule> logger)
+    public PollModule(
+        PollWidgetService pollService,
+        GuildSettingsService settings,
+        MessagesService msg,
+        ILogger<PollModule> logger)
     {
         _pollService = pollService;
+        _settings = settings;
         _msg = msg;
         _logger = logger;
     }
@@ -67,8 +74,7 @@ public class PollModule : SnowflakeModuleBase
 
         var embed = new DiscordEmbedBuilder()
             .WithTitle("📊 " + pregunta)
-            .WithColor(DiscordColor.Azure)
-            .WithFooter(_msg.Get(ctx.Guild.Id, "Encuestas:Footer", ("autor", ctx.User.Username)));
+            .WithColor(DiscordColor.Azure);
 
         string desc = _msg.Get(ctx.Guild.Id, "Encuestas:Opciones") + "\n\n";
         for (int i = 0; i < opciones.Count; i++)
@@ -95,6 +101,15 @@ public class PollModule : SnowflakeModuleBase
         builder.AddComponents(new DiscordButtonComponent(ButtonStyle.Danger, "poll_end", _msg.Get(ctx.Guild.Id, "Encuestas:FinalizarBtn")));
 
         var msg = await ctx.EditResponseAsync(builder);
+
+        // Número de encuesta de este servidor (persistente) + ID del mensaje en el pie.
+        var cfg = await _settings.UpdateAsync(ctx.Guild.Id, c => c.PollCount++);
+        embed.WithFooter(_msg.Get(ctx.Guild.Id, "Encuestas:Footer",
+            ("autor", ctx.User.Username), ("id", msg.Id.ToString()), ("numero", cfg.PollCount)));
+
+        await msg.ModifyAsync(new DiscordMessageBuilder()
+            .AddEmbed(embed)
+            .AddComponents(new DiscordButtonComponent(ButtonStyle.Danger, "poll_end", _msg.Get(ctx.Guild.Id, "Encuestas:FinalizarBtn"))));
 
         await _pollService.RegistrarEncuestaAsync(msg, ctx.User.Id, pregunta, opciones, multiOpcion, (int)Math.Round(minutos));
     }

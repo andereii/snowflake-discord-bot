@@ -378,7 +378,7 @@
       "ErrorMinOpciones": "Você deve fornecer pelo menos 2 opções.",
       "ErrorMaxOpciones": "Você pode fornecer no máximo 10 opções.",
       "Opciones": "**Opções:**",
-      "Footer": "Enquete de {autor}",
+      "Footer": "Enquete #{numero} por {autor} · ID {id}",
       "TerminaEn": "Termina",
       "FinalizarBtn": "Encerrar Enquete",
       "FinalizadaDesc": "A enquete terminou! Aqui estão os resultados:",
