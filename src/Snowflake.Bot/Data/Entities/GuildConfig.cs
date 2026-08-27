@@ -50,25 +50,25 @@ public sealed class GuildConfig
     /// </summary>
     public ulong? DjRoleId { get; set; }
 
-    // ------------------------- IA (DeepSeek) -------------------------
+    // ------------------------- IA -------------------------
 
     /// <summary>Si /charlar está habilitado en el servidor (interruptor general).</summary>
-    public bool GeminiChatEnabled { get; set; } = true;
+    public bool AiChatEnabled { get; set; } = true;
 
     /// <summary>
     /// Si el bot debe responder con la IA cuando lo mencionan con @.
     /// Desactivado por defecto; se activa con /ai-mentions.
     /// </summary>
-    public bool GeminiMentionsEnabled { get; set; }
+    public bool AiMentionsEnabled { get; set; }
 
     /// <summary>
     /// Si el bot puede intervenir espontáneamente en el chat ambiental,
     /// sin que nadie lo mencione. Desactivado por defecto.
     /// </summary>
-    public bool GeminiSpontaneousEnabled { get; set; }
+    public bool AiSpontaneousEnabled { get; set; }
 
     /// <summary>
-    /// Si la IA puede buscar en internet (web_search de DeepSeek) cuando el
+    /// Si la IA puede buscar en internet cuando el
     /// modelo lo considere necesario. Activado por defecto; los administradores
     /// pueden desactivarlo con /ai-search o desde el panel web.
     /// </summary>

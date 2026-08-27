@@ -112,7 +112,10 @@ void main(string[] args) {
     
     int width = 800;
     int pieHeight = 450;
-    int legendHeight = cast(int)(labels.length * 40 + 40);
+    // Más de 5 opciones → leyenda en doble columna con la mitad de caracteres por label.
+    bool dobleColumna = labels.length > 5;
+    int rows = cast(int)(dobleColumna ? (labels.length + 1) / 2 : labels.length);
+    int legendHeight = rows * 40 + 40;
     int height = pieHeight + legendHeight;
     
     auto img = new TrueColorImage(width, height);
@@ -155,18 +158,26 @@ void main(string[] args) {
     }
     
     int legendY = pieHeight;
+    int maxLabelChars = dobleColumna ? 12 : 24;
     for(int i = 0; i < labels.length; i++) {
         Color c = palette[i % palette.length];
-        int ly = legendY + i * 40;
-        drawFilledRect(img, cx - 150, ly, 20, 20, c);
-        
+        int col = dobleColumna ? (i % 2) : 0;
+        int row = dobleColumna ? (i / 2) : i;
+        int ly = legendY + row * 40;
+
+        // Columna única: bloque centrado a la izquierda. Doble columna: dos bloques.
+        int boxX = dobleColumna ? (col == 0 ? 40 : 420) : 220;
+        int textX = dobleColumna ? (col == 0 ? 70 : 450) : 260;
+
+        drawFilledRect(img, boxX, ly, 20, 20, c);
+
         string lbl = labels[i];
-        if (lbl.length > 35) lbl = lbl[0..32] ~ "...";
-        
+        if (lbl.length > maxLabelChars) lbl = lbl[0..(maxLabelChars - 3)] ~ "...";
+
         double percentage = total > 0 ? (values[i] / total) * 100.0 : 0;
         import std.format;
         string text = format("%s (%.1f%%)", lbl, percentage);
-        drawString(img, text, cx - 110, ly + 2, Color(255, 255, 255), 2);
+        drawString(img, text, textX, ly + 2, Color(255, 255, 255), 2);
     }
     
     writePng(outFile, img);

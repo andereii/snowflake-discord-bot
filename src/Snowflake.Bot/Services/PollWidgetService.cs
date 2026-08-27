@@ -27,7 +27,7 @@ public sealed class PollWidgetService
         DiscordEmoji.FromUnicode("🔟")
     ];
 
-    private sealed class PollSession
+    public sealed class PollSession
     {
         public ulong MessageId { get; set; }
         public ulong ChannelId { get; set; }
@@ -44,11 +44,24 @@ public sealed class PollWidgetService
     }
 
     private readonly ConcurrentDictionary<ulong, PollSession> _polls = new();
+    private readonly ConcurrentDictionary<ulong, ulong> _pollsFinalizadas = new(); // messageId -> channelId
 
     public PollWidgetService(MessagesService msg, ILogger<PollWidgetService> logger)
     {
         _msg = msg;
         _logger = logger;
+    }
+
+    /// <summary>Obtiene las encuestas activas de un servidor.</summary>
+    public IReadOnlyList<PollSession> ObtenerActivas(ulong guildId)
+    {
+        return _polls.Values.Where(p => p.GuildId == guildId).ToList();
+    }
+
+    /// <summary>Obtiene el channelId de una encuesta finalizada por su messageId.</summary>
+    public bool TryObtenerCanalFinalizada(ulong messageId, out ulong channelId)
+    {
+        return _pollsFinalizadas.TryGetValue(messageId, out channelId);
     }
 
     public async Task RegistrarEncuestaAsync(DiscordMessage msg, ulong authorId, string question, List<string> options, bool multiOption, int minutos)
@@ -147,6 +160,9 @@ public sealed class PollWidgetService
     private async Task FinalizarEncuestaAsync(DiscordGuild guild, DiscordChannel channel, ulong messageId)
     {
         if (!_polls.TryRemove(messageId, out var session)) return;
+
+        // Guardamos referencia para que /poll-result pueda recuperar el mensaje.
+        _pollsFinalizadas[messageId] = session.ChannelId;
 
         // Conteo
         var resultados = new int[session.Options.Count];

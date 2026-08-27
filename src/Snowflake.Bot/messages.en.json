@@ -174,7 +174,7 @@
       "VerMusica": "DJ role",
       "VerDj": "{rol}",
       "VerSinDj": "No role (anyone in the same voice channel)",
-      "VerAi": "AI (Gemini)",
+      "VerAi": "AI",
       "VerAiDetalle": "Chat: {chat} · Mentions: {menciones} · Spontaneous: {espontaneo} · Web search: {busqueda} · Commands: {comandos}",
       "VerDescargas": "Downloads",
       "VerConteo": "Counting game",
@@ -192,18 +192,19 @@
     },
     "Chat": {
       "Pensando": "<a:load:1534442024281837749> Thinking...",
+      "BuscandoWeb": "🔍 Searching the web...",
       "Ocupado": "<a:loadingwindows:1534386932744716328> There's another conversation in progress on this server right now. Try again in a few seconds.",
-      "SinApiKey": "<:error:1534417252185800720> The chatbot isn't configured yet. The `DEEPSEEK_API_KEY` environment variable is missing.",
+      "SinApiKey": "<:error:1534417252185800720> The chatbot isn't configured yet. Add `DEEPSEEK_API_KEY` or `GEMINI_API_KEY` to your `.env` file.",
       "Error": "<:error:1534417252185800720> I couldn't reach the AI right now. Try again.",
-      "ErrorDebug": "<:error:1534417252185800720> DeepSeek error: {mensaje}",
+      "ErrorDebug": "<:error:1534417252185800720> AI error: {mensaje}",
       "Limpiado": "🧹 Server shared conversation reset. I no longer remember the previous context.",
       "SinConversacion": "ℹ️ There's no active conversation on this server yet. Use `/talk` to start one.",
       "MencionesActivadas": "<:check:1534413756057260152> I'll now respond when someone mentions me with @.",
       "MencionesDesactivadas": "⛔ I'll no longer respond to @mentions.",
-      "MencionesFaltaApiKey": "<:error:1534417252185800720> Can't enable mentions: the `DEEPSEEK_API_KEY` environment variable is missing.",
+      "MencionesFaltaApiKey": "<:error:1534417252185800720> Can't enable mentions: add `DEEPSEEK_API_KEY` or `GEMINI_API_KEY` to your `.env` file.",
       "EspontaneoActivado": "<:check:1534413756057260152> I can now jump into the chat spontaneously when the conversation is active.",
       "EspontaneoDesactivado": "⛔ I'll no longer intervene spontaneously in the chat.",
-      "EspontaneoFaltaApiKey": "<:error:1534417252185800720> Can't enable spontaneous mode: the `DEEPSEEK_API_KEY` environment variable is missing.",
+      "EspontaneoFaltaApiKey": "<:error:1534417252185800720> Can't enable spontaneous mode: add `DEEPSEEK_API_KEY` or `GEMINI_API_KEY` to your `.env` file.",
       "Desactivado": "AI chat is disabled on this server. An administrator can enable it from the configuration panel.",
       "Truncada": "\n\n*(response truncated)*",
       "BusquedaActivada": "I can now search the internet when I think the question needs it.",
@@ -367,14 +368,27 @@
     "Herramientas": {
       "BusquedaSinResultados": "No images found for: **{query}**"
     },
+    "Dados": {
+      "Titulo": "🎲 Dice Roll",
+      "Resultado": "Rolled a **{dado}** on a {caras}-sided dice!",
+      "Pie": "Rolled by {autor}",
+      "RangoInvalido": "The number of faces must be between 2 and 100."
+    },
     "Encuestas": {
       "ErrorMinOpciones": "You must provide at least 2 options.",
+      "ErrorMaxOpciones": "You can provide at most 10 options.",
       "Opciones": "**Options:**",
       "Footer": "Poll by {autor}",
       "TerminaEn": "Ends",
       "FinalizarBtn": "End Poll",
       "FinalizadaDesc": "The poll has ended! Here are the results:",
-      "MultiOpcion": "You can select multiple options."
+      "MultiOpcion": "You can select multiple options.",
+      "ListaVacia": "There are no active polls on this server right now.",
+      "ListaTitulo": "📊 Active Polls",
+      "MultiOpcionLabel": "Multiple choice",
+      "IdInvalido": "The message ID is not valid.",
+      "ResultadoNoEncontrado": "No finished poll was found with that message ID. Make sure the poll has ended and you copied the ID of the results message.",
+      "ErrorAlObtener": "Could not retrieve the poll results message. It may have been deleted or I may not have permission to read it."
     }
   }
 }

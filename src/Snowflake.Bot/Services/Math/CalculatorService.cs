@@ -14,11 +14,11 @@ public sealed record CalculatorResponse(
 
 /// <summary>
 /// Orquestador del servicio de calculadora y resolución matemática.
-/// Realiza evaluación matemática instantánea localmente o delega a DeepSeek IA si es un problema en lenguaje natural.
+/// Realiza evaluación matemática instantánea localmente o delega a la IA si es un problema en lenguaje natural.
 /// </summary>
 public sealed class CalculatorService(
     DiscordClient client,
-    DeepSeekService ia,
+    AiService ia,
     MessagesService msg)
 {
     public async Task<CalculatorResponse> ProcesarAsync(DiscordGuild guild, DiscordChannel canal, DiscordMember miembro, string entrada)

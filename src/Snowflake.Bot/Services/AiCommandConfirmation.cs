@@ -16,7 +16,7 @@ namespace Snowflake.Bot.Services;
 /// </summary>
 public sealed class AiCommandConfirmation(
     DiscordClient client,
-    DeepSeekService ia,
+    AiService ia,
     AiCommandExecutor executor,
     MessagesService msg,
     ILogger<AiCommandConfirmation> logger)

@@ -49,9 +49,9 @@ public static class ConfigEndpoints
                 if (patch.TempChannelNameTemplate is not null) c.TempChannelNameTemplate = patch.TempChannelNameTemplate;
                 if (patch.Volume is { } v) c.Volume = Math.Clamp(v, 0, 100);
                 if (patch.DjRoleId is not null) c.DjRoleId = ParseId(patch.DjRoleId);
-                if (patch.GeminiChatEnabled is { } chat) c.GeminiChatEnabled = chat;
-                if (patch.GeminiMentionsEnabled is { } menc) c.GeminiMentionsEnabled = menc;
-                if (patch.GeminiSpontaneousEnabled is { } esp) c.GeminiSpontaneousEnabled = esp;
+                if (patch.AiChatEnabled is { } chat) c.AiChatEnabled = chat;
+                if (patch.AiMentionsEnabled is { } menc) c.AiMentionsEnabled = menc;
+                if (patch.AiSpontaneousEnabled is { } esp) c.AiSpontaneousEnabled = esp;
                 if (patch.AiWebSearchEnabled is { } busca) c.AiWebSearchEnabled = busca;
                 if (patch.AiCommandsEnabled is { } comandos) c.AiCommandsEnabled = comandos;
                 if (patch.DownloadsEnabled is { } dl) c.DownloadsEnabled = dl;
@@ -140,9 +140,9 @@ public static class ConfigEndpoints
         public string? TempChannelNameTemplate { get; init; }
         public int? Volume { get; init; }
         public string? DjRoleId { get; init; }
-        public bool? GeminiChatEnabled { get; init; }
-        public bool? GeminiMentionsEnabled { get; init; }
-        public bool? GeminiSpontaneousEnabled { get; init; }
+        public bool? AiChatEnabled { get; init; }
+        public bool? AiMentionsEnabled { get; init; }
+        public bool? AiSpontaneousEnabled { get; init; }
         public bool? AiWebSearchEnabled { get; init; }
         public bool? AiCommandsEnabled { get; init; }
         public bool? DownloadsEnabled { get; init; }

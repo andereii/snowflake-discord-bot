@@ -36,7 +36,7 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
             e.HasKey(g => g.GuildId);
             // Las nuevas capacidades se activan por defecto también en los
             // servidores que ya existían antes de la migración.
-            e.Property(g => g.GeminiChatEnabled).HasDefaultValue(true);
+            e.Property(g => g.AiChatEnabled).HasDefaultValue(true);
             e.Property(g => g.DownloadsEnabled).HasDefaultValue(true);
             e.Property(g => g.AiWebSearchEnabled).HasDefaultValue(true);
             e.Property(g => g.AiCommandsEnabled).HasDefaultValue(true);

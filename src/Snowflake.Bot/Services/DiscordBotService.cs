@@ -30,7 +30,7 @@ public sealed class DiscordBotService : BackgroundService
     private readonly MusicWidgetService _musicWidget;
     private readonly ImageSearchWidgetService _imgWidget;
     private readonly PollWidgetService _pollWidget;
-    private readonly DeepSeekService _ia;
+    private readonly AiService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly CountingService _counting;
     private readonly AfkService _afk;
@@ -48,7 +48,7 @@ public sealed class DiscordBotService : BackgroundService
         MusicWidgetService musicWidget,
         ImageSearchWidgetService imgWidget,
         PollWidgetService pollWidget,
-        DeepSeekService ia,
+        AiService ia,
         AiCommandConfirmation confirmaciones,
         CountingService counting,
         AfkService afk,
@@ -142,7 +142,7 @@ public sealed class DiscordBotService : BackgroundService
             foreach (var guildId in sender.Guilds.Keys)
             {
                 var cfg = await _settings.GetAsync(guildId);
-                _ia.EstablecerEspontaneo(guildId, cfg.GeminiSpontaneousEnabled);
+                _ia.EstablecerEspontaneo(guildId, cfg.AiSpontaneousEnabled);
             }
         }
         catch (Exception ex)
@@ -176,7 +176,7 @@ public sealed class DiscordBotService : BackgroundService
 
     /// <summary>
     /// Responde automáticamente cuando un usuario responde a un mensaje que
-    /// DeepSeek generó con /talk, o cuando lo menciona con @ (si el servidor
+    /// la IA generó con /talk, o cuando lo menciona con @ (si el servidor
     /// activó las menciones). Los mensajes del propio bot se ignoran para
     /// evitar bucles de respuestas.
     /// </summary>
@@ -210,9 +210,9 @@ public sealed class DiscordBotService : BackgroundService
         if (MencionaAlBot(sender, e.Message))
         {
             var cfg = await _settings.GetAsync(e.Guild.Id);
-            if (!cfg.GeminiMentionsEnabled) return;
+            if (!cfg.AiMentionsEnabled) return;
 
-            // Quitamos la mención del texto antes de enviar a DeepSeek.
+            // Quitamos la mención del texto antes de enviar a la IA.
             var limpio = LimpiarMencion(sender, texto);
             if (string.IsNullOrWhiteSpace(limpio)) return;
 
@@ -237,7 +237,7 @@ public sealed class DiscordBotService : BackgroundService
     }
 
     /// <summary>
-    /// Pide a DeepSeek un comentario espontáneo a partir de la conversación
+    /// Pide a la IA un comentario espontáneo a partir de la conversación
     /// reciente del canal y lo envía a dicho canal. Se ejecuta en background
     /// (fire-and-forget) para no frenar el procesamiento de mensajes.
     /// </summary>
@@ -252,7 +252,7 @@ public sealed class DiscordBotService : BackgroundService
             var contenido = ChatResponseFormatter.Formatear(respuesta, _msg.Get(guildId, "Chat:Truncada"));
             await canal.SendMessageAsync(contenido);
         }
-        catch (DeepSeekException ex)
+        catch (AiException ex)
         {
             _logger.LogInformation(
                 ex, "No se pudo generar comentario espontáneo en {Guild}", guildId);
@@ -264,7 +264,7 @@ public sealed class DiscordBotService : BackgroundService
         }
     }
 
-    /// <summary>Genera la respuesta de DeepSeek como reply a <paramref name="e"/>.</summary>
+    /// <summary>Genera la respuesta de la IA como reply a <paramref name="e"/>.</summary>
     private async Task ResponderChatAsync(MessageCreateEventArgs e, string texto, ulong guildId)
     {
         DiscordMessage? mensajeBot = null;
@@ -273,7 +273,7 @@ public sealed class DiscordBotService : BackgroundService
             // Enviamos algo inmediatamente para que el usuario vea que la
             // solicitud fue recibida mientras el modelo genera la respuesta.
             mensajeBot = await e.Message.RespondAsync(
-                new DiscordMessageBuilder().WithContent(_msg.Get(guildId, "Chat:Pensando")));
+                new DiscordMessageBuilder().WithContent("> " + _msg.Get(guildId, "Chat:Pensando")));
 
             var miembro = e.Message.Author as DiscordMember
                 ?? await e.Guild!.GetMemberAsync(e.Author.Id);
@@ -290,6 +290,12 @@ public sealed class DiscordBotService : BackgroundService
             }
 
             var contenido = ChatResponseFormatter.Formatear(outcome.Texto ?? "", _msg.Get(guildId, "Chat:Truncada"));
+            if (outcome.UsoBusquedaWeb)
+            {
+                contenido = "> " + _msg.Get(guildId, "Chat:Pensando") + "\n"
+                          + "> " + _msg.Get(guildId, "Chat:BuscandoWeb") + "\n\n"
+                          + contenido;
+            }
 
             var builder = new DiscordMessageBuilder().WithContent(contenido);
             foreach (var comando in outcome.Comandos)
@@ -298,7 +304,7 @@ public sealed class DiscordBotService : BackgroundService
             await mensajeBot.ModifyAsync(builder);
             _ia.RegistrarMensajeGenerado(mensajeBot.Id, guildId);
         }
-        catch (DeepSeekBusyException ex)
+        catch (AiBusyException ex)
         {
             _logger.LogInformation(
                 ex,
@@ -307,11 +313,15 @@ public sealed class DiscordBotService : BackgroundService
                 e.Channel.Id);
             await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get(guildId, "Chat:Ocupado"));
         }
-        catch (DeepSeekConfirmationPendingException)
+        catch (AiConfirmationPendingException)
         {
             await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get(guildId, "Chat:ConfirmacionEnCurso"));
         }
-        catch (DeepSeekException ex)
+        catch (AiApiKeyMissingException)
+        {
+            await ModificarRespuestaChatAsync(mensajeBot, e.Message, _msg.Get(guildId, "Chat:SinApiKey"));
+        }
+        catch (AiException ex)
         {
             _logger.LogWarning(
                 ex,
@@ -355,7 +365,7 @@ public sealed class DiscordBotService : BackgroundService
 
     /// <summary>
     /// Procesa los mensajes del canal de conteo (si el servidor lo configuró).
-    /// Handler separado del de Gemini: ambos conviven en el evento MessageCreated.
+    /// Handler separado del de encuestas: ambos conviven en el evento MessageCreated.
     /// </summary>
     private Task OnMessageCreatedCounting(DiscordClient sender, MessageCreateEventArgs e)
         => _counting.ProcesarMensajeAsync(e.Message);

@@ -11,6 +11,7 @@ services:
       - Lavalink__Host=lavalink
       # Carga las variables de entorno para que el bot las pueda leer
       - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}

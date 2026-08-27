@@ -36,7 +36,7 @@ public sealed class PrefixCommandService
     private readonly CalculatorService _calc;
     private readonly TriviaService _trivia;
     private readonly AfkService _afk;
-    private readonly DeepSeekService _ia;
+    private readonly AiService _ia;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly ModerationLogService _modLog;
     private readonly IOptionsMonitor<DownloadOptions> _dlOptions;
@@ -56,7 +56,7 @@ public sealed class PrefixCommandService
         CalculatorService calc,
         TriviaService trivia,
         AfkService afk,
-        DeepSeekService ia,
+        AiService ia,
         AiCommandConfirmation confirmaciones,
         ModerationLogService modLog,
         IOptionsMonitor<DownloadOptions> dlOptions,
@@ -773,7 +773,7 @@ public sealed class PrefixCommandService
         DiscordMessage? mensajeBot = null;
         try
         {
-            mensajeBot = await e.Message.RespondAsync(_msg.Get(e.Guild.Id, "Chat:Pensando"));
+            mensajeBot = await e.Message.RespondAsync("> " + _msg.Get(e.Guild.Id, "Chat:Pensando"));
             var outcome = await _ia.PreguntarAsync(aiCtx, e.Author.Username, texto);
 
             if (outcome.HayPendiente)
@@ -784,6 +784,12 @@ public sealed class PrefixCommandService
             }
 
             var contenido = ChatResponseFormatter.Formatear(outcome.Texto ?? "", _msg.Get(e.Guild.Id, "Chat:Truncada"));
+            if (outcome.UsoBusquedaWeb)
+            {
+                contenido = "> " + _msg.Get(e.Guild.Id, "Chat:Pensando") + "\n"
+                          + "> " + _msg.Get(e.Guild.Id, "Chat:BuscandoWeb") + "\n\n"
+                          + contenido;
+            }
             var builder = new DiscordMessageBuilder().WithContent(contenido);
             foreach (var comando in outcome.Comandos)
                 builder.AddEmbed(ChatModule.ConstruirEmbedComando(comando));
@@ -791,15 +797,20 @@ public sealed class PrefixCommandService
             await mensajeBot.ModifyAsync(builder);
             _ia.RegistrarMensajeGenerado(mensajeBot.Id, e.Guild.Id);
         }
-        catch (DeepSeekBusyException)
+        catch (AiBusyException)
         {
             if (mensajeBot is not null)
                 await mensajeBot.ModifyAsync(_msg.Get(e.Guild.Id, "Chat:Ocupado"));
         }
-        catch (DeepSeekConfirmationPendingException)
+        catch (AiConfirmationPendingException)
         {
             if (mensajeBot is not null)
                 await mensajeBot.ModifyAsync(_msg.Get(e.Guild.Id, "Chat:ConfirmacionEnCurso"));
+        }
+        catch (AiApiKeyMissingException)
+        {
+            if (mensajeBot is not null)
+                await mensajeBot.ModifyAsync(_msg.Get(e.Guild.Id, "Chat:SinApiKey"));
         }
         catch (Exception ex)
         {

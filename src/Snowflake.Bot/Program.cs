@@ -10,6 +10,7 @@ using Snowflake.Bot.Configuration;
 using Snowflake.Bot.Data;
 using Snowflake.Bot.Endpoints;
 using Snowflake.Bot.Services;
+using Snowflake.Bot.Services.Ai;
 using Snowflake.Bot.Services.AiCommands;
 using Snowflake.Bot.Services.Calculators;
 using Snowflake.Bot.Services.PrefixCommands;
@@ -104,7 +105,7 @@ public static partial class SnowflakeServiceExtensions
         this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<BotConfiguration>(configuration.GetSection("Bot"));
-        services.Configure<DeepSeekOptions>(configuration.GetSection("DeepSeek"));
+        services.Configure<AiOptions>(configuration.GetSection("AI"));
         services.Configure<ColorOptions>(configuration.GetSection("Colors"));
         services.Configure<DatabaseOptions>(configuration.GetSection("Database"));
         services.Configure<YouTubeOptions>(configuration.GetSection("YouTube"));
@@ -153,8 +154,14 @@ public static partial class SnowflakeServiceExtensions
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
         });
 
-        // Chatbot DeepSeek: la generación puede tardar varios segundos.
+        // Chatbot IA (DeepSeek + Gemini): la generación puede tardar varios segundos.
         services.AddHttpClient("DeepSeek", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
+        });
+
+        services.AddHttpClient("Gemini", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("SnowflakeBot/1.0");
@@ -207,7 +214,9 @@ public static partial class SnowflakeServiceExtensions
     services.AddSingleton<ImageSearchWidgetService>();
         services.AddSingleton<PollWidgetService>();
         services.AddSingleton<CountingService>();
-        services.AddSingleton<DeepSeekService>();
+        services.AddSingleton<IAiBackend, DeepSeekBackend>();
+        services.AddSingleton<IAiBackend, GeminiBackend>();
+        services.AddSingleton<AiService>();
         services.AddSingleton<YouTubeNotifyService>();
         services.AddSingleton<ChannelLockService>();
         services.AddSingleton<CatService>();

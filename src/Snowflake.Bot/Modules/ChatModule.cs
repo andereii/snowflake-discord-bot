@@ -12,20 +12,20 @@ using Snowflake.Bot.Utilities;
 namespace Snowflake.Bot.Modules;
 
 /// <summary>
-/// Chatbot con DeepSeek. <c>/talk</c> usa una conversación compartida por
+/// Chatbot con IA. <c>/talk</c> usa una conversación compartida por
 /// todos los usuarios del servidor; <c>/charlar-limpiar</c> la reinicia.
 /// <c>/ai-mentions</c> y <c>/ai-spontaneous</c> activan los modos extra.
 /// </summary>
 public sealed class ChatModule : SnowflakeModuleBase
 {
-    private readonly DeepSeekService _ia;
+    private readonly AiService _ia;
     private readonly GuildSettingsService _settings;
     private readonly AiCommandConfirmation _confirmaciones;
     private readonly MessagesService _msg;
     private readonly IOptionsMonitor<BotConfiguration> _config;
 
     public ChatModule(
-        DeepSeekService ia,
+        AiService ia,
         GuildSettingsService settings,
         AiCommandConfirmation confirmaciones,
         MessagesService msg,
@@ -52,17 +52,17 @@ public sealed class ChatModule : SnowflakeModuleBase
         [DescriptionLocalization(Localization.Portuguese, "O que você quer dizer ou perguntar")] string texto)
     {
         // Interruptor por servidor (desactivable desde el panel de configuración).
-        if (!(await _settings.GetAsync(ctx.Guild.Id)).GeminiChatEnabled)
+        if (!(await _settings.GetAsync(ctx.Guild.Id)).AiChatEnabled)
         {
             await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:Desactivado"), ephemeral: true);
             return;
         }
 
-        // Respondemos inmediatamente con un mensaje visible y luego lo editamos.
-        // Así la interacción queda confirmada antes de llamar a DeepSeek.
+        // Respondemos inmediatamente con un mensaje visible (formato blockquote)
+        // y luego lo editamos. Así la interacción queda confirmada antes de llamar a la IA.
         await ctx.CreateResponseAsync(
             InteractionResponseType.ChannelMessageWithSource,
-            new DiscordInteractionResponseBuilder().WithContent(_msg.Get(ctx.Guild.Id, "Chat:Pensando")));
+            new DiscordInteractionResponseBuilder().WithContent("> " + _msg.Get(ctx.Guild.Id, "Chat:Pensando")));
 
         try
         {
@@ -79,24 +79,35 @@ public sealed class ChatModule : SnowflakeModuleBase
             }
 
             var contenido = ChatResponseFormatter.Formatear(outcome.Texto ?? "", _msg.Get(ctx.Guild.Id, "Chat:Truncada"));
+
+            // Retroalimentación: si la IA usó búsqueda web, mostramos las líneas de estado.
+            if (outcome.UsoBusquedaWeb)
+            {
+                contenido = "> " + _msg.Get(ctx.Guild.Id, "Chat:Pensando") + "\n"
+                          + "> " + _msg.Get(ctx.Guild.Id, "Chat:BuscandoWeb") + "\n\n"
+                          + contenido;
+            }
+
             await EditarYRegistrarConEmbedsAsync(ctx, contenido, outcome.Comandos, ctx.Guild.Id);
         }
-        catch (DeepSeekBusyException)
+        catch (AiBusyException)
         {
             await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:Ocupado"));
         }
-        catch (DeepSeekConfirmationPendingException)
+        catch (AiConfirmationPendingException)
         {
             await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:ConfirmacionEnCurso"));
         }
-        catch (DeepSeekException ex)
+        catch (AiApiKeyMissingException)
+        {
+            await SafeEditAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:SinApiKey"));
+        }
+        catch (AiException ex)
         {
             var debug = _config.CurrentValue.Debug;
-            var contenido = ex.Message == "DEEPSEEK_API_KEY environment variable is missing."
-                ? _msg.Get(ctx.Guild.Id, "Chat:SinApiKey")
-                : debug
-                    ? _msg.Get(ctx.Guild.Id, "Chat:ErrorDebug", ("mensaje", ex.Message))
-                    : _msg.Get(ctx.Guild.Id, "Chat:Error");
+            var contenido = debug
+                ? _msg.Get(ctx.Guild.Id, "Chat:ErrorDebug", ("mensaje", ex.Message))
+                : _msg.Get(ctx.Guild.Id, "Chat:Error");
             await SafeEditAsync(ctx, contenido);
         }
         catch (Exception ex)
@@ -151,14 +162,13 @@ public sealed class ChatModule : SnowflakeModuleBase
 
         if (activar is { } valor)
         {
-            var clave = Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY");
-            if (valor && string.IsNullOrWhiteSpace(clave))
+            if (valor && !HayAlgunaApiKey())
             {
                 await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:MencionesFaltaApiKey"), ephemeral: true);
                 return;
             }
 
-            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.GeminiMentionsEnabled = valor);
+            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.AiMentionsEnabled = valor);
             await ResponderAsync(ctx,
                 valor
                     ? _msg.Get(ctx.Guild.Id, "Chat:MencionesActivadas")
@@ -167,7 +177,7 @@ public sealed class ChatModule : SnowflakeModuleBase
         else
         {
             var cfg = await _settings.GetAsync(ctx.Guild.Id);
-            var texto = cfg.GeminiMentionsEnabled
+            var texto = cfg.AiMentionsEnabled
                 ? _msg.Get(ctx.Guild.Id, "Chat:MencionesActivadas")
                 : _msg.Get(ctx.Guild.Id, "Chat:MencionesDesactivadas");
             await ResponderAsync(ctx, texto, ephemeral: true);
@@ -195,14 +205,13 @@ public sealed class ChatModule : SnowflakeModuleBase
 
         if (activar is { } valor)
         {
-            var clave = Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY");
-            if (valor && string.IsNullOrWhiteSpace(clave))
+            if (valor && !HayAlgunaApiKey())
             {
                 await ResponderAsync(ctx, _msg.Get(ctx.Guild.Id, "Chat:EspontaneoFaltaApiKey"), ephemeral: true);
                 return;
             }
 
-            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.GeminiSpontaneousEnabled = valor);
+            await _settings.UpdateAsync(ctx.Guild.Id, cfg => cfg.AiSpontaneousEnabled = valor);
             _ia.EstablecerEspontaneo(ctx.Guild.Id, valor); // actualiza la caché en caliente
             await ResponderAsync(ctx,
                 valor
@@ -212,12 +221,17 @@ public sealed class ChatModule : SnowflakeModuleBase
         else
         {
             var cfg = await _settings.GetAsync(ctx.Guild.Id);
-            var texto = cfg.GeminiSpontaneousEnabled
+            var texto = cfg.AiSpontaneousEnabled
                 ? _msg.Get(ctx.Guild.Id, "Chat:EspontaneoActivado")
                 : _msg.Get(ctx.Guild.Id, "Chat:EspontaneoDesactivado");
             await ResponderAsync(ctx, texto, ephemeral: true);
         }
     }
+
+    /// <summary>True si hay al menos una clave de API de IA configurada (DeepSeek o Gemini).</summary>
+    private static bool HayAlgunaApiKey() =>
+        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY"))
+        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("GEMINI_API_KEY"));
 
     [SlashCommand("ai-search", "Enable or disable the AI's internet search (the model decides when to use it)")]
     [NameLocalization(Localization.Spanish, "ia-busqueda")]

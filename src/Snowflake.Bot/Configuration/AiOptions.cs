@@ -1,17 +1,25 @@
 namespace Snowflake.Bot.Configuration;
 
 /// <summary>
-/// Configuración del chatbot con DeepSeek. Sección "DeepSeek" de appsettings.json.
-/// La clave de API (DEEPSEEK_API_KEY) y el modelo (DEEPSEEK_MODEL, opcional) se
-/// leen del entorno (archivo .env) — la clave NUNCA va en appsettings.json.
+/// Configuración del chatbot con IA. Sección "AI" de appsettings.json.
+/// Las claves de API (DEEPSEEK_API_KEY / GEMINI_API_KEY) y los modelos
+/// (DEEPSEEK_MODEL / GEMINI_MODEL, opcionales) se leen del entorno (archivo
+/// .env) — las claves NUNCA van en appsettings.json.
 /// </summary>
-public sealed class DeepSeekOptions
+public sealed class AiOptions
 {
     /// <summary>
-    /// Nombre del modelo a usar. Se lee de la variable de entorno DEEPSEEK_MODEL;
+    /// Modelo de DeepSeek. Se lee de la variable de entorno DEEPSEEK_MODEL;
     /// si no se establece, se usa este valor por defecto (deepseek v4 flash).
     /// </summary>
     public string Model { get; set; } = "deepseek-v4-flash";
+
+    /// <summary>
+    /// Modelo de Gemini. Se lee de la variable de entorno GEMINI_MODEL;
+    /// si no se establece, se usa este valor por defecto (gemini 2.0 flash,
+    /// disponible en el nivel gratuito).
+    /// </summary>
+    public string GeminiModel { get; set; } = "gemini-2.0-flash";
 
     /// <summary>
     /// Instrucciones de sistema: definen la personalidad y el comportamiento del bot.
@@ -110,7 +118,7 @@ Avoid generic assistant phrases such as:
 - ""As an AI...""
 - ""I'm here to assist you.""
 - ""Would you like me to...""
-- ""Is there anything else I can do for you?""
+- ""Is there anything else I can do?""
 
 Never end a conversation with an artificial offer to continue helping.
 Do not repeatedly ask questions just to keep the conversation going.

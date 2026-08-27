@@ -77,7 +77,7 @@ public sealed record GuildSettingsSnapshot
         /// <summary>Comentarios espontáneos en el chat ambiental.</summary>
         public bool SpontaneousEnabled { get; init; }
 
-        /// <summary>Búsqueda en internet (web_search de DeepSeek) a criterio del modelo.</summary>
+        /// <summary>Búsqueda en internet a criterio del modelo.</summary>
         public bool WebSearchEnabled { get; init; }
 
         /// <summary>Ejecución de comandos del bot desde instrucciones del chat.</summary>

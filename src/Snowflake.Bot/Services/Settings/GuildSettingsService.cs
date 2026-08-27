@@ -201,9 +201,9 @@ public sealed class GuildSettingsService(
             },
             Ai = new GuildSettingsSnapshot.AiSection
             {
-                ChatEnabled = cfg.GeminiChatEnabled,
-                MentionsEnabled = cfg.GeminiMentionsEnabled,
-                SpontaneousEnabled = cfg.GeminiSpontaneousEnabled,
+                ChatEnabled = cfg.AiChatEnabled,
+                MentionsEnabled = cfg.AiMentionsEnabled,
+                SpontaneousEnabled = cfg.AiSpontaneousEnabled,
                 WebSearchEnabled = cfg.AiWebSearchEnabled,
                 CommandsEnabled = cfg.AiCommandsEnabled
             },
@@ -251,9 +251,9 @@ public sealed class GuildSettingsService(
         TempChannelNameTemplate = c.TempChannelNameTemplate,
         Volume = c.Volume,
         DjRoleId = c.DjRoleId,
-        GeminiChatEnabled = c.GeminiChatEnabled,
-        GeminiMentionsEnabled = c.GeminiMentionsEnabled,
-        GeminiSpontaneousEnabled = c.GeminiSpontaneousEnabled,
+        AiChatEnabled = c.AiChatEnabled,
+        AiMentionsEnabled = c.AiMentionsEnabled,
+        AiSpontaneousEnabled = c.AiSpontaneousEnabled,
         DownloadsEnabled = c.DownloadsEnabled,
         AiWebSearchEnabled = c.AiWebSearchEnabled,
         AiCommandsEnabled = c.AiCommandsEnabled,

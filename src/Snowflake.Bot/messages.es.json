@@ -192,18 +192,19 @@
     },
     "Chat": {
       "Pensando": "<a:load:1534442024281837749> Estoy pensando...",
+      "BuscandoWeb": "🔍 Buscando en la web...",
       "Ocupado": "<a:loadingwindows:1534386932744716328> Ahora mismo hay otra conversación en curso en este servidor. Inténtalo de nuevo en unos segundos.",
-      "SinApiKey": "<:error:1534417252185800720> El chatbot no está configurado todavía. Falta la variable de entorno `DEEPSEEK_API_KEY`.",
+      "SinApiKey": "<:error:1534417252185800720> El chatbot no está configurado todavía. Añade `DEEPSEEK_API_KEY` o `GEMINI_API_KEY` a tu archivo `.env`.",
       "Error": "<:error:1534417252185800720> No pude contactar con la IA en este momento. Inténtalo de nuevo.",
-      "ErrorDebug": "<:error:1534417252185800720> Error de DeepSeek: {mensaje}",
+      "ErrorDebug": "<:error:1534417252185800720> Error de IA: {mensaje}",
       "Limpiado": "🧹 Conversación compartida del servidor reiniciada. Ya no recuerdo lo anterior.",
       "SinConversacion": "ℹ️ No hay una conversación activa en este servidor todavía. Usa `/charlar` para empezar.",
       "MencionesActivadas": "<:check:1534413756057260152> Ahora respondo cuando me mencionen con @.",
       "MencionesDesactivadas": "⛔ Ya no respondo a menciones @.",
-      "MencionesFaltaApiKey": "<:error:1534417252185800720> No puedo activar las menciones: falta la variable de entorno `DEEPSEEK_API_KEY`.",
+      "MencionesFaltaApiKey": "<:error:1534417252185800720> No puedo activar las menciones: añade `DEEPSEEK_API_KEY` o `GEMINI_API_KEY` a tu archivo `.env`.",
       "EspontaneoActivado": "<:check:1534413756057260152> Ahora puedo intervenir espontáneamente en el chat cuando la conversación esté activa.",
       "EspontaneoDesactivado": "⛔ Ya no intervendré espontáneamente en el chat.",
-      "EspontaneoFaltaApiKey": "<:error:1534417252185800720> No puedo activar el espontaneo: falta la variable de entorno `DEEPSEEK_API_KEY`.",
+      "EspontaneoFaltaApiKey": "<:error:1534417252185800720> No puedo activar el espontaneo: añade `DEEPSEEK_API_KEY` o `GEMINI_API_KEY` a tu archivo `.env`.",
       "Desactivado": "El chat con IA está desactivado en este servidor. Un administrador puede activarlo desde el panel de configuración.",
       "Truncada": "\n\n*(respuesta truncada)*",
       "BusquedaActivada": "Ahora puedo buscar en internet cuando considere que la pregunta lo necesita.",
@@ -367,14 +368,27 @@
     "Herramientas": {
       "BusquedaSinResultados": "No se encontraron imágenes para: **{query}**"
     },
+    "Dados": {
+      "Titulo": "🎲 Tirada de Dado",
+      "Resultado": "¡Ha salido un **{dado}** en un dado de {caras} caras!",
+      "Pie": "Tirado por {autor}",
+      "RangoInvalido": "El número de caras debe estar entre 2 y 100."
+    },
     "Encuestas": {
       "ErrorMinOpciones": "Debes poner al menos 2 opciones.",
+      "ErrorMaxOpciones": "Puedes poner como máximo 10 opciones.",
       "Opciones": "**Opciones:**",
       "Footer": "Encuesta de {autor}",
       "TerminaEn": "Termina",
       "FinalizarBtn": "Finalizar Encuesta",
       "FinalizadaDesc": "¡La encuesta ha finalizado! Aquí están los resultados:",
-      "MultiOpcion": "Puedes elegir varias opciones."
+      "MultiOpcion": "Puedes elegir varias opciones.",
+      "ListaVacia": "No hay encuestas activas en este servidor ahora mismo.",
+      "ListaTitulo": "📊 Encuestas Activas",
+      "MultiOpcionLabel": "Opción múltiple",
+      "IdInvalido": "El ID del mensaje no es válido.",
+      "ResultadoNoEncontrado": "No se encontró una encuesta finalizada con ese ID de mensaje. Asegúrate de que la encuesta haya terminado y de haber copiado el ID del mensaje de resultados.",
+      "ErrorAlObtener": "No se pudo recuperar el mensaje de resultados de la encuesta. Puede que haya sido borrado o que no tenga permisos para leerlo."
     }
   }
 }
