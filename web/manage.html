@@ -20,8 +20,9 @@
     <!-- SIDEBAR -->
     <aside class="sidebar">
         <ul class="sidebar-menu">
+            <a href="#inicio" class="sidebar-menu-item active"><i class="fa-solid fa-house"></i> Inicio</a>
             <a href="#general" class="sidebar-menu-item"><i class="fa-solid fa-gear"></i> General</a>
-            <a href="#moderacion" class="sidebar-menu-item active"><i class="fa-solid fa-shield-halved"></i> Moderación</a>
+            <a href="#moderacion" class="sidebar-menu-item"><i class="fa-solid fa-shield-halved"></i> Moderación</a>
             <a href="#bienvenida" class="sidebar-menu-item"><i class="fa-solid fa-handshake"></i> Bienvenida</a>
             <a href="#musica" class="sidebar-menu-item"><i class="fa-solid fa-music"></i> Música</a>
             <a href="#ia" class="sidebar-menu-item"><i class="fa-solid fa-robot"></i> Inteligencia Artificial</a>
@@ -29,27 +30,109 @@
             <a href="#youtube" class="sidebar-menu-item"><i class="fa-brands fa-youtube"></i> YouTube</a>
             <a href="#voces" class="sidebar-menu-item"><i class="fa-solid fa-microphone-lines"></i> Canales de Voz</a>
             <a href="#descargas" class="sidebar-menu-item"><i class="fa-solid fa-download"></i> Descargas</a>
+            <a href="#cumple" class="sidebar-menu-item"><i class="fa-solid fa-cake-candles"></i> Cumpleaños</a>
             <a href="#bloqueos" class="sidebar-menu-item"><i class="fa-solid fa-lock"></i> Bloqueos</a>
         </ul>
     </aside>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="manage-container" style="flex: 1;">
-        
-        <!-- SECCIÓN: GENERAL -->
-        <section id="general" class="settings-section">
-            <h2>Configuración General</h2>
-            <p>Ajustes básicos del servidor.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+        <!-- SECCIÓN: INICIO -->
+        <section id="inicio" class="settings-section active">
+            <div class="home-widget">
+                <div class="home-main">
+                    <div class="home-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> Dashboard del servidor</div>
+                    <div class="home-header">
+                        <img id="home-server-icon" src="" alt="Icono del servidor" class="home-icon" />
+                        <h2 id="home-server-name">Cargando…</h2>
+                    </div>
+                    <p class="home-desc">
+                        Bienvenido al panel de Snowflake. Desde aquí puedes explorar y configurar
+                        todos los módulos de tu servidor con calma.
+                    </p>
+                    <div class="home-actions">
+                        <button class="btn-manage" data-goto="general"><i class="fa-solid fa-gear"></i> Ajustes</button>
+                        <button class="btn-manage" data-goto="bienvenida"><i class="fa-solid fa-handshake"></i> Bienvenidas</button>
+                        <button class="btn-manage" data-goto="ia"><i class="fa-solid fa-robot"></i> IA</button>
+                        <button class="btn-manage" data-goto="musica"><i class="fa-solid fa-music"></i> Música</button>
+                    </div>
+                </div>
+                <div class="home-stats">
+                    <div class="home-stat">
+                        <div class="home-stat-icon"><i class="fa-solid fa-users"></i></div>
+                        <div class="home-stat-value" id="home-members">–</div>
+                        <div class="home-stat-label">Miembros</div>
+                    </div>
+                    <div class="home-stat">
+                        <div class="home-stat-icon"><i class="fa-solid fa-hashtag"></i></div>
+                        <div class="home-stat-value" id="home-channels">–</div>
+                        <div class="home-stat-label">Canales</div>
+                    </div>
+                    <div class="home-stat">
+                        <div class="home-stat-icon"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="home-stat-value" id="home-roles">–</div>
+                        <div class="home-stat-label">Roles</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usuarios y roles del servidor -->
+            <div class="home-columns">
+                <div class="home-column">
+                    <h3><i class="fa-solid fa-users"></i> Usuarios</h3>
+                    <ul id="home-users-list" class="home-list">
+                        <li class="home-list-empty">Cargando…</li>
+                    </ul>
+                </div>
+                <div class="home-column">
+                    <h3><i class="fa-solid fa-shield-halved"></i> Roles</h3>
+                    <ul id="home-roles-list" class="home-list">
+                        <li class="home-list-empty">Cargando…</li>
+                    </ul>
+                </div>
             </div>
         </section>
 
-        <!-- SECCIÓN: MODERACIÓN (Activa por defecto) -->
-        <section id="moderacion" class="settings-section active">
+        <!-- SECCIÓN: GENERAL -->
+        <section id="general" class="settings-section">
+            <h2>Configuración General</h2>
+            <p>Ajustes básicos del servidor y credencial de acceso al panel.</p>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Idioma</h3>
+                    <p>El idioma de los mensajes del bot en este servidor.</p>
+                </div>
+                <div class="setting-control">
+                    <select id="language" class="form-input">
+                        <option value="en">English</option>
+                        <option value="es">Español</option>
+                        <option value="pt">Português</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Clave de API del panel</h3>
+                    <p>Si el bot protege su API con <code>WEB_PANEL_API_KEY</code>, pégala aquí. Se guarda solo en tu navegador.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="password" id="apiKeyInput" class="form-input" placeholder="Opcional" autocomplete="off" />
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-general-btn" class="btn-discord">Guardar cambios</button>
+            </div>
+        </section>
+
+        <!-- SECCIÓN: MODERACIÓN -->
+        <section id="moderacion" class="settings-section">
             <h2>Moderación</h2>
             <p>Configura cómo el bot maneja los incidentes y registros de moderación.</p>
-            
+
             <div class="setting-card">
                 <div class="setting-info">
                     <h3>Canal de Logs</h3>
@@ -65,68 +148,420 @@
             </div>
         </section>
 
-        <!-- SECCIONES EN CONSTRUCCIÓN -->
+        <!-- SECCIÓN: BIENVENIDA -->
         <section id="bienvenida" class="settings-section">
             <h2>Bienvenida</h2>
             <p>Configura los mensajes para los nuevos miembros.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canal de bienvenida</h3>
+                    <p>El canal donde se anuncia cada nuevo miembro. Déjalo vacío para desactivar la bienvenida.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="welcomeChannelId" class="form-input" placeholder="ID del canal" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Mensaje de bienvenida</h3>
+                    <p>Plantilla con <code>{usuario}</code> y <code>{servidor}</code>. Vacío = mensaje por defecto.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="welcomeMessage" class="form-input" placeholder="¡Bienvenido {usuario}!" />
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-welcome-btn" class="btn-discord">Guardar cambios</button>
             </div>
         </section>
 
+        <!-- SECCIÓN: MÚSICA -->
         <section id="musica" class="settings-section">
             <h2>Música</h2>
             <p>Ajustes de reproducción y controles de Lavalink.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Volumen por defecto</h3>
+                    <p>El volumen inicial de la música en este servidor (0-100).</p>
+                </div>
+                <div class="setting-control">
+                    <input type="number" id="volume" class="form-input" min="0" max="100" placeholder="100" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Rol DJ</h3>
+                    <p>Si se establece, solo este rol (o quien tenga ManageGuild) puede saltar, pausar o detener la música.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="djRoleId" class="form-input" placeholder="ID del rol" />
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-music-btn" class="btn-discord">Guardar cambios</button>
             </div>
         </section>
 
+        <!-- SECCIÓN: INTELIGENCIA ARTIFICIAL -->
         <section id="ia" class="settings-section">
             <h2>Inteligencia Artificial</h2>
             <p>Ajustes del chatbot de IA y sus permisos.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Chat con IA</h3>
+                    <p>Interruptor general de <code>/talk</code> en este servidor.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="switch">
+                        <input type="checkbox" id="aiChatEnabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Responder a menciones @</h3>
+                    <p>El bot responde cuando lo mencionan con @.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="switch">
+                        <input type="checkbox" id="aiMentionsEnabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Comentarios espontáneos</h3>
+                    <p>El bot puede intervenir por su cuenta en la conversación.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="switch">
+                        <input type="checkbox" id="aiSpontaneousEnabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Búsqueda web</h3>
+                    <p>La IA puede buscar en internet cuando la pregunta lo requiera.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="switch">
+                        <input type="checkbox" id="aiWebSearchEnabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Comandos por IA</h3>
+                    <p>La IA puede ejecutar comandos del bot desde el chat (los destructivos piden confirmación).</p>
+                </div>
+                <div class="setting-control">
+                    <label class="switch">
+                        <input type="checkbox" id="aiCommandsEnabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-ia-btn" class="btn-discord">Guardar cambios</button>
             </div>
         </section>
 
+        <!-- SECCIÓN: JUEGO DE CONTEO -->
         <section id="conteo" class="settings-section">
             <h2>Juego de Conteo</h2>
             <p>Configura el canal, la base numérica y las metas del servidor.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canal de conteo</h3>
+                    <p>El canal donde se juega a contar. Vacío = desactivado.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="countingChannelId" class="form-input" placeholder="ID del canal" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Base numérica</h3>
+                    <p>El sistema de numeración del juego.</p>
+                </div>
+                <div class="setting-control">
+                    <select id="countingBase" class="form-input">
+                        <option value="Decimal">Decimal</option>
+                        <option value="Binario">Binario</option>
+                        <option value="Octal">Octal</option>
+                        <option value="Hexadecimal">Hexadecimal</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Meta del servidor</h3>
+                    <p>Número objetivo. Vacío = sin meta.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="number" id="countingGoal" class="form-input" min="1" placeholder="Sin meta" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Oportunidades extra diarias</h3>
+                    <p>Intentos adicionales por día (0-10). 0 = desactivado.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="number" id="countingChances" class="form-input" min="0" max="10" placeholder="0" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Icono correcto</h3>
+                    <p>Emoji usado al acertar el número.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="countingEmojiCorrect" class="form-input" placeholder="✅" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Icono incorrecto</h3>
+                    <p>Emoji usado al fallar el número.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="countingEmojiIncorrect" class="form-input" placeholder="❌" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Icono de récord</h3>
+                    <p>Emoji usado al batir el récord del servidor.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="countingEmojiRecord" class="form-input" placeholder="🎉" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Mensaje de pérdida</h3>
+                    <p>Mensaje al romper la racha. Placeholders <code>{cuenta}</code>, <code>{usuario}</code>, <code>{siguiente}</code>.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="countingLoseMessage" class="form-input" placeholder="Mensaje por defecto" />
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-counting-btn" class="btn-discord">Guardar cambios</button>
             </div>
         </section>
 
+        <!-- SECCIÓN: YOUTUBE -->
         <section id="youtube" class="settings-section">
             <h2>YouTube</h2>
             <p>Administra las notificaciones automáticas de nuevos vídeos.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canal de YouTube</h3>
+                    <p>El ID del canal de YouTube a vigilar. Déjalo vacío y guarda para quitar la suscripción.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="ytChannelId" class="form-input" placeholder="ID del canal de YouTube" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Nombre del canal</h3>
+                    <p>El nombre visible del canal de YouTube (para mostrar en el mensaje).</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="ytChannelName" class="form-input" placeholder="Nombre del canal" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canal de notificación</h3>
+                    <p>El canal de Discord donde se anuncian los nuevos vídeos.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="ytNotifyChannelId" class="form-input" placeholder="ID del canal de Discord" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Rol a mencionar</h3>
+                    <p>Rol que se menciona al publicar un nuevo vídeo (opcional).</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="ytNotifyRoleId" class="form-input" placeholder="ID del rol" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Mensaje personalizado</h3>
+                    <p>Plantilla del mensaje de notificación. Placeholders <code>{canal}</code>, <code>{titulo}</code>, <code>{url}</code>.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="ytCustomMessage" class="form-input" placeholder="¡Nuevo vídeo de {canal}!" />
+                </div>
+            </div>
+
+            <div class="save-bar" style="justify-content: space-between;">
+                <button id="delete-youtube-btn" class="btn-manage" style="color: var(--color-danger); background: var(--color-danger-bg);">
+                    <i class="fa-solid fa-trash"></i> Quitar suscripción
+                </button>
+                <button id="save-youtube-btn" class="btn-discord">Guardar cambios</button>
             </div>
         </section>
 
+        <!-- SECCIÓN: CANALES DE VOZ -->
         <section id="voces" class="settings-section">
             <h2>Canales de Voz (Join-to-create)</h2>
             <p>Ajustes para los canales de voz temporales.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canal de acceso (Hub)</h3>
+                    <p>El canal de voz hub; al entrar se crea un canal temporal. Vacío = desactivado.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="hubChannelId" class="form-input" placeholder="ID del canal de voz" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Plantilla del nombre temporal</h3>
+                    <p>Nombre de los canales temporales. Placeholder <code>{usuario}</code>.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="tempChannelNameTemplate" class="form-input" placeholder="Canal de {usuario}" />
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-voice-btn" class="btn-discord">Guardar cambios</button>
             </div>
         </section>
 
+        <!-- SECCIÓN: DESCARGAS -->
         <section id="descargas" class="settings-section">
             <h2>Descargas</h2>
             <p>Habilita o deshabilita la descarga de contenido multimedia.</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Descargas multimedia</h3>
+                    <p>Permite que los usuarios descarguen audio/vídeo con <code>/download</code>.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="switch">
+                        <input type="checkbox" id="downloadsEnabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-downloads-btn" class="btn-discord">Guardar cambios</button>
             </div>
         </section>
 
+        <!-- SECCIÓN: CUMPLEAÑOS -->
+        <section id="cumple" class="settings-section">
+            <h2>Cumpleaños</h2>
+            <p>Los usuarios registran su fecha con <code>/cumple-añadir</code>. Aquí configuras la felicitación automática del servidor.</p>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Felicitación automática</h3>
+                    <p>Activa para que el bot publique un mensaje en el canal elegido cuando sea el cumpleaños de alguien.</p>
+                </div>
+                <div class="setting-control">
+                    <label class="switch">
+                        <input type="checkbox" id="birthdayEnabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canal de felicitación</h3>
+                    <p>El canal donde se anuncian los cumpleaños. Vacío = deshabilitado.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="birthdayChannelId" class="form-input" placeholder="ID del canal" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Hora de publicación (UTC)</h3>
+                    <p>Hora del día en que se publica la felicitación (0-23, hora UTC).</p>
+                </div>
+                <div class="setting-control">
+                    <input type="number" id="birthdayHourUtc" class="form-input" min="0" max="23" placeholder="12" />
+                </div>
+            </div>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Mensaje de felicitación</h3>
+                    <p>Placeholders: <code>{usuario}</code>, <code>{servidor}</code>, <code>{edad}</code>.</p>
+                </div>
+                <div class="setting-control">
+                    <input type="text" id="birthdayMessage" class="form-input" placeholder="¡Feliz cumpleaños {usuario}! 🎂🎉" />
+                </div>
+            </div>
+
+            <div class="save-bar">
+                <button id="save-birthday-btn" class="btn-discord">Guardar cambios</button>
+            </div>
+        </section>
+
+        <!-- SECCIÓN: BLOQUEOS -->
         <section id="bloqueos" class="settings-section">
             <h2>Bloqueos</h2>
             <p>Canales actualmente bloqueados por el sistema (Lockdown).</p>
-            <div class="setting-card" style="justify-content: center; color: var(--color-text-muted);">
-                <i>(Sección en construcción)</i>
+
+            <div class="setting-card">
+                <div class="setting-info">
+                    <h3>Canales en bloqueo</h3>
+                    <p>Los canales bloqueados solo pueden desbloquearse con <code>/desbloquear</code> en Discord.</p>
+                </div>
+                <div class="setting-control">
+                    <ul id="blockedChannelsList" class="blocked-list">
+                        <li style="color: var(--color-text-muted);">Cargando…</li>
+                    </ul>
+                </div>
             </div>
         </section>
 

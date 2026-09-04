@@ -1,24 +1,45 @@
-# Compilación
+# Compilación .NET
 bin/
 obj/
+
+# Node.js
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Secretos y configuración local
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 
 # Base de datos local (SQLite)
 *.db
 *.db-shm
 *.db-wal
+**/*.db
+**/*.db-shm
+**/*.db-wal
 
 # Logs locales
 *.log
+**/*.log
 
-# IDEs
+# IDEs y SO
 .vs/
 .idea/
 .vscode/
+.DS_Store
+Thumbs.db
 
 # Artefactos compilados de D (el piechart se genera en el build de Docker o con dmd)
 src/Dlang/piechart
@@ -27,3 +48,8 @@ src/Dlang/*.o
 # Documentación y convenciones locales (no se versionan)
 AGENTS.md
 TEMPORAL_COMANDOS_RELEASE.md
+
+# Archivos de pruebas y parches locales
+test.js
+patch_*.py
+plans/

@@ -57,6 +57,57 @@ namespace Snowflake.Bot.Migrations
                     b.ToTable("AfkUsers");
                 });
 
+            modelBuilder.Entity("Snowflake.Bot.Data.Entities.Birthday", b =>
+                {
+                    b.Property<ulong>("GuildId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<ulong>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Day")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("GuildId", "UserId");
+
+                    b.HasIndex("GuildId", "Month", "Day");
+
+                    b.ToTable("Birthdays");
+                });
+
+            modelBuilder.Entity("Snowflake.Bot.Data.Entities.BirthdayConfig", b =>
+                {
+                    b.Property<ulong>("GuildId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<ulong?>("ChannelId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HourUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("GuildId");
+
+                    b.ToTable("BirthdayConfigs");
+                });
+
             modelBuilder.Entity("Snowflake.Bot.Data.Entities.ChannelLock", b =>
                 {
                     b.Property<ulong>("ChannelId")

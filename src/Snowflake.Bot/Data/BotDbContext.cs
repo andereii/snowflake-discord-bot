@@ -20,6 +20,8 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
     public DbSet<YouTubeSubscription> YouTubeSubscriptions => Set<YouTubeSubscription>();
     public DbSet<ChannelLock> ChannelLocks => Set<ChannelLock>();
     public DbSet<HardmuteBackup> HardmuteBackups => Set<HardmuteBackup>();
+    public DbSet<Birthday> Birthdays => Set<Birthday>();
+    public DbSet<BirthdayConfig> BirthdayConfigs => Set<BirthdayConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,6 +109,17 @@ public sealed class BotDbContext(DbContextOptions<BotDbContext> options) : DbCon
         {
             e.HasKey(h => h.Id);
             e.HasIndex(h => new { h.GuildId, h.UserId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Birthday>(e =>
+        {
+            e.HasKey(b => new { b.GuildId, b.UserId });
+            e.HasIndex(b => new { b.GuildId, b.Month, b.Day });
+        });
+
+        modelBuilder.Entity<BirthdayConfig>(e =>
+        {
+            e.HasKey(c => c.GuildId);
         });
     }
 }

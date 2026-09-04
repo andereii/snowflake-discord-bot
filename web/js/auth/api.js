@@ -1,3 +1,5 @@
+import { API_BASE, API_KEY_STORAGE } from './config.js';
+
 export async function fetchDiscordData(endpoint, token) {
     try {
         const response = await fetch(`https://discord.com/api/v9${endpoint}`, {
@@ -14,13 +16,18 @@ export async function fetchDiscordData(endpoint, token) {
 export async function clasificarServidores(adminGuilds) {
     try {
         const guildIds = adminGuilds.map(g => g.id);
-        const response = await fetch('https://snowflake-discord-bot-floral-river-8992.fly.dev/api/bot/shared-guilds', {
+        const headers = { 'Content-Type': 'application/json' };
+        const key = localStorage.getItem(API_KEY_STORAGE);
+        if (key) headers['X-Api-Key'] = key;
+
+        const response = await fetch(`${API_BASE}/bot/shared-guilds`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ guildIds: guildIds })
         });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        const botGuildIds = data.shared.map(g => g.id);
+        const botGuildIds = (data.shared || []).map(g => g.id);
 
         return adminGuilds.map(guild => ({
             ...guild,

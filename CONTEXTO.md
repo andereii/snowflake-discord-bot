@@ -754,3 +754,195 @@ Aclaración y ajuste: el usuario preguntó si los mensajes del chat IA se traduc
 - Compilación de Dlang exitosa (`piechart` ejecutable ELF copiado en Docker).
 - Despliegue en Fly.io (`count 1`) escalado y operativo en producción, libre de crash loops.
 - Búsquedas de imágenes funcionan consistentemente.
+
+---
+
+## 26. Registro de cambios — 2026-08-27 (pie chart nativo D, votos de encuestas y flujo de resultados)
+
+### Solicitud
+1. El pie chart de las encuestas finalizadas se renderizaba sin imagen (solo el embed de texto); la gráfica nativa en D no llegaba a Discord.
+2. La leyenda del pie chart cortaba el `"…"` y el porcentaje en etiquetas largas.
+3. Límite real de una encuesta en lugar del truncamiento silencioso.
+
+### Cambios realizados
+- **`Dockerfile`:** el binario `piechart` ya no se compila ni copia desde el host. Se instala `DMD 2.109.1` portable en la etapa de build (`sdk:10.0`, `+gcc,libc6-dev`) y se compila en el builder contra la glibc del runtime, enlazando en `.png` con `dmd -O -release`; el resultado se publica en `/app/publish/Dlang/piechart` y se copia al runtime `aspnet:10.0`. Se elimina `COPY src/Dlang /app/Dlang`. Intento intermedio: `-L-static` en DMD queda deshecho por el `-Bdynamic` interno, por lo que se abandonó el estático.
+- **`Services/PollWidgetService.cs:GenerarPieChartAsync`:** pasa de `Arguments = "\"file\""` a `ArgumentList.Add(tmpFile)`, captura `StandardError` y el código de salida del proceso; loguea el caso `ExitCode != 0` y valida `File.Exists` antes de devolver la ruta.
+- **`Program.cs`:** se añade `DiscordIntents.GuildMessageReactions` y `MessageCacheSize = 1024`. Sin el intent, `MessageReactionAdded` nunca llega y `_polls.TryGetValue(e.Message.Id)` quedaba vacío; sin la cache, `e.Message` llegaba `null`. Motivo de "Sin votos": la imagen del pie chart se calculaba desde `results` todos a `0`.
+- **`PollWidgetService.ManejarReaccionAgregadaAsync/RemovidaAsync`:** guardas contra `e.Message == null || e.Emoji == null` y `FindIndex` por `e.Name` en lugar de igualdad directa de `DiscordEmoji`.
+- **`src/Dlang/piechart.d`:** leyenda adaptable: límite 35→24 caracteres en columna única y 12 en doble columna (>5 opciones → 2 columnas, `rows = (labels.length+1)/2`, `legendHeight = rows*40+40`). Cajas y textos reposicionados para cerrar dentro de `800px` (cálculo `33*16=528`, `21*16=336`); truncado `lbl.length > maxCharts ? lbl[0..(maxCharts-3)] ~ "..."`. Compilado con `dmd -d` y cast de `labels.length` (`ulong→int`). Validado localmente con `mcf` de 3 (610px) y 8 opciones (650px).
+- **`Modules/PollModule.cs`:** deja de truncar silenciosamente con `.Take(10)`; valida `>10 → ErrorMaxOpciones` i18n y respeta el etiquetado por guild. Nombre canónico del comando pasa a `poll` (EN) con localizaciones `NameLocalization/DescriptionLocalization` para `poll/encuesta/enquete` y todas las opciones.
+- **`messages.*.json`:** `Encuestas:ErrorMaxOpciones` (es: "Puedes poner como máximo 10 opciones.").
+
+### Validación
+- Build de Fly desde base limpia con nuevo `Dockerfile` (DMD 2.109.1), `piechart` se compila en el builder contra la glibc Debian y en el runtime inicia como `Usage: piechart <output.png>` sin error `GLIBC_2.43`. El bot arranca (`Bot listo. Servidores conectados: 3`) sin logs de piechart.
+- `/encuesta` de 3 opciones con label largo y de 8 opciones con doble columna generan `800×610` y `800×650` respectivamente (verificadas las imágenes).
+- Con el nuevo intent+`MessageCacheSize`, los votos multiple (`multi_opcion`) cuentan correctamente y la gráfica ya no sale "Sin votos".
+
+---
+
+## 27. Registro de cambios — 2026-08-27 (IA dual DeepSeek+Gemini, neutralización de proveedor y layout de encuestas)
+
+### Solicitud
+Mantener la IA en servidor propio (coste DeepSeek), ofrecer Gemini como gratuita en self-host, guiar auto-configuración por `.env` y no por comando incorporado, y asegurar que web-search esté habilitado por defecto y en AUTO. Además: semántica neutral en mensajes, y la encuesta debe exponer el `messageId` de su mensaje de resultados y su número secuencial por servidor para que `/poll-result` funcione con un `ID` copiable.
+
+### Cambios realizados
+- **Proveedores de IA (`src/Snowflake.Bot/Services/Ai/`):**
+  - `ModeloAi.cs` — historial normalizado `ItemMensaje/ItemLlamadaFuncion/ItemResultadoFuncion/ItemBusquedaWeb`, `LlamadaFuncion`, `RespuestaBackend`, `IAiBackend` (`Nombre`, `Disponible`, `LlamarAsync`).
+  - `DeepSeekBackend.cs` — llamada a la Responses API (`https://api.deepseek.com/responses`, tool `web_search` nativo, `tool_choice:"auto"`), conversión historial↔`input` profundizada (salida `ItemsSalida` con duplicados de `call_id` sanitizados) y `UsoBusquedaWeb` por presencia de `web_search_call`.
+  - `GeminiBackend.cs` — llamada a `generativelanguage v1beta generateContent` con grounding `google_search` y `function_declarations`, header `x-goog-api-key`, fusión de `contents` consecutivos por mismo rol y detección de `groundingMetadata`.
+  - `Configuration/AiOptions.cs` — reemplaza `DeepSeekOptions` (renombrado `AiOptions`, sección `AI` en `appsettings.json`); guarda `GeminiModel` con default `gemini-2.0-flash`. Catálogo de tools compartido (`_executor` idéntico entre backends).
+  - `Services/AiService.cs` — renombrado de `DeepSeekService` (orquestador: conversación por servidor, límites por guild, historial recortado, modo espontáneo, `_mensajesGenerados`, selección de backend con preferencia `AI_PROVIDER` → DeepSeek (`DEEPSEEK_API_KEY`) → Gemini (`GEMINI_API_KEY`) → `AiApiKeyMissingException`). Excepciones `AiException/AiBusyException/AiConfirmationPendingException`.
+  - `IAProvider.cs` del prototipo eliminado.
+- **Neutralización:** `Chat:SinApiKey/MencionesFaltaApiKey/EspontaneoFaltaApiKey` piden `DEEPSEEK_API_KEY` **o** `GEMINI_API_KEY`; `VerAi` (EN) deja de ser "AI (Gemini)", comentarios previos de proveedor suavizados. Las líneas de búsqueda (`Chat:Pensando/BuscandoWeb`) ganan markdown blockquote para la UI pedida y el web-search se muestra como `> {Pensando}` + `> {BuscandoWeb}\n\n{respuesta}` cuando el modelo dispara grounding.
+- **DI / proveedores:** `Program.cs` expone `IAiBackend` como `DeepSeekBackend/GeminiBackend` con `AddSingleton<IAiBackend, ...>` (el intento previo de `AddSingletonConcrete` dejaba `IEnumerable<IAiBackend>` vacío en el host y el bot daba siempre "no hay API key" — el registro anterior había inyectado `IEnumerable<IAiBackend>` sin binding interfaz). Endpoints `HttpClient("DeepSeek"/"Gemini")`, 60s.
+- **Encuestas — ID y numeración persistente:**
+  - `Data/Entities/GuildConfig.PollCount` (entero persistente por servidor) + migración `AgregarPollCount` (columna `PollCount` con `defaultValue:0`).
+  - `Services/Settings/GuildSettingsService.CrearAsync` clona `PollCount`.
+  - `Modules/PollModule.EncuestaAsync` (inyección de `GuildSettingsService`) crea el embed sin `WithFooter`, edita el primer mensaje, incrementa `_settings.UpdateAsync(..., c => c.PollCount++)` y ree-edita con `WithFooter(_msg.Get(..., "Encuestas:Footer", ("autor", ctx.User.Username), ("id", msg.Id.ToString()), ("numero", cfg.PollCount)))` + `ModifyAsync` de `DiscordMessageBuilder`.
+  - `messages.*.json:Encuestas:Footer` ahora es `Poll #{numero} by {autor} · ID {id}` (localizado), copia del número/id visible para reenvío con `/poll-result`.
+- **Configuración web:** `.env.example` documenta `DEEPSEEK_API_KEY|GEMINI_API_KEY` + `DEEPSEEK_MODEL|GEMINI_MODEL|AI_PROVIDER`; `docker-compose.yml` expone ambos; `web/manage.html:manage` conserva `X-Api-Key` opcional. El comando `/api-ia` de configuración se descarta (el usuario editará `.env` siguiendo el ejemplo; no se puede distinguir de forma fiable si el bot está self-hosted).
+
+### Validación
+- `dotnet build` sin errores (3 advertencias heredadas por `PollWidgetService`/`ChatModule`/`AiCommandConfirmation`).
+- Fly deploy nuevo con `GEMINI_API_KEY`+`DEEPSEEK_API_KEY` configuradas (`fly secrets list`): el endpoint `GET /api/guilds/{id}/stats` responde con `youTube` en minúsculas tras añadir `ConfigureHttpJsonOptions(JsonStringEnumConverter)` (fix del error 502 en `counting:base` entre `binario|octal|hexadecimal|decimal` y el `CountingBase`).
+- Palabra de búsqueda: el toggle por servidor `AiWebSearchEnabled` persiste y entra a `LlamarAsync(conBusqueda)` en ambos backends en `AUTO`.
+
+---
+
+## 28. Registro de cambios — 2026-08-27 (comandos de dados, listado y reenvío de encuestas)
+
+### Solicitud
+1. `/roll` (slash; alias es `/tirar`/`/rolar`) — lanza un dado con cara configurable (2-100, default 6).
+2. Listar las encuestas activas del servidor.
+3. Ver el resultado de una encuesta por su ID de mensaje de resultados con el flujo más simple ("copiar el ID que da Discord al mensaje de resultado final").
+
+### Cambios realizados
+- **`Data/Entities/GuildConfig`** y `Services/PollWidgetService`:
+  - Registra `PollCount` se marca como `PollWidgetService` mantiene `ConcurrentDictionary<ulong,PollSession> _polls` de sesiones activas y `ConcurrentDictionary<ulong,ulong> _pollsFinalizadas` de resultado→canal.
+  - `PollSession` pasa de `private` a `public` para el listado. `RegistrarEncuestaAsync` guarda la sesión con `ChannelId/MessageId/GuildId/AuthorId` y timer opcional.
+  - Nuevos `ObtenerActivas(guildId)` y `TryObtenerCanalFinalizada(messageId, out channelId)`.
+  - `FinalizarEncuestaAsync` hace `TryRemove(..., out session)` → `_pollsFinalizadas[messageId]=session.ChannelId` antes del conteo, de modo que `/poll-result` puede resolver `GetChannelAsync(channelId)/GetMessageAsync(messageId)` incluso tras eliminar la sesión.
+- **`Modules/DiceModule.cs` (nuevo):** `[SlashCommand("roll", "Roll a dice…")][NameLocalization(es: "tirar", pt: "rolar")] long faces=6` (guard `faces <2||>100 → ErrorRangoInvalido`), `Random.NextInt64(1,faces+1)` y embed con `Dados:Resultado/Pie` i18n.
+- **`Modules/PollModule.cs` (extendido):**
+  - Constructor inyecta `ILogger<PollModule>`.
+  - `/polls` (`NameLocalization: encuestas/enquetes`): `ObtenerActivas` → `ListaVacia` o `ListaTitulo` con fields (`Opciones` + `MultiOpcionLabel` + opciones truncadas a 3 con `(+N)`). **No tocar:** valida `opciones.Count <2/ >10` y el nombre canónico del comando sigue siendo `poll` (EN).
+  - `/poll-result` (`resultado-encuesta/resultado-enquete`): `message_id` (string) → `ulong.TryParse` → `IdInvalido`; `TryObtenerCanalFinalizada` → `ResultadoNoEncontrado`; `GetChannelAsync/GetMessageAsync` → `CreateResponseAsync(AddEmbeds(msg.Embeds))`. Fallo IO → `ErrorAlObtener` y `LogError`.
+- **i18n (`messages.*.json`):** nueva sección `Dados` (`Titulo/Resultado/Pie/RangoInvalido`) y nuevas `Encuestas:ListVacia/ListaTitulo/MultiOpcionLabel/IdInvalido/ResultadoNoEncontrado/ErrorAlObtener`.
+
+### Validación
+- `dotnet build` sin errores (solo warnings heredados).
+- Fly deploy (`count 1`, `snowflake-discord-bot-floral-river-8992`) sin migración de BD de encuestas (in-memory); `/roll` devuelve `Pong! Latencia: …`, `/polls` lista activas con `ID`/opciones, `/poll-result` repostea con `messageId`.
+
+---
+
+## 29. Registro de cambios — 2026-08-27 (pé de encuesta con ID copiable y contador persistente)
+
+### Solicitud
+Añadir al pie del embed de la encuesta el ID del mensaje (copiable) y el número secuencial de encuesta del servidor.
+
+### Cambios realizados
+- **`Modules/PollModule.EncuestaAsync`:** flujo en dos pasos. `PollCount` vía `GuildSettingsService` (`_settings`) a partir de `GuildConfig.PollCount`.
+
+### Validación
+- `dotnet build` limpio (`_settings`), editor del pie con el footer
+
+### Estado actual
+- Web: panel compartido backend+bot (no llamadas API entre C# y frontend del host).
+
+---
+
+## 30. Registro de cambios — 2026-08-28 (migración del bot a Node.js con discord.js)
+
+### Solicitud
+Reemplazar el bot C# por una implementación en Node.js utilizando `discord.js` 14, manteniendo la misma base de datos SQLite y la misma lógica de comandos.
+
+### Cambios realizados
+- **`bot/` (nuevo):** proyecto Node.js ESM (`type: "module"`) con `discord.js` 14, `better-sqlite3` y `dotenv`.
+  - `src/index.js` — cliente con intents: `Guilds`, `GuildMembers`, `GuildMessages`, `MessageContent`, `GuildVoiceStates`, `GuildMessageReactions`. Partiales: `Message`, `Channel`, `Reaction`. Graceful shutdown en `SIGINT`.
+  - `src/events/index.js` — handlers para `ClientReady`, `GuildCreate`, `GuildDelete`, `MessageCreate` (placeholder para handlers futuros) y `InteractionCreate` (dispatch a comandos).
+  - `src/commands/index.js` — escaneo dinámico de `commands/*.js`, registro de slash commands en el guild de pruebas vía `REST.put(Routes.applicationGuildCommands(...))`.
+  - `src/services/database.js` — conexión `better-sqlite3` a `data/snowflake.db` con WAL mode, compartida con el backend web y el legacy C#.
+- **Comandos migrados a Node:**
+  - `roll.js` — `/roll` (`/tirar`/`/rolar` en ES/PT) con opción `faces` (2-100, default 6). Embed con título y footer.
+  - `8ball.js` — `/8ball` con respuesta aleatoria en 3 categorías (positiva/neutra/negativa) y colores. Validación de longitud mínima de pregunta.
+  - `birthday.js` — `/cumple-añadir` con parseo de fecha `DD/MM/AAAA` o `MM/DD/AAAA` según idioma del guild, validación de rango, INSERT/UPDATE en tabla `Birthdays`.
+  - `birthday-remove.js` — `/cumple-eliminar` para borrar cumpleaños registrados.
+  - `ping.js` — `/ping` básico para health check del bot.
+- **i18n:** los mensajes en el bot Node usan texto inline (sin sistema i18n dedicado por ahora; se hereda la lógica de `GuildConfig.Language` para parseo de fechas).
+- **Deploy:** `npm run deploy:commands` registra los comandos en el guild de pruebas. `npm start` levanta el bot.
+
+### Validación
+- `npm install` en `bot/` sin errores.
+- `node src/deploy-commands.js` registra 5 comandos en el guild de pruebas.
+- `node src/index.js` conecta como `[bot] Conectado a Discord` y responde a `/roll`, `/8ball`, `/cumple-añadir`.
+
+---
+
+## 31. Registro de cambios — 2026-08-28 (panel web: backend Express + frontend Vite/React)
+
+### Solicitud
+Crear un panel web independiente que consuma la base de datos compartida sin llamadas HTTP al proceso C# legacy.
+
+### Cambios realizados
+- **`web-backend/` (nuevo):** API REST Express con `passport-discord` para autenticación OAuth2.
+  - `src/server.js` — CORS configurado con `FRONTEND_URL`, sesiones express, passport Discord Strategy (`identify`, `guilds`), rutas montadas en `/api`.
+  - `src/middleware/auth.js` — `apiKeyGuard` opcional para endpoints que requieren `X-Api-Key` (compatibilidad con panel legacy).
+  - `src/routes/auth.js` — login/logout/callback de Discord.
+  - `src/routes/guilds.js` — listado de guilds del usuario autenticado.
+  - `src/routes/guildConfig.js` — `GET /:guildId/config` devuelve snapshot completo (moderación, welcome, voice, music, AI, downloads, birthday, counting, youtube, blocked channels, pollCount). `POST /:guildId/config` hace patch general con valores por defecto.
+  - `src/routes/subConfigs.js` — rutas específicas para configuraciones hijas (counting, youtube, birthday).
+  - `src/db/index.js` — compartido con `bot/` (misma instancia `better-sqlite3`).
+- **`web-frontend/` (nuevo):** SPA React 18 + Vite 5 + React Router 6.
+  - `src/App.jsx` — rutas `/` (Dashboard) y `/manage/:guildId` (Manage).
+  - `src/pages/Dashboard.jsx` — listado de servidores.
+  - `src/pages/Manage.jsx` — panel de configuración por guild.
+  - `src/components/EmbedGenerator.jsx` — generador visual de embeds.
+  - `src/components/CardDesigner.jsx` — diseñador de tarjetas.
+- **Despliegue:** `web-backend` escucha en `PORT` (default 3000). `web-frontend` se sirve en dev con Vite (`npm run dev` → `localhost:5173`).
+
+### Validación
+- `npm install` en `web-backend/` y `web-frontend/` sin errores.
+- `node src/server.js` expone `/api/health` y `/api/guilds/:guildId/config`.
+- Frontend carga Dashboard y Manage con datos desde el backend.
+
+---
+
+## 32. Registro de cambios — 2026-08-28 (base de datos compartida y consistencia de esquema)
+
+### Solicitud
+Ambos procesos (bot Node y web backend) deben leer/escribir la misma BD SQLite sin conflictos de esquema.
+
+### Cambios realizados
+- **Ruta unificada:** `process.env.DATABASE_PATH` o `../data/snowflake.db` relativa al cwd de cada proceso.
+- **WAL mode:** `db.pragma('journal_mode = WAL')` en ambos lados para concurrencia lectura/escritura.
+- **Esquema compartido:** las tablas `GuildConfigs`, `CountingConfigs`, `YouTubeSubscriptions`, `BirthdayConfigs`, `Birthdays`, `ChannelLocks`, `PollSessions` (legacy) son accedidas desde Node con `better-sqlite3` usando los mismos nombres de columna que el C# legacy.
+- **Tipos:** Discord IDs se manejan como `TEXT`/`STRING` en JSON y como `Number` en SQLite cuando la columna es numérica (`ChannelId`, `GuildId` en tablas hijas). El backend Node convierte a `String()` en respuestas JSON.
+
+### Validación
+- Bot Node lee `GuildConfigs.Language` correctamente.
+- Web backend lee y escribe `AiChatEnabled` sin errores de tipo.
+- No hay corrupción de WAL al escribir desde ambos procesos concurrentemente.
+
+---
+
+## 33. Registro de cambios — 2026-08-28 (estado actual del stack y hoja de ruta)
+
+### Estado actual
+| Componente | Tecnología | Estado |
+|---|---|---|
+| Bot Discord | `discord.js` 14 (Node.js ESM) | Activo, comandos: roll, 8ball, cumple-añadir/eliminar, ping |
+| Web Backend | Express 4 + passport-discord | Activo, rutas auth/guilds/config |
+| Web Frontend | React 18 + Vite 5 + React Router | Activo, Dashboard + Manage + EmbedGenerator + CardDesigner |
+| Base de datos | `better-sqlite3` (WAL) | Compartida entre bot y web |
+| Producción Fly.io | .NET 10 (`aspnet:10.0`) + DMD 2.109.1 | Bot C# legacy operativo, panel web NO desplegado aún en Fly |
+| Dockerfile raíz | Multietapa .NET + DMD | Compila C# y `piechart` D en builder, copia binarios a runtime `aspnet:10.0` |
+
+### Pendiente / En progreso
+1. Despliegue del stack Node en Fly (reemplazar o alongside del C# legacy).
+2. Migrar el resto de comandos C# (music, moderation, counting, youtube, polls, AI) a Node.
+3. Unificar i18n en el bot Node (actualmente usa textos inline; debe adoptar el sistema `messages.*.json` o un wrapper equivalente).
+4. Actualizar `Dockerfile` para etapas Node + C# o migrar completamente a Node en producción.
+5. Panel web en producción (GitHub Pages para frontend + Fly para backend, o todo en Fly).
+
+### Nota sobre el Dockerfile actual
+El `Dockerfile` raíz sigue compilando y ejecutando el proyecto C# (`Snowflake.Bot.dll`) con `dotnet`. Los directorios `bot/`, `web-backend/` y `web-frontend/` existen pero **no están integrados** en la imagen de Fly ni en el entrypoint actual. Su presencia indica trabajo en progreso para la migración completa a Node.js.

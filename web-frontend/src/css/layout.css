@@ -1,0 +1,65 @@
+/* --- Navbar --- */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 5%;
+    background-color: var(--color-bg-surface);
+    box-shadow: 0 2px 10px var(--color-shadow);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+}
+.navbar-brand {
+    font-family: var(--font-headings);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+/* --- Contenedores Principales --- */
+.container {
+    text-align: center;
+    background: var(--color-bg-surface);
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px var(--color-shadow);
+    max-width: 600px;
+    margin: 40px auto;
+}
+.dashboard-container {
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+.view-section {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+.view-section.show {
+    display: block;
+}
+#login-prompt {
+    text-align: center;
+    background: var(--color-bg-surface);
+    padding: 50px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px var(--color-shadow);
+    max-width: 600px;
+    margin: 0 auto;
+}
+.text-muted {
+    color: var(--color-text-muted);
+    margin-bottom: 30px;
+    font-size: 1.05rem;
+}
+/* --- Cuadrícula de Servidores --- */
+.servers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}

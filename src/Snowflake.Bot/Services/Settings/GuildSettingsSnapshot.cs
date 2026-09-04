@@ -28,6 +28,7 @@ public sealed record GuildSettingsSnapshot
     public CountingSection? Counting { get; init; }
 
     /// <summary>Suscripción de YouTube; null si el servidor no tiene ninguna.</summary>
+    [System.Text.Json.Serialization.JsonPropertyName("youtube")]
     public YouTubeSection? YouTube { get; init; }
 
     // ------------------------- Secciones -------------------------

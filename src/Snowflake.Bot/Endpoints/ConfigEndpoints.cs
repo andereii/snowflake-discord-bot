@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Snowflake.Bot.Services;
 using Snowflake.Bot.Services.Settings;
 
 namespace Snowflake.Bot.Endpoints;
@@ -122,6 +123,44 @@ public static class ConfigEndpoints
                 ? Results.NoContent()
                 : Results.NotFound();
         });
+
+        // ---------- Cumpleaños ----------
+
+        group.MapGet("/birthday", async (
+            ulong guildId,
+            HttpContext http,
+            BirthdayService birthdays,
+            CancellationToken ct) =>
+        {
+            if (!ApiKeyGuard.Autorizado(http)) return Results.Unauthorized();
+            var cfg = await birthdays.ObtenerConfigAsync(guildId);
+            return Results.Ok(new
+            {
+                enabled = cfg.Enabled,
+                channelId = cfg.ChannelId?.ToString(),
+                hourUtc = cfg.HourUtc,
+                message = cfg.Message
+            });
+        });
+
+        group.MapPost("/birthday", async (
+            ulong guildId,
+            BirthdayPatch patch,
+            HttpContext http,
+            BirthdayService birthdays,
+            CancellationToken ct) =>
+        {
+            if (!ApiKeyGuard.Autorizado(http)) return Results.Unauthorized();
+            await birthdays.ActualizarConfigAsync(guildId, c =>
+            {
+                if (patch.Enabled is { } e) c.Enabled = e;
+                if (patch.ChannelId is not null)
+                    c.ChannelId = ulong.TryParse(patch.ChannelId, out var id) ? id : null;
+                if (patch.HourUtc is { } h) c.HourUtc = Math.Clamp(h, 0, 23);
+                if (patch.Message is not null) c.Message = patch.Message;
+            });
+            return Results.Ok();
+        });
     }
 
     /// <summary>Convierte un id recibido como string (los IDs de Discord no caben en JSON de JS).</summary>
@@ -172,5 +211,14 @@ public static class ConfigEndpoints
         public string? NotifyChannelId { get; init; }
         public string? NotifyRoleId { get; init; }
         public string? CustomMessage { get; init; }
+    }
+
+    /// <summary>Campos editables de la configuración de cumpleaños. Null = no tocar.</summary>
+    public sealed record BirthdayPatch
+    {
+        public bool? Enabled { get; init; }
+        public string? ChannelId { get; init; }
+        public int? HourUtc { get; init; }
+        public string? Message { get; init; }
     }
 }

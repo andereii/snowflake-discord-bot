@@ -389,6 +389,24 @@
       "IdInvalido": "O ID da mensagem não é válido.",
       "ResultadoNoEncontrado": "Não foi encontrada uma enquete finalizada com esse ID de mensagem. Certifique-se de que a enquete terminou e de que copiou o ID da mensagem de resultados.",
       "ErrorAlObtener": "Não foi possível recuperar a mensagem de resultados da enquete. Ela pode ter sido excluída ou eu posso não ter permissão para lê-la."
+    },
+    "Cumple": {
+      "Titulo": "🎂 Aniversário",
+      "Registrado": "Pronto! Vou lembrar que seu aniversário é em **{dia}/{mes}**.",
+      "RegistradoConAnio": "Pronto! Vou lembrar que seu aniversário é em **{dia}/{mes}/{anio}**.",
+      "Quitado": "Sua data de aniversário foi removida deste servidor.",
+      "NoRegistrado": "Você não tem um aniversário registrado neste servidor.",
+      "ErrorFormato": "Formato de data inválido. Use **DD/MM/AAAA** (ou **DD/MM** sem ano).",
+      "ErrorDia": "O dia deve estar entre 1 e 31.",
+      "ErrorMes": "O mês deve estar entre 1 e 12.",
+      "ErrorAnio": "O ano deve estar entre 1900 e o ano atual.",
+      "ErrorFechaInvalida": "Esse dia não existe nesse mês."
+    },
+    "Bola8": {
+      "Titulo": "🎱 Bola 8 Mágica",
+      "TuPregunta": "Sua pergunta",
+      "Pie": "Perguntado por {autor}",
+      "ErrorPregunta": "Por favor, faça uma pergunta real (mínimo 3 caracteres)."
     }
   }
 }

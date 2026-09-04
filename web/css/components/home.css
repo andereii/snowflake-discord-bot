@@ -1,0 +1,170 @@
+/* --- Widget de Inicio (dashboard del servidor) --- */
+.home-widget {
+    background: linear-gradient(135deg, var(--color-bg-surface) 0%, rgba(88, 101, 242, 0.06) 100%);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    padding: 32px;
+    display: flex;
+    gap: 28px;
+    align-items: stretch;
+    box-shadow: var(--color-shadow);
+    margin-bottom: 24px;
+}
+.home-main {
+    flex: 1;
+    min-width: 0;
+}
+.home-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(88, 101, 242, 0.1);
+    color: var(--color-discord);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+}
+.home-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+.home-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    object-fit: cover;
+    box-shadow: 0 2px 8px var(--color-shadow-strong);
+}
+.home-header h2 {
+    margin: 0;
+    font-size: 1.7rem;
+    color: var(--color-text-dark);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.home-desc {
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin-bottom: 20px;
+    max-width: 560px;
+}
+.home-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* --- Columna de estadísticas --- */
+.home-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 170px;
+}
+.home-stat {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: var(--color-shadow);
+}
+.home-stat-icon {
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(88, 101, 242, 0.1);
+    color: var(--color-discord);
+    border-radius: 9px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+}
+.home-stat-value {
+    font-family: var(--font-headings);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text-dark);
+    line-height: 1.1;
+}
+.home-stat-label {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+}
+
+/* --- Columnas de usuarios y roles --- */
+.home-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+.home-column {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    box-shadow: var(--color-shadow);
+}
+.home-column h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.05rem;
+    color: var(--color-text-dark);
+    margin-bottom: 14px;
+}
+.home-column h3 i {
+    color: var(--color-discord);
+}
+.home-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.home-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: var(--color-text-dark);
+}
+.home-list li:hover {
+    background: rgba(88, 101, 242, 0.05);
+}
+.home-list-empty {
+    color: var(--color-text-muted);
+}
+.home-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.home-role-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 1px solid var(--color-border);
+}
+.home-role-count {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+
+@media (max-width: 900px) {
+    .home-widget { flex-direction: column; }
+    .home-stats { flex-direction: row; }
+    .home-columns { grid-template-columns: 1fr; }
+}

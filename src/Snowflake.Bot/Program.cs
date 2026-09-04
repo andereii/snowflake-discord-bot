@@ -32,6 +32,13 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // Configuración global (appsettings.json + .env), recargable en caliente.
 builder.Services.AddSnowflakeOptions(builder.Configuration);
 
+// Serialización JSON de la API REST: los enums viajan como su nombre
+// ("Binario", "Hexadecimal", …) tanto en el snapshot como en los patches.
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
 // Textos localizados del bot (recarga en caliente). REGLA: todo mensaje nuevo
 // debe existir en los tres archivos (en/es/pt); el inglés es el idioma base.
 builder.Configuration.AddJsonFile("messages.en.json", optional: false, reloadOnChange: true);
@@ -220,7 +227,9 @@ public static partial class SnowflakeServiceExtensions
         services.AddSingleton<YouTubeNotifyService>();
         services.AddSingleton<ChannelLockService>();
         services.AddSingleton<CatService>();
+        services.AddSingleton<BirthdayService>();
         services.AddHostedService<YouTubeNotifyService>();
+        services.AddHostedService<BirthdayNotifierService>();
         return services;
     }
 

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embed Generator - Snowflake</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    
+    <!-- Módulos CSS -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/components.css">
+    <style>
+        body {
+            background: var(--color-bg-body);
+            padding: 40px 20px;
+        }
+        .demo-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <h1>Embed Generator - Demo</h1>
+        <p>Vista previa del componente Embed Generator. Aún no integrado en otras secciones.</p>
+        <div id="embed-generator-container"></div>
+    </div>
+
+    <script type="module">
+        import { EmbedGenerator } from './js/components/embed-generator.js';
+        // guildId de pruebas (Secta Leidera) y contexto de bienvenida.
+        const generator = new EmbedGenerator('#embed-generator-container', {
+            guildId: '1197376128155918436',
+            context: 'welcome'
+        });
+        window.generator = generator; // Exponer para debugging
+    </script>
+</body>
+</html>

@@ -389,6 +389,24 @@
       "IdInvalido": "The message ID is not valid.",
       "ResultadoNoEncontrado": "No finished poll was found with that message ID. Make sure the poll has ended and you copied the ID of the results message.",
       "ErrorAlObtener": "Could not retrieve the poll results message. It may have been deleted or I may not have permission to read it."
+    },
+    "Cumple": {
+      "Titulo": "🎂 Birthday",
+      "Registrado": "Got it! I'll remember your birthday is on **{dia}/{mes}**.",
+      "RegistradoConAnio": "Got it! I'll remember your birthday is on **{dia}/{mes}/{anio}**.",
+      "Quitado": "Your birthday has been removed from this server.",
+      "NoRegistrado": "You don't have a birthday registered in this server.",
+      "ErrorFormato": "Invalid date format. Use **MM/DD/YYYY** (or **MM/DD** without year).",
+      "ErrorDia": "The day must be between 1 and 31.",
+      "ErrorMes": "The month must be between 1 and 12.",
+      "ErrorAnio": "The year must be between 1900 and the current year.",
+      "ErrorFechaInvalida": "That day doesn't exist in that month."
+    },
+    "Bola8": {
+      "Titulo": "🎱 Magic 8-Ball",
+      "TuPregunta": "Your question",
+      "Pie": "Asked by {autor}",
+      "ErrorPregunta": "Please ask a real question (at least 3 characters)."
     }
   }
 }

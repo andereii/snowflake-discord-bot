@@ -1,0 +1,28 @@
+:root {
+    /* Paleta de Colores Generales */
+    --color-bg-body: #f4f6f8;
+    --color-bg-surface: #ffffff;
+    
+    /* Textos */
+    --color-text-main: #333333;
+    --color-text-dark: #1a1a1a;
+    --color-text-muted: #2c3e50;
+    
+    /* Colores de Marca y Acciones */
+    --color-discord: #5865F2;
+    --color-discord-hover: #4752C4;
+    --color-danger: #dc3545;
+    --color-danger-bg: #fff0f1;
+    
+    /* Píldora de Usuario y Bordes */
+    --color-pill-bg: #f0f2f5;
+    --color-pill-hover: #e4e6eb;
+    --color-border: #e1e4e8;
+    --color-shadow: rgba(0, 0, 0, 0.05);
+    --color-shadow-strong: rgba(0, 0, 0, 0.1);
+    
+    /* Tipografías */
+    --font-primary: 'Plus Jakarta Sans', sans-serif;
+    --font-headings: 'Outfit', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+}
