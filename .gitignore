@@ -53,3 +53,8 @@ TEMPORAL_COMANDOS_RELEASE.md
 test.js
 patch_*.py
 plans/
+
+# Binarios descargables en build (Lavalink)
+*.jar
+deploy/lavalink/plugins/
+

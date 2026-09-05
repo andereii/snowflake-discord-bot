@@ -14,5 +14,10 @@ if [ -f "$ROOT_DIR/.env" ]; then
   set +a
 fi
 
+if [ ! -f "$DIR/Lavalink.jar" ]; then
+  echo "Lavalink.jar no encontrado. Descargando v4.2.2..."
+  curl -sSL -o "$DIR/Lavalink.jar" "https://github.com/lavalink-devs/Lavalink/releases/download/4.2.2/Lavalink.jar"
+fi
+
 cd "$DIR"
 exec java -jar Lavalink.jar
