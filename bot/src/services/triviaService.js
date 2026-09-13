@@ -173,41 +173,26 @@ export async function fetchOpenTdbQuestion(categoryKey = 'anime', difficulty = n
         queue.push(...batch);
     }
 
-    const pregunta = decodeHtml(item.question);
+    const questionText = decodeHtml(item.question);
     const correctText = decodeHtml(item.correct_answer);
     const incorrects = (item.incorrect_answers || []).map(decodeHtml);
 
-    // Combine and shuffle options
     const allOptions = [correctText, ...incorrects];
     for (let i = allOptions.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [allOptions[i], allOptions[j]] = [allOptions[j], allOptions[i]];
     }
 
-    const correctIndex = allOptions.indexOf(correctText);
-
-    // Points and difficulty label
-    let puntos = 10;
-    let diffName = 'Fácil';
-    if (item.difficulty === 'medium') {
-        puntos = 20;
-        diffName = 'Media';
-    } else if (item.difficulty === 'hard') {
-        puntos = 30;
-        diffName = 'Difícil';
-    }
-
-    // Smart GIF query search
-    const gifQuery = extractSmartGifQuery(pregunta, categoryKey);
-    const gifUrl = await searchGif(gifQuery);
+    const points = item.difficulty === 'hard' ? 30 : item.difficulty === 'medium' ? 20 : 10;
+    const gifUrl = await searchGif(extractSmartGifQuery(questionText, categoryKey));
 
     return {
-        pregunta,
-        categoriaNombre: cat.name,
-        dificultadNombre: diffName,
-        puntos,
-        opciones: allOptions,
-        correctIndex,
+        text: questionText,
+        categoryName: cat.name,
+        difficulty: item.difficulty,
+        points,
+        options: allOptions,
+        correctIndex: allOptions.indexOf(correctText),
         correctText,
         gifUrl
     };
@@ -245,33 +230,33 @@ export async function handleTriviaButton(interaction) {
     await finishRound(interaction, session, optionIndex);
 }
 
-export async function startTriviaRound(interaction, categoria = null, dificultad = null) {
+export async function startTriviaRound(interaction, category = null, difficulty = null) {
     const guildId = interaction.guildId;
-    const catKey = categoria && CATEGORIES[categoria] ? categoria : 'anime';
+    const catKey = category && CATEGORIES[category] ? category : 'anime';
 
     await interaction.deferReply();
 
     let question;
     try {
-        question = await fetchOpenTdbQuestion(catKey, dificultad);
+        question = await fetchOpenTdbQuestion(catKey, difficulty);
     } catch (err) {
         console.error('[trivia] Failed to fetch OpenTDB question:', err.message);
         return interaction.editReply({
-            content: '❌ No se pudo conectar con la API de Open Trivia DB en este momento. Inténtalo de nuevo en unos segundos.'
+            content: MessagesService.get(guildId, 'Trivia:ErrorCarga')
         });
     }
 
     const sessionId = Math.random().toString(36).substring(2, 10);
 
     const embed = new EmbedBuilder()
-        .setTitle(`❓ ${MessagesService.get(guildId, 'Trivia:Titulo') || 'Pregunta de Trivia'}`)
-        .setDescription(`### ${question.pregunta}`)
+        .setTitle(`❓ ${MessagesService.get(guildId, 'Trivia:Titulo')}`)
+        .setDescription(`### ${question.text}`)
         .setColor(0x3498DB)
         .addFields(
-            { name: '📚 Categoría', value: question.categoriaNombre, inline: true },
-            { name: '⚡ Dificultad', value: `${question.dificultadNombre} (+${question.puntos} pts)`, inline: true }
+            { name: MessagesService.get(guildId, 'Trivia:Categoria'), value: question.categoryName, inline: true },
+            { name: MessagesService.get(guildId, 'Trivia:Dificultad'), value: `${question.difficulty} (+${question.points} pts)`, inline: true }
         )
-        .setFooter({ text: `Jugador: ${interaction.user.username} • 25s para responder` });
+        .setFooter({ text: `${interaction.user.username} • ${MessagesService.get(guildId, 'Trivia:TiempoLimite')}` });
 
     if (question.gifUrl) {
         embed.setImage(question.gifUrl);
@@ -282,7 +267,7 @@ export async function startTriviaRound(interaction, categoria = null, dificultad
     const row1 = new ActionRowBuilder();
     const row2 = new ActionRowBuilder();
 
-    question.opciones.forEach((opt, idx) => {
+    question.options.forEach((opt, idx) => {
         const btn = new ButtonBuilder()
             .setCustomId(`trivia_ans_${sessionId}_${idx}`)
             .setLabel(`${letters[idx]}) ${opt.slice(0, 75)}`)
@@ -329,21 +314,26 @@ async function finishRound(interaction, session, chosenIndex) {
     const stat = getOrCreateStats(guildId, userId);
     stat.TotalAnswers++;
 
-    let resultColor = 0xE74C3C; // Red
-    let resultTitle = `❌ ¡Incorrecto!`;
-    let resultDesc = `La respuesta correcta era: **${session.question.correctText}**\n\n`;
+    let resultColor = 0xE74C3C;
+    let resultTitle = MessagesService.get(guildId, 'Trivia:RespuestaIncorrecta');
+    let resultDesc = MessagesService.get(guildId, 'Trivia:FallasteDesc', {
+        elegida: session.question.options[chosenIndex] || '—',
+        correcta: session.question.correctText
+    });
 
     if (isCorrect) {
         stat.CorrectAnswers++;
-        stat.Score += session.question.puntos;
+        stat.Score += session.question.points;
         stat.CurrentStreak++;
         if (stat.CurrentStreak > stat.BestStreak) {
             stat.BestStreak = stat.CurrentStreak;
         }
-
-        resultColor = 0x2ECC71; // Green
-        resultTitle = `✅ ¡Respuesta Correcta! (+${session.question.puntos} pts)`;
-        resultDesc = `¡Bien hecho! Tu racha actual es de **${stat.CurrentStreak}** seguidas 🔥\n\n`;
+        resultColor = 0x2ECC71;
+        resultTitle = MessagesService.get(guildId, 'Trivia:RespuestaCorrecta');
+        resultDesc = MessagesService.get(guildId, 'Trivia:GanastePuntos', {
+            usuario: `<@${userId}>`,
+            puntos: session.question.points
+        });
     } else {
         stat.CurrentStreak = 0;
     }
@@ -352,12 +342,12 @@ async function finishRound(interaction, session, chosenIndex) {
 
     const embed = new EmbedBuilder()
         .setTitle(resultTitle)
-        .setDescription(resultDesc + `**Pregunta:** ${session.question.pregunta}`)
+        .setDescription(`${resultDesc}\n\n**${session.question.text}**`)
         .setColor(resultColor)
         .addFields(
-            { name: '⭐ Puntuación Total', value: `\`${stat.Score}\` pts`, inline: true },
-            { name: '🔥 Racha', value: `\`${stat.CurrentStreak}\` (Mejor: \`${stat.BestStreak}\`)`, inline: true },
-            { name: '🎯 Aciertos', value: `\`${stat.CorrectAnswers}/${stat.TotalAnswers}\``, inline: true }
+            { name: MessagesService.get(guildId, 'Trivia:PuntosTotales'), value: `\`${stat.Score}\` pts`, inline: true },
+            { name: MessagesService.get(guildId, 'Trivia:RachaActual'), value: `\`${stat.CurrentStreak}\` (${stat.BestStreak})`, inline: true },
+            { name: MessagesService.get(guildId, 'Trivia:Precision'), value: `\`${stat.CorrectAnswers}/${stat.TotalAnswers}\``, inline: true }
         )
         .setFooter({ text: `Snowflake Trivia • ${interaction.guild?.name || 'Discord'}` });
 
@@ -377,14 +367,14 @@ async function handleTimeout(session) {
     saveStats(stat);
 
     const embed = new EmbedBuilder()
-        .setTitle(`⏰ ¡Tiempo agotado!`)
-        .setDescription(`Se acabaron los 25 segundos.\nLa respuesta correcta era: **${session.question.correctText}**\n\n**Pregunta:** ${session.question.pregunta}`)
+        .setTitle(MessagesService.get(guildId, 'Trivia:TiempoAgotado'))
+        .setDescription(MessagesService.get(guildId, 'Trivia:TiempoAgotadoDesc', { correcta: session.question.correctText }))
         .setColor(0xE74C3C)
         .addFields(
-            { name: '⭐ Puntuación', value: `\`${stat.Score}\` pts`, inline: true },
-            { name: '🎯 Aciertos', value: `\`${stat.CorrectAnswers}/${stat.TotalAnswers}\``, inline: true }
+            { name: MessagesService.get(guildId, 'Trivia:PuntosTotales'), value: `\`${stat.Score}\` pts`, inline: true },
+            { name: MessagesService.get(guildId, 'Trivia:Precision'), value: `\`${stat.CorrectAnswers}/${stat.TotalAnswers}\``, inline: true }
         )
-        .setFooter({ text: `Snowflake Trivia` });
+        .setFooter({ text: 'Snowflake Trivia' });
 
     if (session.question.gifUrl) {
         embed.setImage(session.question.gifUrl);
@@ -402,7 +392,7 @@ function buildResultButtons(question, chosenIndex) {
     const row1 = new ActionRowBuilder();
     const row2 = new ActionRowBuilder();
 
-    question.opciones.forEach((opt, idx) => {
+    question.options.forEach((opt, idx) => {
         let style = ButtonStyle.Secondary;
         if (idx === question.correctIndex) {
             style = ButtonStyle.Success;

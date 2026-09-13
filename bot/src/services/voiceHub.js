@@ -32,9 +32,9 @@ export async function handleVoiceStateUpdate(oldState, newState) {
                 const oldChannel = oldState.channel;
                 if (oldChannel.members.size === 0) {
                     try {
-                        await oldChannel.delete('Canal temporal vacío');
+                        await oldChannel.delete('Empty temporary channel');
                     } catch (err) {
-                        console.warn('[voiceHub] No se pudo borrar el canal temporal:', err.message);
+                        console.warn('[voiceHub] Could not delete temporary channel:', err.message);
                     }
                     db.prepare('DELETE FROM TempChannels WHERE ChannelId = ?').run(oldChannelId);
                 }
@@ -88,7 +88,7 @@ async function createTempVoiceChannel(guild, member, hubChannel, nameTemplate) {
     try {
         await member.voice.setChannel(tempChannel);
     } catch (err) {
-        console.warn('[voiceHub] No se pudo mover al usuario al canal temporal:', err.message);
+        console.warn('[voiceHub] Could not move member to temporary channel:', err.message);
     }
 }
 

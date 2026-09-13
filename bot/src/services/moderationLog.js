@@ -26,9 +26,6 @@ const IncidentColors = {
     Silencio: 0x9B59B6     // Purple
 };
 
-/**
- * Register a moderation incident in the database
- */
 export function registerIncident(guildId, targetUser, moderatorUser, type, reason, duration = null) {
     const targetId = targetUser.id;
     const targetTag = targetUser.tag || targetUser.username;
@@ -57,9 +54,6 @@ export function registerIncident(guildId, targetUser, moderatorUser, type, reaso
     };
 }
 
-/**
- * Announce the incident in the server's configured mod log channel
- */
 export async function announceIncident(guild, incident) {
     try {
         const guildConfig = db.prepare('SELECT ModLogChannelId FROM GuildConfigs WHERE GuildId = ?').get(guild.id);
@@ -113,9 +107,6 @@ export async function announceIncident(guild, incident) {
     }
 }
 
-/**
- * Send DM to member about moderation action
- */
 export async function notifyMemberDm(member, actionKey, reason, extraPlaceholders = {}) {
     if (!member) return;
     try {

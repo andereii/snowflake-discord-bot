@@ -1,18 +1,57 @@
+import { ChannelType } from 'discord.js';
 import db from './database.js';
 import { registerIncident, announceIncident, IncidentType } from './moderationLog.js';
 
-// Ensure ExpiresAt column exists in HardmuteBackups
 try {
     db.prepare('ALTER TABLE HardmuteBackups ADD COLUMN ExpiresAt TEXT').run();
 } catch {
-    // Column already exists
+    // column already exists
+}
+
+const MUTE_CHANNEL_TYPES = new Set([
+    ChannelType.GuildText,
+    ChannelType.GuildVoice,
+    ChannelType.GuildForum,
+    ChannelType.GuildStageVoice,
+    ChannelType.PublicThread,
+    ChannelType.PrivateThread
+]);
+
+function saveBackup(guildId, userId, roleIds, expiresAtIso) {
+    const existing = db.prepare('SELECT Id FROM HardmuteBackups WHERE GuildId = ? AND UserId = ?').get(guildId, userId);
+    if (existing) {
+        db.prepare('UPDATE HardmuteBackups SET RoleIds = ?, ExpiresAt = ?, CreatedAt = ? WHERE GuildId = ? AND UserId = ?')
+            .run(roleIds, expiresAtIso, new Date().toISOString(), guildId, userId);
+        return;
+    }
+    db.prepare('INSERT INTO HardmuteBackups (GuildId, UserId, RoleIds, ExpiresAt, CreatedAt) VALUES (?, ?, ?, ?, ?)')
+        .run(guildId, userId, roleIds, expiresAtIso, new Date().toISOString());
+}
+
+export async function performHardmute(guild, member, { reason, moderator, expiresAtIso }) {
+    const botHighest = guild.members.me.roles.highest.position;
+    const removable = member.roles.cache.filter(r =>
+        r.id !== guild.roles.everyone.id && !r.managed && r.position < botHighest
+    );
+    saveBackup(guild.id, member.id, removable.size ? removable.map(r => r.id).join(',') : '', expiresAtIso);
+
+    for (const role of removable.values()) {
+        await member.roles.remove(role, `Hardmute by ${moderator.username}`).catch(() => {});
+    }
+
+    const channels = await guild.channels.fetch();
+    for (const channel of channels.values()) {
+        if (!channel || !MUTE_CHANNEL_TYPES.has(channel.type)) continue;
+        await channel.permissionOverwrites.edit(member, {
+            SendMessages: false,
+            Speak: false,
+            SendMessagesInThreads: false
+        }, { reason: `Hardmute by ${moderator.username}: ${reason}` }).catch(() => {});
+    }
 }
 
 const activeTimers = new Map();
 
-/**
- * Perform unhardmute: restore roles and delete channel overrides
- */
 export async function performUnhardmute(guild, userId, reason, moderator = null) {
     const guildId = guild.id;
     const key = `${guildId}_${userId}`;
@@ -27,43 +66,32 @@ export async function performUnhardmute(guild, userId, reason, moderator = null)
         return false;
     }
 
-    // 1. Restore roles
     const backup = db.prepare('SELECT RoleIds FROM HardmuteBackups WHERE GuildId = ? AND UserId = ?').get(guildId, userId);
-    if (backup && backup.RoleIds) {
+    if (backup?.RoleIds) {
         const roleIds = backup.RoleIds.split(',').map(s => s.trim()).filter(Boolean);
         for (const roleId of roleIds) {
-            const rol = guild.roles.cache.get(roleId);
-            if (rol && !rol.managed && rol.position < guild.members.me.roles.highest.position) {
-                try {
-                    await member.roles.add(rol, `Unhardmute: ${reason}`);
-                } catch {}
+            const role = guild.roles.cache.get(roleId);
+            if (role && !role.managed && role.position < guild.members.me.roles.highest.position) {
+                await member.roles.add(role, `Unhardmute: ${reason}`).catch(() => {});
             }
         }
         db.prepare('DELETE FROM HardmuteBackups WHERE GuildId = ? AND UserId = ?').run(guildId, userId);
     }
 
-    // 2. Remove channel permission overwrites
     const channels = await guild.channels.fetch();
-    for (const [id, channel] of channels) {
-        if (!channel || !channel.permissionOverwrites) continue;
-        try {
-            const overwrite = channel.permissionOverwrites.cache.get(member.id);
-            if (overwrite) {
-                await channel.permissionOverwrites.delete(member.id, `Unhardmute: ${reason}`);
-            }
-        } catch {}
+    for (const channel of channels.values()) {
+        if (!channel?.permissionOverwrites) continue;
+        if (channel.permissionOverwrites.cache.get(member.id)) {
+            await channel.permissionOverwrites.delete(member.id, `Unhardmute: ${reason}`).catch(() => {});
+        }
     }
 
     const modUser = moderator || guild.client.user;
-    const incidente = registerIncident(guildId, member.user, modUser, IncidentType.FinHardmute, reason);
-    await announceIncident(guild, incidente);
-
+    const incident = registerIncident(guildId, member.user, modUser, IncidentType.FinHardmute, reason);
+    await announceIncident(guild, incident);
     return true;
 }
 
-/**
- * Schedule automatic unhardmute after a duration
- */
 export function scheduleUnhardmute(client, guildId, userId, expiresAtIso) {
     const key = `${guildId}_${userId}`;
     if (activeTimers.has(key)) {
@@ -75,7 +103,7 @@ export function scheduleUnhardmute(client, guildId, userId, expiresAtIso) {
     if (delay <= 0) {
         const guild = client.guilds.cache.get(guildId);
         if (guild) {
-            performUnhardmute(guild, userId, 'Expiración automática de hardmute');
+            performUnhardmute(guild, userId, 'Automatic hardmute expiry');
         }
         return;
     }
@@ -84,16 +112,13 @@ export function scheduleUnhardmute(client, guildId, userId, expiresAtIso) {
         activeTimers.delete(key);
         const guild = client.guilds.cache.get(guildId);
         if (guild) {
-            await performUnhardmute(guild, userId, 'Expiración automática de hardmute');
+            await performUnhardmute(guild, userId, 'Automatic hardmute expiry');
         }
     }, delay);
 
     activeTimers.set(key, timer);
 }
 
-/**
- * Scan database on startup for active timed hardmutes
- */
 export function initHardmuteScheduler(client) {
     try {
         const rows = db.prepare('SELECT GuildId, UserId, ExpiresAt FROM HardmuteBackups WHERE ExpiresAt IS NOT NULL').all();
@@ -106,6 +131,7 @@ export function initHardmuteScheduler(client) {
 }
 
 export default {
+    performHardmute,
     performUnhardmute,
     scheduleUnhardmute,
     initHardmuteScheduler

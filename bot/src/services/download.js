@@ -32,6 +32,7 @@ export async function downloadMedia(url, audioOnly = false, timeoutMinutes = 4) 
         '--no-progress',
         '--no-warnings',
         '--no-part',
+        '--ffmpeg-location', process.env.FFMPEG_PATH || '/usr/bin/ffmpeg',
         '--restrict-filenames',
         '--print',
         'after_move:filepath',

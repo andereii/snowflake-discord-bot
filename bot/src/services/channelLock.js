@@ -29,9 +29,6 @@ export function isVoiceType(channel) {
     return channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice;
 }
 
-/**
- * Lock a channel: deny @everyone from speaking/sending messages and save previous permissions
- */
 export async function lockChannel(channel, reason = 'Lockdown') {
     if (!isLockableChannel(channel)) return false;
 
@@ -64,16 +61,13 @@ export async function lockChannel(channel, reason = 'Lockdown') {
     };
 
     await channel.permissionOverwrites.edit(everyoneRole, denies, {
-        reason: `Bloqueo del canal: ${reason}`
+        reason: `Channel lockdown: ${reason}`
     });
 
     return true;
 }
 
-/**
- * Unlock a channel: restore original permissions from database
- */
-export async function unlockChannel(channel, reason = 'Desbloqueo') {
+export async function unlockChannel(channel, reason = 'Unlock') {
     if (!isLockableChannel(channel)) return false;
 
     const channelId = channel.id;
@@ -83,7 +77,7 @@ export async function unlockChannel(channel, reason = 'Desbloqueo') {
     const everyoneRole = channel.guild.roles.everyone;
 
     if (row.HadOverwrite === 1) {
-        // Restaura el bitfield exacto previo
+        // restore the previous overwrite bitfield
         await channel.permissionOverwrites.set([
             ...channel.permissionOverwrites.cache.filter(o => o.id !== everyoneRole.id).values(),
             {
@@ -92,12 +86,12 @@ export async function unlockChannel(channel, reason = 'Desbloqueo') {
                 allow: BigInt(row.AllowBits || 0),
                 deny: BigInt(row.DenyBits || 0)
             }
-        ], `Desbloqueo del canal: ${reason}`);
+        ], `Channel unlock: ${reason}`);
     } else {
-        // No tenía overwrite previo: elimina el overwrite de @everyone si existe
+        // no previous overwrite: drop the lockdown overwrite on @everyone
         const overwrite = channel.permissionOverwrites.cache.get(everyoneRole.id);
         if (overwrite) {
-            await overwrite.delete(`Desbloqueo del canal: ${reason}`).catch(() => {});
+            await overwrite.delete(`Channel unlock: ${reason}`).catch(() => {});
         }
     }
 

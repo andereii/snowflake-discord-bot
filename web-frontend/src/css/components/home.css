@@ -9,6 +9,7 @@
     align-items: stretch;
     box-shadow: var(--color-shadow);
     margin-bottom: 24px;
+    container-type: inline-size;
 }
 .home-main {
     flex: 1;
@@ -163,8 +164,13 @@
     font-size: 0.8rem;
 }
 
+@container (max-width: 700px) {
+    .home-widget { flex-direction: column; }
+    .home-stats { flex-direction: row; flex-wrap: wrap; }
+}
+
 @media (max-width: 900px) {
     .home-widget { flex-direction: column; }
-    .home-stats { flex-direction: row; }
+    .home-stats { flex-direction: row; flex-wrap: wrap; }
     .home-columns { grid-template-columns: 1fr; }
 }

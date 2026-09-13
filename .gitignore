@@ -1,7 +1,3 @@
-# Compilación .NET
-bin/
-obj/
-
 # Node.js
 node_modules/
 **/node_modules/
@@ -41,20 +37,9 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Artefactos compilados de D (el piechart se genera en el build de Docker o con dmd)
+# Artefactos compilados de D (piechart de encuestas)
 src/Dlang/piechart
 src/Dlang/*.o
 
-# Documentación y convenciones locales (no se versionan)
+# Convenciones locales (no se versionan)
 AGENTS.md
-TEMPORAL_COMANDOS_RELEASE.md
-
-# Archivos de pruebas y parches locales
-test.js
-patch_*.py
-plans/
-
-# Binarios descargables en build (Lavalink)
-*.jar
-deploy/lavalink/plugins/
-

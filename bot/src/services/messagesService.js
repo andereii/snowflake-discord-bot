@@ -10,7 +10,6 @@ const localesDir = path.join(__dirname, '..', 'locales');
 const locales = ['en', 'es', 'pt'];
 const dictionaries = {};
 
-// Load dictionaries
 function loadDictionaries() {
     for (const lang of locales) {
         const filePath = path.join(localesDir, `messages.${lang}.json`);
@@ -52,9 +51,6 @@ export class MessagesService {
         MessagesService.globalFallbackListener = fn;
     }
 
-    /**
-     * Get active language code for a guild (en, es, pt)
-     */
     static locale(guildId) {
         if (!guildId) return 'en';
         try {
@@ -67,16 +63,6 @@ export class MessagesService {
         }
     }
 
-    /**
-     * Get a localized message for a guild or language code, with fallback to English
-     * @param {string|number|null} guildIdOrLocale
-     * @param {string} key e.g. "Moderacion:Exito:Silencio" or "Ping:Respuesta"
-     * @param {Object|Array} [placeholders] e.g. { usuario: "Alex", latencia: 42 }
-     * @param {Object} [options]
-     * @param {Function} [options.onFallback] Callback (fallbackInfo) => void
-     * @param {import('discord.js').Interaction} [options.interaction] Interaction to send ephemeral alert if fell back
-     * @returns {string}
-     */
     static get(guildIdOrLocale, key, placeholders = {}, options = {}) {
         let lang = 'en';
         if (typeof guildIdOrLocale === 'string' && (guildIdOrLocale === 'es' || guildIdOrLocale === 'pt' || guildIdOrLocale === 'en')) {
@@ -89,10 +75,8 @@ export class MessagesService {
         let fromLang = lang;
         let toLang = lang;
 
-        // Try selected language
         let text = getValueByPath(dictionaries[lang], key);
 
-        // Fallback to English
         if (!text && lang !== 'en') {
             text = getValueByPath(dictionaries['en'], key);
             if (text) {
@@ -101,7 +85,6 @@ export class MessagesService {
             }
         }
 
-        // Fallback to Spanish if English is missing
         if (!text && lang !== 'es') {
             text = getValueByPath(dictionaries['es'], key);
             if (text) {
@@ -138,7 +121,6 @@ export class MessagesService {
             return `⚠️ Message not found: \`${key}\``;
         }
 
-        // Replace placeholders {key} -> value
         if (Array.isArray(placeholders)) {
             for (const [k, v] of placeholders) {
                 text = text.replaceAll(`{${k}}`, v !== undefined && v !== null ? String(v) : '');
@@ -152,16 +134,10 @@ export class MessagesService {
         return text;
     }
 
-    /**
-     * Get English string directly
-     */
     static en(key, placeholders = {}) {
         return MessagesService.get('en', key, placeholders);
     }
 
-    /**
-     * Reload messages from disk (hot reload)
-     */
     static reload() {
         loadDictionaries();
     }

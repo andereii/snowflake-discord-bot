@@ -140,7 +140,23 @@
       "TimestampInvalido": "Formato de tempo inválido. Use `3:14`, `1:02:30`, ou segundos como `90`.",
       "ErrorSaltar": "Não é possível pular para essa posição (transmissão ao vivo ou fora do alcance).",
       "ArchivoInvalido": "Formato de arquivo inválido. Suportados: MP3, WAV, FLAC, OGG, M4A, WEBM, OPUS.",
-      "NoConsulta": "Forneça uma busca ou anexe um arquivo de áudio."
+      "NoConsulta": "Forneça uma busca ou anexe um arquivo de áudio.",
+      "NightcoreOn": "⚡ Perfil nightcore ativado.",
+      "NightcoreOff": "Perfil nightcore desativado.",
+      "DaycoreOn": "🌙 Perfil daycore ativado.",
+      "DaycoreOff": "Perfil daycore desativado.",
+      "BassBoost": "🔉 Realce de graves em **{nivel}%**.",
+      "LoopOff": "➡️ Loop desativado.",
+      "LoopPista": "🔁 Repetindo a faixa atual.",
+      "LoopCola": "🔁 Repetindo a fila inteira.",
+      "LoopLimiteVeces": "Desliga depois de **{n}** reinício(s).",
+      "LoopLimiteTiempo": "Desliga em **{duracion}**.",
+      "LoopDuracionInvalida": "Limite de loop inválido. Reinícios: 1–99. Duração: `5m`, `1h`, `90`, `3:00` (máx. 24h).",
+      "LoopABPuntoA": "🔁 Loop A-B: ponto A em **{posicion}**.",
+      "LoopABPuntoB": "🔁 Loop A-B: ponto B em **{posicion}**. Repetindo esse trecho.",
+      "LoopABOff": "➡️ Loop A-B desativado.",
+      "LoopABFaltaA": "Defina o ponto A primeiro com `/loop-ab action:Set A`.",
+      "Replay": "⏮️ Música reiniciada do começo."
     },
     "Colores": {
       "Instalar": "🎨 Paleta **{paleta}** instalada ({total} cores). Use `/cores escolher` para escolher.",
@@ -154,7 +170,10 @@
       "Error": "<:error:1534417252185800720> Não consegui aplicar a cor. Verifique se meu cargo está acima dos cargos de cor (Configurações → Cargos).",
       "NoInstalado": "⚠️ Nenhuma paleta instalada ainda. Um administrador deve usar `/cores instalar`.",
       "ListarTitulo": "🎨 Cores disponíveis",
-      "ListarVacios": "Nenhuma cor instalada. Um administrador pode usar `/cores instalar`."
+      "ListarVacios": "Nenhuma cor instalada. Um administrador pode usar `/cores instalar`.",
+      "Placeholder": "Escolha sua cor…",
+      "QuitarOpcion": "Remover cor",
+      "QuitarHint": "Remove a cor atual"
     },
     "Voces": {
       "NombreTemporal": "🎧 {usuario}",
@@ -317,6 +336,8 @@
     },
     "Roles": {
       "Asignado": "<:check:1534413756057260152> Cargo **{rol}** atribuído a **{usuario}**.",
+      "AsignadoTemporal": "<:check:1534413756057260152> Cargo **{rol}** atribuído a **{usuario}** por **{duracion}**.",
+      "DuracionInvalida": "Duração inválida. Exemplos: `1m`, `12h`, `4d` (máx. 365 dias).",
       "Removido": "<:check:1534413756057260152> Cargo **{rol}** removido de **{usuario}**.",
       "YaTiene": "ℹ️ **{usuario}** já possui o cargo **{rol}**.",
       "NoTiene": "ℹ️ **{usuario}** não possui o cargo **{rol}**.",

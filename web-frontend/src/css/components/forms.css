@@ -27,9 +27,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
     gap: 20px;
     margin-bottom: 20px;
     box-shadow: var(--color-shadow);
+    container-type: inline-size;
 }
 .setting-info h3 {
     font-size: 1.15rem;
@@ -43,11 +45,39 @@
 }
 
 /* --- Inputs --- */
+.setting-info {
+    flex: 1 1 240px;
+    min-inline-size: 0;
+}
+
 .setting-control {
-    min-width: 250px;
+    flex: 0 1 280px;
+    min-inline-size: min(100%, 180px);
     display: flex;
     justify-content: flex-end;
     align-items: center;
+}
+
+@container (max-width: 560px) {
+    .setting-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .setting-control {
+        inline-size: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 640px) {
+    .setting-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .setting-control {
+        inline-size: 100%;
+        justify-content: flex-start;
+    }
 }
 .form-input {
     width: 100%;

@@ -1,122 +1,102 @@
 import { Events } from 'discord.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { handleGuildMemberAdd } from './welcomeHandler.js';
+import { handleGuildMemberAdd } from './welcome.js';
 import { isConfirmationInteraction, handleButtonInteraction } from '../services/aiConfirmation.js';
-import { isImageWidgetInteraction, handleButtonInteraction as handleImageButtonInteraction } from '../services/imageSearchWidget.js';
+import { isImageWidgetInteraction, handleButtonInteraction as handleImageButton } from '../services/imageSearchWidget.js';
+import { isMusicWidgetInteraction, handleMusicButton } from '../services/musicWidget.js';
+import { COLOR_SELECT_ID, handleColorSelect } from '../services/colorService.js';
 import { isTriviaInteraction, handleTriviaButton } from '../services/triviaService.js';
 import { initHardmuteScheduler } from '../services/hardmuteManager.js';
+import { initTimedRoleScheduler } from '../services/timedRoles.js';
 import { handleVoiceStateUpdate } from '../services/voiceHub.js';
 import { startYouTubeNotifier } from '../services/youtubeService.js';
+import { getPoll, handlePollReactionAdd, handlePollReactionRemove } from '../services/poll.js';
+import MessagesService from '../services/messagesService.js';
+import afkHandler from './messages/afk.js';
+import aiHandler from './messages/ai.js';
+import countingHandler from './messages/counting.js';
+import prefixHandler from './messages/prefix.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const messageHandlers = [prefixHandler, countingHandler, afkHandler, aiHandler];
 
-export async function registerEvents(client) {
-  // Load message handlers
-  const messageHandlers = [];
-  const handlersPath = path.join(__dirname, 'messageHandlers');
-  if (fs.existsSync(handlersPath)) {
-    const files = fs.readdirSync(handlersPath).filter(f => f.endsWith('.js'));
-    for (const file of files) {
-      const handler = await import(path.join(handlersPath, file));
-      if (handler.default) messageHandlers.push(handler.default);
-    }
-  }
+const buttonHandlers = [
+    [isConfirmationInteraction, handleButtonInteraction],
+    [isImageWidgetInteraction, handleImageButton],
+    [isTriviaInteraction, handleTriviaButton],
+    [isMusicWidgetInteraction, handleMusicButton]
+];
 
-  client.on(Events.ClientReady, () => {
-    console.log(`[bot] Sesión iniciada como ${client.user.tag}`);
-    initHardmuteScheduler(client);
-    startYouTubeNotifier(client);
-  });
+export function registerEvents(client) {
+    client.on(Events.ClientReady, () => {
+        console.log(`[bot] Logged in as ${client.user.tag}`);
+        initHardmuteScheduler(client);
+        initTimedRoleScheduler(client);
+        startYouTubeNotifier(client);
+    });
 
-  client.on(Events.GuildCreate, (guild) => {
-    console.log(`[bot] Servidor añadido: ${guild.name} (${guild.id})`);
-  });
+    client.on(Events.GuildCreate, (guild) => {
+        console.log(`[bot] Joined guild: ${guild.name} (${guild.id})`);
+    });
+    client.on(Events.GuildDelete, (guild) => {
+        console.log(`[bot] Left guild: ${guild.name} (${guild.id})`);
+    });
+    client.on(Events.GuildMemberAdd, (member) => handleGuildMemberAdd(member));
+    client.on(Events.VoiceStateUpdate, (oldState, newState) => handleVoiceStateUpdate(oldState, newState));
 
-  client.on(Events.GuildDelete, (guild) => {
-    console.log(`[bot] Servidor eliminado: ${guild.name} (${guild.id})`);
-  });
+    client.on(Events.MessageReactionAdd, async (reaction, user) => {
+        if (user.bot) return;
+        if (reaction.partial) await reaction.fetch();
+        const poll = getPoll(reaction.message.id);
+        handlePollReactionAdd(poll, user.id, reaction.emoji.name, () => reaction.users.remove(user.id));
+    });
 
-  client.on(Events.GuildMemberAdd, async (member) => {
-    await handleGuildMemberAdd(member, client);
-  });
+    client.on(Events.MessageReactionRemove, async (reaction, user) => {
+        if (user.bot) return;
+        handlePollReactionRemove(getPoll(reaction.message.id), user.id, reaction.emoji.name);
+    });
 
-  client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
-    await handleVoiceStateUpdate(oldState, newState);
-  });
+    client.on(Events.MessageCreate, async (message) => {
+        if (message.author.bot) return;
+        for (const handler of messageHandlers) {
+            try {
+                await handler(message, client);
+            } catch (err) {
+                console.error('[bot] message handler:', err);
+            }
+        }
+    });
 
-  client.on(Events.MessageReactionAdd, async (reaction, user) => {
-    if (user.bot) return;
-    if (reaction.partial) await reaction.fetch();
-    const { activePolls } = await import("../commands/poll.js");
-    const poll = activePolls.get(reaction.message.id);
-    if (poll && !poll.multiOpcion) {
-      const voters = poll.voters;
-      if (voters.has(user.id)) {
-        await reaction.users.remove(user.id).catch(() => {});
-      } else {
-        voters.set(user.id, reaction.emoji.name);
-      }
-    }
-  });
+    client.on(Events.InteractionCreate, async (interaction) => {
+        if (interaction.isButton()) {
+            for (const [match, handle] of buttonHandlers) {
+                if (match(interaction.customId)) {
+                    await handle(interaction);
+                    return;
+                }
+            }
+        }
 
-  client.on(Events.MessageReactionRemove, async (reaction, user) => {
-    if (user.bot) return;
-    const { activePolls } = await import("../commands/poll.js");
-    const poll = activePolls.get(reaction.message.id);
-    if (poll && !poll.multiOpcion) {
-      const voters = poll.voters;
-      if (voters.get(user.id) === reaction.emoji.name) {
-        voters.delete(user.id);
-      }
-    }
-  });
+        if (interaction.isStringSelectMenu() && interaction.customId === COLOR_SELECT_ID) {
+            await handleColorSelect(interaction);
+            return;
+        }
 
-  client.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot) return;
-    for (const handler of messageHandlers) {
-      try {
-        await handler(message, client);
-      } catch (err) {
-        console.error('[bot] Error en messageHandler:', err);
-      }
-    }
-  });
+        if (!interaction.isChatInputCommand()) return;
+        const command = interaction.client.commands.get(interaction.commandName);
+        if (!command) return;
 
-  client.on(Events.InteractionCreate, async (interaction) => {
-    // 1. Button interactions (AI destructive command confirmations, polls, etc.)
-    if (interaction.isButton()) {
-      if (isConfirmationInteraction(interaction.customId)) {
-        await handleButtonInteraction(interaction);
-        return;
-      }
-      if (isImageWidgetInteraction(interaction.customId)) {
-        await handleImageButtonInteraction(interaction);
-        return;
-      }
-      if (isTriviaInteraction(interaction.customId)) {
-        await handleTriviaButton(interaction);
-        return;
-      }
-    }
-
-    // 2. Slash command interactions
-    if (interaction.isChatInputCommand()) {
-      const command = interaction.client.commands.get(interaction.commandName);
-      if (!command) return;
-      try {
-        await command.execute(interaction);
-      } catch (error) {
-        const reply = { content: 'Hubo un error al ejecutar este comando.', ephemeral: true };
         try {
-          if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(reply).catch(() => {});
-          } else {
-            await interaction.reply(reply).catch(() => {});
-          }
-        } catch {}
-      }
-    }
-  });
+            await command.execute(interaction);
+        } catch (error) {
+            console.error(`[bot] /${interaction.commandName}:`, error);
+            const reply = {
+                content: MessagesService.get(interaction.guildId, 'Errores:Interno'),
+                ephemeral: true
+            };
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp(reply).catch(() => {});
+            } else {
+                await interaction.reply(reply).catch(() => {});
+            }
+        }
+    });
 }

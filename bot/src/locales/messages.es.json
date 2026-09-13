@@ -140,7 +140,23 @@
       "TimestampInvalido": "Formato de tiempo inválido. Usa `3:14`, `1:02:30`, o segundos como `90`.",
       "ErrorSaltar": "No se puede saltar a esa posición (transmisión en vivo o fuera de rango).",
       "ArchivoInvalido": "Formato de archivo inválido. Soportados: MP3, WAV, FLAC, OGG, M4A, WEBM, OPUS.",
-      "NoConsulta": "Proporciona una búsqueda o adjunta un archivo de audio."
+      "NoConsulta": "Proporciona una búsqueda o adjunta un archivo de audio.",
+      "NightcoreOn": "⚡ Perfil nightcore activado.",
+      "NightcoreOff": "Perfil nightcore desactivado.",
+      "DaycoreOn": "🌙 Perfil daycore activado.",
+      "DaycoreOff": "Perfil daycore desactivado.",
+      "BassBoost": "🔉 Realce de graves en **{nivel}%**.",
+      "LoopOff": "➡️ Bucle desactivado.",
+      "LoopPista": "🔁 Repitiendo la pista actual.",
+      "LoopCola": "🔁 Repitiendo toda la cola.",
+      "LoopLimiteVeces": "Se desactiva después de **{n}** reinicio(s).",
+      "LoopLimiteTiempo": "Se desactiva en **{duracion}**.",
+      "LoopDuracionInvalida": "Límite de bucle inválido. Reinicios: 1–99. Duración: `5m`, `1h`, `90`, `3:00` (máx. 24h).",
+      "LoopABPuntoA": "🔁 Bucle A-B: punto A en **{posicion}**.",
+      "LoopABPuntoB": "🔁 Bucle A-B: punto B en **{posicion}**. Repitiendo ese tramo.",
+      "LoopABOff": "➡️ Bucle A-B desactivado.",
+      "LoopABFaltaA": "Primero marca el punto A con `/loop-ab action:Set A`.",
+      "Replay": "⏮️ Canción reiniciada desde el inicio."
     },
     "Colores": {
       "Instalar": "🎨 Paleta **{paleta}** instalada ({total} colores). Usa `/colores elegir` para cambiarte.",
@@ -154,7 +170,10 @@
       "Error": "<:error:1534417252185800720> No pude aplicar el color. Verifica que mi rol esté por encima de los roles de color (Ajustes → Roles).",
       "NoInstalado": "⚠️ Aún no hay paleta instalada. Un administrador debe usar `/colores instalar`.",
       "ListarTitulo": "🎨 Colores disponibles",
-      "ListarVacios": "No hay colores instalados. Un administrador puede hacer `/colores instalar`."
+      "ListarVacios": "No hay colores instalados. Un administrador puede hacer `/colores instalar`.",
+      "Placeholder": "Elige tu color…",
+      "QuitarOpcion": "Quitar color",
+      "QuitarHint": "Te quita el color actual"
     },
     "Voces": {
       "NombreTemporal": "🎧 {usuario}",
@@ -317,6 +336,8 @@
     },
     "Roles": {
       "Asignado": "<:check:1534413756057260152> Rol **{rol}** asignado a **{usuario}**.",
+      "AsignadoTemporal": "<:check:1534413756057260152> Rol **{rol}** asignado a **{usuario}** durante **{duracion}**.",
+      "DuracionInvalida": "Duración inválida. Ejemplos: `1m`, `12h`, `4d` (máx. 365 días).",
       "Removido": "<:check:1534413756057260152> Rol **{rol}** quitado de **{usuario}**.",
       "YaTiene": "ℹ️ **{usuario}** ya tiene el rol **{rol}**.",
       "NoTiene": "ℹ️ **{usuario}** no tiene el rol **{rol}**.",

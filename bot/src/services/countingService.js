@@ -195,10 +195,10 @@ export async function processCountingMessage(message) {
             // CASE 2: Incorrect count / Mistake
             // ==========================================
             const hasRestrictedUser = Number(cfg.CurrentValue || 0) > 0 && !!cfg.LastUserId;
-            const ultimoUsuarioMention = hasRestrictedUser ? `<@${cfg.LastUserId}>` : '';
+            const lastUserMention = hasRestrictedUser ? `<@${cfg.LastUserId}>` : '';
             const nextFormatted = formatNumber(expectedValue, base);
 
-            // Subcase 2A: Colisión (repetición del número anterior inmediato)
+            // duplicate of the previous number
             const isDuplicatePrevious = parsedValue === BigInt(cfg.CurrentValue || 0);
             if (isDuplicatePrevious && !duplicateWarned.get(guildId)) {
                 duplicateWarned.set(guildId, true);
@@ -207,7 +207,7 @@ export async function processCountingMessage(message) {
                     usuario: message.author.toString(),
                     actual: formatNumber(cfg.CurrentValue || 0, base),
                     siguiente: nextFormatted,
-                    ultimoUsuario: ultimoUsuarioMention
+                    ultimoUsuario: lastUserMention
                 });
                 await message.react('⚠️').catch(() => {});
                 const colisionEmbed = new EmbedBuilder()
@@ -218,7 +218,7 @@ export async function processCountingMessage(message) {
                 return;
             }
 
-            // Subcase 2B: Confusión por respuesta implícita matemática previa (dentro del rango ±5)
+            // off-by-a-few after an implicit math evaluation
             const wasImplicit = lastCountWasImplicit.get(guildId) === true;
             const diff = Math.abs(Number(parsedValue) - Number(expectedValue));
             if (wasImplicit && diff <= 5 && !implicitWarned.get(guildId)) {
@@ -227,7 +227,7 @@ export async function processCountingMessage(message) {
                 const implicitMsg = MessagesService.get(guildId, implicitKey, {
                     usuario: message.author.toString(),
                     siguiente: nextFormatted,
-                    ultimoUsuario: ultimoUsuarioMention
+                    ultimoUsuario: lastUserMention
                 });
                 await message.react('⚠️').catch(() => {});
                 const implicitEmbed = new EmbedBuilder()
@@ -257,7 +257,7 @@ export async function processCountingMessage(message) {
                     usuario: message.author.toString(),
                     restantes: remainingChances,
                     siguiente: nextFormatted,
-                    ultimoUsuario: ultimoUsuarioMention
+                    ultimoUsuario: lastUserMention
                 });
 
                 const saveEmbed = new EmbedBuilder()

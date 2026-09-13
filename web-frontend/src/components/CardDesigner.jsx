@@ -1,4 +1,3 @@
-// CardDesigner - Versión React
 import { useState, useEffect, useRef } from 'react';
 
 const FONTS = [

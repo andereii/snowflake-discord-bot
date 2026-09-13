@@ -1,16 +1,9 @@
 import axios from 'axios';
 import { SYSTEM_PROMPT } from './systemPrompt.js';
 import { getToolsForDeepSeek, getToolsForGemini, getToolByName } from './aiTools.js';
+import MessagesService from './messagesService.js';
 
-// Per-guild conversation history
-// Historial stores items normalized:
-// { type: 'message', role: 'user'|'assistant', content: string }
-// { type: 'function_call', call_id: string, name: string, arguments: string }
-// { type: 'function_call_output', call_id: string, name: string, output: string }
-// { type: 'web_search_call' }
 const history = new Map();
-
-// Track bot-generated AI message IDs -> guildId so we detect replies
 const generatedMessages = new Map();
 
 export function registerGeneratedMessage(messageId, guildId) {
@@ -94,6 +87,17 @@ export async function resumeAiTool(ctx, { callId, toolName, output }, opts = {})
     });
 }
 
+/** One-off completion that does not touch the shared /talk history. */
+export async function askAiIsolated(ctx, text, opts = {}) {
+    const history = [{ type: 'message', role: 'user', content: text }];
+    return executeAiLoop(ctx, history, {
+        systemPrompt: opts.systemPrompt || SYSTEM_PROMPT,
+        webSearchEnabled: false,
+        commandsEnabled: false,
+        onSearching: null
+    });
+}
+
 async function executeAiLoop(ctx, guildHistory, opts) {
     const maxIterations = 5;
     const executedCommands = [];
@@ -105,9 +109,11 @@ async function executeAiLoop(ctx, guildHistory, opts) {
         ? (process.env.GEMINI_API_KEY ? 'gemini' : null)
         : (process.env.DEEPSEEK_API_KEY ? 'deepseek' : null);
 
+    const guildId = ctx.guild.id;
+
     if (!primaryProvider) {
         return {
-            text: "No hay ninguna clave de API (DeepSeek o Gemini) configurada en el bot.",
+            text: MessagesService.get(guildId, 'Chat:SinApiKey'),
             commands: [],
             pending: null,
             usedWebSearch: false
@@ -156,7 +162,7 @@ async function executeAiLoop(ctx, guildHistory, opts) {
                     const secMsg = secError.response?.data?.error?.message || secError.message || 'Error desconocido';
                     console.error(`[ai] Error en proveedor secundario (${activeProvider}):`, secMsg);
                     return {
-                        text: "Hubo un error al contactar a los proveedores de IA.",
+                        text: MessagesService.get(guildId, 'Chat:Error'),
                         commands: executedCommands,
                         pending: null,
                         usedWebSearch,
@@ -169,7 +175,7 @@ async function executeAiLoop(ctx, guildHistory, opts) {
                 }
             } else {
                 return {
-                    text: "Hubo un error al contactar a la IA.",
+                    text: MessagesService.get(guildId, 'Chat:Error'),
                     commands: executedCommands,
                     pending: null,
                     usedWebSearch,
@@ -291,7 +297,7 @@ async function callDeepSeek(guildHistory, opts) {
     }).filter(Boolean);
 
     const payload = {
-        model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+        model: process.env.DEEPSEEK_MODEL || 'deepseek-flash',
         instructions: opts.systemPrompt,
         input,
         temperature: 0.7,

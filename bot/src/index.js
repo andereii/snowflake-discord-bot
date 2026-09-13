@@ -1,61 +1,60 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, Partials, Collection } from 'discord.js';
-import { registerEvents } from './events/index.js';
-import db from './services/database.js';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Client, GatewayIntentBits, Partials, Collection } from 'discord.js';
+import { registerEvents } from './events/index.js';
+import { loadCommands } from './lib/commandLoader.js';
+import { startInternalApi } from './lib/internalApi.js';
+import { runtimeName } from './lib/runtime.js';
+import db from './services/database.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Global crash prevention for asynchronous Discord API errors
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[bot] Unhandled Rejection at:', promise, 'reason:', reason);
+process.on('unhandledRejection', (reason) => {
+    console.error('[bot] unhandledRejection:', reason);
 });
-
 process.on('uncaughtException', (err) => {
-  console.error('[bot] Uncaught Exception:', err);
+    console.error('[bot] uncaughtException:', err);
 });
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-    GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildMessageReactions
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMessageReactions
+    ],
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
-// Registrar comandos en el bot
 client.commands = new Collection();
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js') && file !== 'index.js');
-
-for (const file of commandFiles) {
-  const command = await import(path.join(commandsPath, file));
-  if (command.data && command.execute) {
+const commands = await loadCommands(path.join(__dirname, 'commands'));
+for (const command of commands) {
     client.commands.set(command.data.name, command);
-  }
 }
 
-// Registrar eventos.
 registerEvents(client);
 
-// Login.
-client.login(process.env.DISCORD_TOKEN).then(() => {
-  console.log('[bot] Conectado a Discord');
-}).catch(err => {
-  console.error('[bot] Error al conectar:', err);
-  process.exit(1);
+const internalPort = Number(process.env.BOT_API_PORT) || 8080;
+const internalApi = startInternalApi(client, {
+    port: internalPort,
+    secret: process.env.BOT_INTERNAL_SECRET || ''
 });
 
-// Graceful shutdown.
+client.login(process.env.DISCORD_TOKEN).then(() => {
+    console.log(`[bot] runtime: ${runtimeName()}`);
+    console.log(`[bot] Connected (${commands.length} commands loaded)`);
+}).catch(err => {
+    console.error('[bot] Login failed:', err);
+    process.exit(1);
+});
+
 process.on('SIGINT', () => {
-  console.log('[bot] Cerrando...');
-  db.close();
-  client.destroy();
-  process.exit(0);
+    console.log('[bot] Shutting down');
+    internalApi.close();
+    db.close();
+    client.destroy();
+    process.exit(0);
 });

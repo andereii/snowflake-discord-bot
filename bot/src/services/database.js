@@ -1,4 +1,3 @@
-// Conexión a la base de datos SQLite compartida.
 import Database from 'better-sqlite3';
 import path from 'path';
 import 'dotenv/config';

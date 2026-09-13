@@ -1,42 +1,34 @@
-# ❄️ Snowflake
+# Snowflake
 
-Bot de Discord multifunción escrito en **C#/.NET 10**. Incluye moderación, bienvenidas, utilidades, canales temporales y música con Lavalink.
+Bot de Discord multifunción en **Node.js**. Incluye moderación, bienvenidas, música, IA, conteo, YouTube y un panel web.
 
-## ✨ Funciones
+## Stack
 
-- 🎵 Música desde YouTube y enlaces de canciones de Spotify.
-- 🔊 Volumen persistente por servidor mediante SQLite.
-- 🛡️ Moderación documentada con historial y canal de logs.
-- 👋 Mensajes de bienvenida configurables.
-- 🎨 Roles de colores.
-- 🎧 Canales de voz temporales (*join-to-create*).
-- 📥 Descargas de vídeo/audio con `yt-dlp`.
-- 💬 Chatbot con Gemini, conversación compartida por servidor y respuestas automáticas a mensajes respondidos.
+- Bot: `discord.js` 14 (`bot/`)
+- Panel: Express + Passport Discord (`web-backend/`) y React + Vite (`web-frontend/`)
+- SQLite (`data/snowflake.db`)
+- IA: DeepSeek V4.1 Flash (`deepseek-flash`) con fallback a Gemini
+- Descargas: `yt-dlp` + ffmpeg
 
-## 🧰 Stack
+## Puesta en marcha
 
-- .NET 10 · DSharpPlus 5
-- Lavalink 4 + Lavalink4NET
-- SQLite + Entity Framework Core
-- `youtube-source`, LavaSrc y `yt-dlp`
-
-## 🚀 Puesta en marcha
-
-Requisitos: .NET 10, Java 17+, Lavalink, `ffmpeg` y `yt-dlp`.
+Requisitos: Node.js 20+, `ffmpeg` y `yt-dlp`.
 
 1. Copia `.env.example` a `.env` y añade `DISCORD_TOKEN`.
-2. Añade `GEMINI_API_KEY` si quieres usar `/charlar` (clave gratuita desde [Google AI Studio](https://aistudio.google.com/app/apikey)).
-3. En Discord Developer Portal → Bot, activa **Message Content Intent** para que la IA pueda detectar respuestas a sus mensajes.
-4. Si quieres playlists/álbumes de Spotify, añade también `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET`.
-5. Arranca Lavalink y el bot:
+2. Añade `DEEPSEEK_API_KEY` (o `GEMINI_API_KEY`) para el chatbot.
+3. En Discord Developer Portal → Bot, activa **Message Content Intent**.
+4. En `web-backend/.env` configura `DISCORD_CLIENT_SECRET` para el login del panel.
+5. Instala dependencias e inicia todo:
 
 ```bash
-./deploy/lavalink/run.sh
-dotnet run --project src/Snowflake.Bot
+./install-deps.sh
+./start.sh
 ```
 
-Los comandos slash se registran en el servidor de pruebas configurado en `appsettings.json`. Los textos editables están en `src/Snowflake.Bot/messages.json`.
+- Bot: gateway de Discord
+- Panel: http://localhost:5173/
+- API: http://localhost:3000/
 
-> 🔐 No subas `.env`, tokens, bases SQLite ni archivos generados. El `.gitignore` del proyecto ya los excluye.
+Los textos del bot están en `bot/src/locales/messages.{en,es,pt}.json`. El idioma por servidor se cambia con `/lang` o desde el panel.
 
-Consulta [`CONTEXTO.md`](CONTEXTO.md) para conocer la arquitectura, los comandos y el registro detallado del desarrollo.
+> No subas `.env`, tokens ni bases SQLite. El `.gitignore` ya los excluye.

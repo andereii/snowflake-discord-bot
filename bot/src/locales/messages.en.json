@@ -140,7 +140,23 @@
       "TimestampInvalido": "Invalid timestamp. Use `3:14`, `1:02:30`, or seconds like `90`.",
       "ErrorSaltar": "Can't jump to that position (live stream or out of range).",
       "ArchivoInvalido": "Invalid file format. Supported: MP3, WAV, FLAC, OGG, M4A, WEBM, OPUS.",
-      "NoConsulta": "Provide a search query or attach an audio file."
+      "NoConsulta": "Provide a search query or attach an audio file.",
+      "NightcoreOn": "⚡ Nightcore profile on.",
+      "NightcoreOff": "Nightcore profile off.",
+      "DaycoreOn": "🌙 Daycore profile on.",
+      "DaycoreOff": "Daycore profile off.",
+      "BassBoost": "🔉 Bass boost set to **{nivel}%**.",
+      "LoopOff": "➡️ Loop disabled.",
+      "LoopPista": "🔁 Looping the current track.",
+      "LoopCola": "🔁 Looping the whole queue.",
+      "LoopLimiteVeces": "Turns off after **{n}** restart(s).",
+      "LoopLimiteTiempo": "Turns off in **{duracion}**.",
+      "LoopDuracionInvalida": "Invalid loop limit. Repeats must be 1–99. Duration examples: `5m`, `1h`, `90`, `3:00` (max 24h).",
+      "LoopABPuntoA": "🔁 A-B loop: point A set at **{posicion}**.",
+      "LoopABPuntoB": "🔁 A-B loop: point B set at **{posicion}**. Looping that section.",
+      "LoopABOff": "➡️ A-B loop disabled.",
+      "LoopABFaltaA": "Set point A first with `/loop-ab action:Set A`.",
+      "Replay": "⏮️ Restarted the current song."
     },
     "Colores": {
       "Instalar": "🎨 **{paleta}** palette installed ({total} colors). Use `/colors choose` to pick yours.",
@@ -154,7 +170,10 @@
       "Error": "<:error:1534417252185800720> I couldn't apply the color. Make sure my role is above the color roles (Settings → Roles).",
       "NoInstalado": "⚠️ No palette installed yet. An administrator must run `/colors install`.",
       "ListarTitulo": "🎨 Available colors",
-      "ListarVacios": "No colors installed. An administrator can run `/colors install`."
+      "ListarVacios": "No colors installed. An administrator can run `/colors install`.",
+      "Placeholder": "Pick your color…",
+      "QuitarOpcion": "Remove color",
+      "QuitarHint": "Removes your current color"
     },
     "Voces": {
       "NombreTemporal": "🎧 {usuario}",
@@ -317,6 +336,8 @@
     },
     "Roles": {
       "Asignado": "<:check:1534413756057260152> Role **{rol}** added to **{usuario}**.",
+      "AsignadoTemporal": "<:check:1534413756057260152> Role **{rol}** added to **{usuario}** for **{duracion}**.",
+      "DuracionInvalida": "Invalid duration. Examples: `1m`, `12h`, `4d` (max 365 days).",
       "Removido": "<:check:1534413756057260152> Role **{rol}** removed from **{usuario}**.",
       "YaTiene": "ℹ️ **{usuario}** already has the role **{rol}**.",
       "NoTiene": "ℹ️ **{usuario}** doesn't have the role **{rol}**.",

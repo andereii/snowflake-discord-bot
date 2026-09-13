@@ -1,9 +1,7 @@
-/**
- * Banco local de preguntas de trivia para el bot en Español, Inglés y Portugués.
- */
+// Local trivia fallback bank (es / en / pt).
 
 const Preguntas = [
-    // ================= Cultura General =================
+    // General knowledge
     {
         categoriaId: "general", dificultad: "easy", puntos: 10,
         es: { pregunta: "¿Cuál es el río más largo y caudaloso del mundo?", correcta: "Río Amazonas", incorrectas: ["Río Nilo", "Río Misisipi", "Río Yangtsé"] },
@@ -75,7 +73,7 @@ const Preguntas = [
         pt: { pregunta: "Em que ano começou a Primeira Guerra Mundial?", correcta: "1914", incorrectas: ["1912", "1918", "1939"] }
     },
 
-    // ================= Geografía =================
+    // Geography
     {
         categoriaId: "geografia", dificultad: "easy", puntos: 10,
         es: { pregunta: "¿Cuál es la capital de Japón?", correcta: "Tokio", incorrectas: ["Kioto", "Osaka", "Hiroshima"] },
@@ -135,7 +133,7 @@ const Preguntas = [
         pt: { pregunta: "Em Hunter x Hunter, quantos tipos principais de Nen existem?", correcta: "6", incorrectas: ["4", "5", "7"] }
     },
 
-    // ================= Cine y Películas =================
+    // Film
     {
         categoriaId: "cine", dificultad: "easy", puntos: 10,
         es: { pregunta: "¿Quién dirigió la famosa película 'Titanic' (1997)?", correcta: "James Cameron", incorrectas: ["Steven Spielberg", "Christopher Nolan", "Martin Scorsese"] },
@@ -149,7 +147,7 @@ const Preguntas = [
         pt: { pregunta: "Qual ator interpretou o Coringa no filme 'O Cavaleiro das Trevas' (2008)?", correcta: "Heath Ledger", incorrectas: ["Joaquin Phoenix", "Jack Nicholson", "Jared Leto"] }
     },
 
-    // ================= Música =================
+    // Music
     {
         categoriaId: "musica", dificultad: "easy", puntos: 10,
         es: { pregunta: "¿Cuántas cuerdas suele tener una guitarra clásica estándar?", correcta: "6", incorrectas: ["4", "5", "7"] },
@@ -163,7 +161,7 @@ const Preguntas = [
         pt: { pregunta: "A qual lendária banda britânica de rock Freddie Mercury pertenceu?", correcta: "Queen", incorrectas: ["The Beatles", "Led Zeppelin", "Pink Floyd"] }
     },
 
-    // ================= Mitología =================
+    // Mythology
     {
         categoriaId: "mitologia", dificultad: "easy", puntos: 10,
         es: { pregunta: "¿Quién era el dios del trueno en la mitología nórdica?", correcta: "Thor", incorrectas: ["Odín", "Loki", "Freyr"] },
