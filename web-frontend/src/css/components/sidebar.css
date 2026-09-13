@@ -1,0 +1,99 @@
+.manage-shell {
+    min-block-size: 100dvb;
+    background: var(--color-bg-body);
+}
+
+.sidebar {
+    inline-size: 250px;
+    background-color: var(--color-bg-surface);
+    border-inline-end: 1px solid var(--color-border);
+    block-size: calc(100dvb - 80px);
+    position: fixed;
+    inset-block-start: 80px;
+    inset-inline-start: 0;
+    overflow-y: auto;
+    padding-block: 20px;
+    z-index: 900;
+    overscroll-behavior: contain;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-menu-item {
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s, border-inline-end 0.2s;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: var(--font-primary);
+    font-size: 1rem;
+    text-align: start;
+    border-inline-end: 3px solid transparent;
+}
+
+.sidebar-menu-item:hover,
+.sidebar-menu-item.active {
+    background-color: rgba(88, 101, 242, 0.05);
+    color: var(--color-discord);
+    border-inline-end: 3px solid var(--color-discord);
+}
+
+.sidebar-menu-item i {
+    inline-size: 20px;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.manage-container {
+    margin-inline-start: 250px;
+    padding: 40px;
+    max-inline-size: 1040px;
+}
+
+@media (max-width: 800px) {
+    .sidebar {
+        position: sticky;
+        inset-block-start: 80px;
+        inline-size: 100%;
+        block-size: auto;
+        border-inline-end: none;
+        border-block-end: 1px solid var(--color-border);
+        padding-block: 8px;
+    }
+
+    .sidebar-menu {
+        flex-direction: row;
+        overflow-x: auto;
+        scrollbar-gutter: stable;
+    }
+
+    .sidebar-menu-item {
+        flex: 0 0 auto;
+        border-inline-end: none;
+        border-block-end: 3px solid transparent;
+        white-space: nowrap;
+    }
+
+    .sidebar-menu-item:hover,
+    .sidebar-menu-item.active {
+        border-inline-end: none;
+        border-block-end: 3px solid var(--color-discord);
+    }
+
+    .manage-container {
+        margin-inline-start: 0;
+        padding: 20px;
+    }
+}

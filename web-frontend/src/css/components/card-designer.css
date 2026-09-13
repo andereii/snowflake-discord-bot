@@ -1,0 +1,296 @@
+/* Card Designer Component */
+.card-designer {
+    background: var(--color-bg-surface);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.card-designer-preview {
+    background: var(--color-bg-body);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.card-designer-preview-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
+}
+
+.card-designer-preview-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+}
+
+.card-designer-preview-content {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 20px;
+}
+
+.card-designer-preview-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    object-fit: cover;
+    border: 3px solid white;
+}
+
+.card-designer-preview-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: white;
+}
+
+.card-designer-preview-subtitle {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.card-designer-section {
+    margin-bottom: 24px;
+}
+
+.card-designer-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.card-designer-section-description {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin-bottom: 12px;
+}
+
+.card-designer-select {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--color-bg-body);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-main);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.card-designer-color-palette {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.card-designer-color-swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.card-designer-color-swatch:hover {
+    transform: scale(1.1);
+}
+
+.card-designer-color-swatch.active {
+    border-color: var(--color-discord);
+}
+
+.card-designer-color-picker-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+}
+
+.card-designer-slider {
+    width: 100%;
+    margin: 12px 0;
+}
+
+.card-designer-slider-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin-bottom: 8px;
+}
+
+.card-designer-upload {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--color-bg-body);
+    border: 2px dashed var(--color-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.card-designer-upload:hover {
+    border-color: var(--color-discord);
+}
+
+.card-designer-upload-icon {
+    font-size: 20px;
+    color: var(--color-text-muted);
+}
+
+.card-designer-upload-text {
+    font-size: 14px;
+    color: var(--color-text-main);
+}
+
+.card-designer-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.card-designer-input {
+    flex: 1;
+    padding: 10px 14px;
+    background: var(--color-bg-body);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-main);
+    font-size: 14px;
+}
+
+.card-designer-variables-btn {
+    padding: 10px 14px;
+    background: var(--color-bg-body);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-main);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.card-designer-variables-btn:hover {
+    background: var(--color-discord);
+    color: white;
+}
+
+.card-designer-checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.card-designer-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.card-designer-checkbox-label {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+/* Color Picker Popup */
+.card-designer-color-picker {
+    position: absolute;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    min-width: 250px;
+}
+
+.card-designer-color-wheel {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    cursor: crosshair;
+    position: relative;
+}
+
+.card-designer-color-hex {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.card-designer-color-hex-input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--color-bg-body);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text-main);
+    font-size: 13px;
+    font-family: monospace;
+}
+
+/* Variables Popup */
+.card-designer-variables-popup {
+    position: absolute;
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    min-width: 200px;
+}
+
+.card-designer-variables-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.card-designer-variables-list li {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: monospace;
+    color: var(--color-text-main);
+    transition: background 0.2s;
+}
+
+.card-designer-variables-list li:hover {
+    background: var(--color-bg-body);
+}
