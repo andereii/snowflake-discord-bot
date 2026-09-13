@@ -25,10 +25,6 @@ Requisitos: Node.js 20+, `ffmpeg` y `yt-dlp`.
 ./start.sh
 ```
 
-- Bot: gateway de Discord
-- Panel: http://localhost:5173/
-- API: http://localhost:3000/
-
 Los textos del bot están en `bot/src/locales/messages.{en,es,pt}.json`. El idioma por servidor se cambia con `/lang` o desde el panel.
 
-> No subas `.env`, tokens ni bases SQLite. El `.gitignore` ya los excluye.
+Consulta [`CONTEXTO.md`](CONTEXTO.md) para arquitectura, comandos y el registro detallado del desarrollo.
